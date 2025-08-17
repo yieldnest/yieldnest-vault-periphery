@@ -4,26 +4,29 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {BufferAdmin} from "../../src/admin/BufferAdmin.sol";
 
+// Use the AssetParams struct from IVault interface, as per file_context_1
+struct AssetParams {
+    uint256 index;
+    bool active;
+    uint8 decimals;
+}
+
 interface IVaultMock {
-    function getAsset(address) external view returns (Asset memory);
+    function getAsset(address) external view returns (AssetParams memory);
     function asset() external view returns (address);
     function setBuffer(address) external;
 }
 
-struct Asset {
-    uint8 decimals;
-}
-
 contract VaultMock is IVaultMock {
-    mapping(address => Asset) public assets;
+    mapping(address => AssetParams) public assets;
     address public override asset;
     address public currentBuffer;
 
     function setAsset(address _addr, uint8 _decimals) external {
-        assets[_addr] = Asset(_decimals);
+        assets[_addr] = AssetParams({index: 0, active: true, decimals: _decimals});
     }
 
-    function getAsset(address _addr) external view override returns (Asset memory) {
+    function getAsset(address _addr) external view override returns (AssetParams memory) {
         return assets[_addr];
     }
 
@@ -80,17 +83,17 @@ contract BufferAdminUnitTest is Test {
 
         // Valid buffer
         bufferAdmin.setCurrentBuffer(address(erc4626_1));
-        assertEq(vault.currentBuffer(), address(erc4626_1));
+        assertEq(vault.currentBuffer(), address(erc4626_1), "currentBuffer should be set to erc4626_1");
 
         // Revert if not vault asset
         vault.setAsset(address(erc4626_1), 0);
-        vm.expectRevert(BufferAdmin.NotVaultAsset.selector);
+        vm.expectRevert(abi.encodeWithSelector(BufferAdmin.NotVaultAsset.selector, address(erc4626_1)));
         bufferAdmin.setCurrentBuffer(address(erc4626_1));
 
         // Revert if ERC4626 asset mismatch
         ERC4626Mock wrongERC4626 = new ERC4626Mock(asset2);
         vault.setAsset(address(wrongERC4626), 18);
-        vm.expectRevert(BufferAdmin.ERC4626AssetMismatch.selector);
+        vm.expectRevert(abi.encodeWithSelector(BufferAdmin.ERC4626AssetMismatch.selector, address(wrongERC4626)));
         bufferAdmin.setCurrentBuffer(address(wrongERC4626));
 
         vm.stopPrank();

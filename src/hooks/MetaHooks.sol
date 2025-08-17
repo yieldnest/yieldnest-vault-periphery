@@ -4,27 +4,34 @@ pragma solidity ^0.8.24;
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {HooksLib} from "lib/yieldnest-vault/src/library/HooksLib.sol";
+import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
+import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 
-contract MetaHooks is IHooks {
+contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error ZeroVaultAddress();
-    error DuplicateInInput();
-    error DuplicateWithExistingHook();
+    error DuplicateInInput(IHooks hook);
+    error CallerNotHook(address caller);
 
     IVault public immutable override VAULT;
     IHooks[] public hooks;
     Config private _config;
 
-    constructor(address vault_) {
+    /// @notice Role identifier for hook managers.
+    bytes32 public constant HOOK_MANAGER_ROLE = keccak256("HOOK_MANAGER_ROLE");
+
+    constructor(address vault_, address defaultAdmin, address hookManager) {
         if (vault_ == address(0)) revert ZeroVaultAddress();
         VAULT = IVault(vault_);
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(HOOK_MANAGER_ROLE, hookManager);
     }
 
-    function setHooks(IHooks[] memory hooks_) external {
+    function setHooks(IHooks[] memory hooks_) external onlyRole(HOOK_MANAGER_ROLE) {
         Config memory newConfig;
         // Check for duplicates in hooks_
         for (uint256 i = 0; i < hooks_.length; i++) {
             for (uint256 j = i + 1; j < hooks_.length; j++) {
-                if (hooks_[i] == hooks_[j]) revert DuplicateInInput();
+                if (hooks_[i] == hooks_[j]) revert DuplicateInInput(hooks_[i]);
             }
         }
 
@@ -52,6 +59,20 @@ contract MetaHooks is IHooks {
         if (msg.sender != address(VAULT)) revert CallerNotVault();
         _;
     }
+
+    modifier onlyHook() {
+        bool isHook = false;
+        for (uint256 i = 0; i < hooks.length; i++) {
+            if (msg.sender == address(hooks[i])) {
+                isHook = true;
+                break;
+            }
+        }
+        if (!isHook) revert CallerNotHook(msg.sender);
+        _;
+    }
+
+    // HOOKS FUNCTIONS
 
     function setConfig(Config memory config_) public override {
         _config = config_;
@@ -192,6 +213,28 @@ contract MetaHooks is IHooks {
                 totalBaseBalanceBeforeAccounting
             );
         }
+    }
+
+    // VAULT FUNCTIONS
+
+    function mintShares(address to, uint256 shares) external override onlyHook {
+        VAULT.mintShares(to, shares);
+    }
+
+    function convertToShares(uint256 assets) external view override returns (uint256) {
+        return VAULT.convertToShares(assets);
+    }
+
+    function asset() external view override returns (address) {
+        return VAULT.asset();
+    }
+
+    function _feeOnRaw(uint256 assets, address caller) external view override returns (uint256) {
+        return VAULT._feeOnRaw(assets, caller);
+    }
+
+    function _feeOnTotal(uint256 shares, address caller) external view override returns (uint256) {
+        return VAULT._feeOnTotal(shares, caller);
     }
 
     // TODO: remove when interface is simplified

@@ -6,10 +6,10 @@ import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessC
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 
-/// @title BufferAdmin
+/// @title VaultAdmin
 /// @notice Contract for managing buffer addresses for a Vault, with role-based access control.
 /// @dev Only addresses with BUFFER_ADMIN_ROLE can set the current buffer.
-contract BufferAdmin is AccessControl {
+contract VaultAdmin is AccessControl {
     /// @notice Thrown when the buffer is not a valid asset in the vault.
     error NotVaultAsset(address buffer);
     /// @notice Thrown when the buffer does not match the ERC4626 asset.

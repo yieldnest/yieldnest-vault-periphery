@@ -19,7 +19,7 @@ contract BufferAdmin is AccessControl {
     /// @notice Thrown when a provider rate is not defined for an asset.
     error ProviderRateNotDefined(address asset);
     /// @notice Thrown when the total base assets mismatch after changing provider.
-    error TotalBaseAssetsMismatch();
+    error TotalBaseAssetsMismatch(uint256 beforeBaseAssets, uint256 afterBaseAssets);
 
     IVault public vault;
 
@@ -95,7 +95,29 @@ contract BufferAdmin is AccessControl {
         uint256 afterBaseAssets = vault.computeTotalAssets();
 
         if (beforeBaseAssets != afterBaseAssets) {
-            revert TotalBaseAssetsMismatch();
+            revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
+        }
+    }
+
+    function addAssets(address[] memory _assets, bool[] memory _active) public onlyRole(MODULE_MANAGER_ROLE) {
+        // Get totalBaseAssets before changing provider
+        uint256 beforeBaseAssets = vault.totalBaseAssets();
+
+        for (uint256 i = 0; i < _assets.length; ++i) {
+            // Check that the provider returns a rate > 0 for the asset before adding
+            try IProvider(vault.provider()).getRate(_assets[i]) returns (uint256 rate) {
+                if (rate == 0) revert ProviderRateNotDefined(_assets[i]);
+            } catch {
+                revert ProviderRateNotDefined(_assets[i]);
+            }
+            vault.addAsset(_assets[i], _active[i]);
+        }
+
+        // Get totalBaseAssets after changing provider, using computeTotalAssets (forces recompute)
+        uint256 afterBaseAssets = vault.computeTotalAssets();
+
+        if (beforeBaseAssets != afterBaseAssets) {
+            revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
     }
 }

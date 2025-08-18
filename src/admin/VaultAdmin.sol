@@ -125,10 +125,10 @@ contract VaultAdmin is AccessControl {
         // Get totalBaseAssets before deleting asset
         uint256 beforeBaseAssets = vault.totalBaseAssets();
 
+        vault.deleteAsset(_index);
+
         // Get totalBaseAssets after deleting asset, using computeTotalAssets (forces recompute)
         uint256 afterBaseAssets = vault.computeTotalAssets();
-
-        vault.deleteAsset(_index);
 
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);

@@ -120,4 +120,18 @@ contract VaultAdmin is AccessControl {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
     }
+
+    function deleteAsset(uint256 _index) public onlyRole(MODULE_MANAGER_ROLE) {
+        // Get totalBaseAssets before deleting asset
+        uint256 beforeBaseAssets = vault.totalBaseAssets();
+
+        // Get totalBaseAssets after deleting asset, using computeTotalAssets (forces recompute)
+        uint256 afterBaseAssets = vault.computeTotalAssets();
+
+        vault.deleteAsset(_index);
+
+        if (beforeBaseAssets != afterBaseAssets) {
+            revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
+        }
+    }
 }

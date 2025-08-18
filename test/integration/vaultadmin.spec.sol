@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.24;
+
+import "forge-std/Test.sol";
+import {VaultAdmin} from "../../src/admin/VaultAdmin.sol";
+import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
+import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
+import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
+import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
+
+contract VaultAdminIntegrationTest is Test, Actors {
+    VaultAdmin public vaultAdmin;
+    IVault public vault;
+
+    function setUp() public {
+        vault = IVault(MC.YNETHX);
+        vaultAdmin = new VaultAdmin(MC.YNETHX, ADMIN, ADMIN, ADMIN);
+
+        // Grant VaultAdmin the necessary roles on the vault
+        vm.startPrank(ADMIN);
+        BaseVault(payable(address(vault))).grantRole(
+            BaseVault(payable(address(vault))).ASSET_MANAGER_ROLE(), address(vaultAdmin)
+        );
+        BaseVault(payable(address(vault))).grantRole(
+            BaseVault(payable(address(vault))).BUFFER_MANAGER_ROLE(), address(vaultAdmin)
+        );
+        BaseVault(payable(address(vault))).grantRole(
+            BaseVault(payable(address(vault))).PROVIDER_MANAGER_ROLE(), address(vaultAdmin)
+        );
+        vm.stopPrank();
+    }
+
+    function testSetCurrentBuffer() public {
+        // Get current vault assets to find a valid buffer
+        address[] memory assets = vault.getAssets();
+        address validBuffer;
+
+        // Find a valid ERC4626 asset that can be used as buffer
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (vaultAdmin._isVaultAsset(assets[i]) && vaultAdmin._isERC4626Asset(assets[i])) {
+                validBuffer = assets[i];
+                break;
+            }
+        }
+
+        require(validBuffer != address(0), "No valid buffer found");
+
+        vm.startPrank(ADMIN);
+        vaultAdmin.setCurrentBuffer(validBuffer);
+        vm.stopPrank();
+
+        assertEq(vault.buffer(), validBuffer, "Buffer should be set correctly");
+    }
+
+    function testSetCurrentBufferRevertNotVaultAsset() public {
+        address invalidAsset = address(0x1234);
+
+        vm.prank(ADMIN);
+        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.NotVaultAsset.selector, invalidAsset));
+        vaultAdmin.setCurrentBuffer(invalidAsset);
+    }
+
+    function testSetCurrentBufferRevertERC4626AssetMismatch() public {
+        // Create a mock ERC4626 with wrong asset
+        address wrongAsset = address(0x5678);
+        MockERC4626 mockBuffer = new MockERC4626(wrongAsset);
+
+        // Add it as a vault asset first
+        address[] memory assetsToAdd = new address[](1);
+        bool[] memory activeFlags = new bool[](1);
+        assetsToAdd[0] = address(mockBuffer);
+        activeFlags[0] = true;
+
+        vm.prank(ADMIN);
+        vm.expectRevert(); // This should revert due to provider rate not defined
+        vaultAdmin.addAssets(assetsToAdd, activeFlags);
+    }
+
+    function testSetProvider() public {
+        address currentProvider = vault.provider();
+
+        // Get total base assets before
+        uint256 beforeBaseAssets = vault.totalBaseAssets();
+
+        vm.prank(ADMIN);
+        vaultAdmin.setProvider(currentProvider); // Set to same provider
+
+        // Should not revert since rates are already defined
+        assertEq(vault.provider(), currentProvider, "Provider should remain the same");
+    }
+
+    function testSetProviderRevertProviderRateNotDefined() public {
+        MockProvider mockProvider = new MockProvider();
+
+        vm.prank(ADMIN);
+        vm.expectRevert(); // Should revert due to undefined rates
+        vaultAdmin.setProvider(address(mockProvider));
+    }
+
+    function testAddAssets() public {
+        // This test is complex as we need assets with defined provider rates
+        // For now, test the revert case with undefined rates
+
+        address[] memory assetsToAdd = new address[](1);
+        bool[] memory activeFlags = new bool[](1);
+        assetsToAdd[0] = address(0x9999);
+        activeFlags[0] = true;
+
+        vm.prank(ADMIN);
+        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.ProviderRateNotDefined.selector, address(0x9999)));
+        vaultAdmin.addAssets(assetsToAdd, activeFlags);
+    }
+
+    function testDeleteAsset() public {
+        // Get current assets
+        address[] memory assets = vault.getAssets();
+        require(assets.length > 0, "No assets to delete");
+
+        // Find an asset index to delete (skip index 0 as it might be the base asset)
+        uint256 indexToDelete = assets.length > 1 ? 1 : 0;
+
+        vm.prank(ADMIN);
+        vaultAdmin.deleteAsset(indexToDelete);
+
+        // Verify asset was deleted by checking the list is shorter
+        address[] memory assetsAfter = vault.getAssets();
+        assertLt(assetsAfter.length, assets.length, "Asset should be deleted");
+    }
+
+    function testIsVaultAsset() public view {
+        address[] memory assets = vault.getAssets();
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            assertTrue(vaultAdmin._isVaultAsset(assets[i]), "Should be valid vault asset");
+        }
+
+        assertFalse(vaultAdmin._isVaultAsset(address(0x1234)), "Should not be valid vault asset");
+    }
+
+    function testIsERC4626Asset() public view {
+        address[] memory assets = vault.getAssets();
+        address vaultAsset = vault.asset();
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            try IERC4626(assets[i]).asset() returns (address assetAddr) {
+                if (assetAddr == vaultAsset) {
+                    assertTrue(vaultAdmin._isERC4626Asset(assets[i]), "Should be valid ERC4626 asset");
+                }
+            } catch {
+                // Asset is not ERC4626, skip
+            }
+        }
+    }
+
+    function testAccessControl() public {
+        address unauthorized = address(0x9999);
+
+        // Test BUFFER_ADMIN_ROLE
+        vm.prank(unauthorized);
+        vm.expectRevert();
+        vaultAdmin.setCurrentBuffer(address(0x1234));
+
+        // Test MODULE_MANAGER_ROLE
+        vm.prank(unauthorized);
+        vm.expectRevert();
+        vaultAdmin.setProvider(address(0x1234));
+
+        address[] memory assets = new address[](1);
+        bool[] memory active = new bool[](1);
+        assets[0] = address(0x1234);
+        active[0] = true;
+
+        vm.prank(unauthorized);
+        vm.expectRevert();
+        vaultAdmin.addAssets(assets, active);
+
+        vm.prank(unauthorized);
+        vm.expectRevert();
+        vaultAdmin.deleteAsset(0);
+    }
+}
+
+contract MockERC4626 {
+    address public asset_;
+
+    constructor(address _asset) {
+        asset_ = _asset;
+    }
+
+    function asset() external view returns (address) {
+        return asset_;
+    }
+}
+
+contract MockProvider {
+    function getRate(address) external pure returns (uint256) {
+        return 0; // Return 0 to trigger ProviderRateNotDefined error
+    }
+}

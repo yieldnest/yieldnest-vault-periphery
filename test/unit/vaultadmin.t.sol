@@ -75,7 +75,7 @@ contract vaultAdminUnitTest is Test {
         vault.setAsset(address(erc4626_1), 18);
         vault.setAsset(address(erc4626_2), 18);
 
-        vaultAdmin = new VaultAdmin(address(vault), admin, bufferAdminRole);
+        vaultAdmin = new VaultAdmin(address(vault), admin, bufferAdminRole, admin);
     }
 
     function testSetCurrentBuffer() public {

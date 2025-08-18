@@ -32,10 +32,11 @@ contract VaultAdmin is AccessControl {
     /// @param _vault The address of the vault contract.
     /// @param defaultAdmin The address to be granted DEFAULT_ADMIN_ROLE.
     /// @param bufferAdmin The address to be granted BUFFER_ADMIN_ROLE.
-    constructor(address _vault, address defaultAdmin, address bufferAdmin) {
+    constructor(address _vault, address defaultAdmin, address bufferAdmin, address moduleManager) {
         vault = IVault(_vault);
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BUFFER_ADMIN_ROLE, bufferAdmin);
+        _grantRole(MODULE_MANAGER_ROLE, moduleManager);
     }
 
     /// @notice Set the current buffer in the vault.

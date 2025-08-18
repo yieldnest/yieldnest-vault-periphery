@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 
 /// @title BufferAdmin
 /// @notice Contract for managing buffer addresses for a Vault, with role-based access control.
@@ -15,11 +16,17 @@ contract BufferAdmin is AccessControl {
     error ERC4626AssetMismatch(address buffer);
     /// @notice Thrown when setting the buffer fails.
     error SetBufferFailed();
+    /// @notice Thrown when a provider rate is not defined for an asset.
+    error ProviderRateNotDefined(address asset);
+    /// @notice Thrown when the total base assets mismatch after changing provider.
+    error TotalBaseAssetsMismatch();
 
     IVault public vault;
 
     /// @notice Role identifier for buffer admins.
     bytes32 public constant BUFFER_ADMIN_ROLE = keccak256("BUFFER_ADMIN_ROLE");
+
+    bytes32 public constant MODULE_MANAGER_ROLE = keccak256("MODULE_MANAGER_ROLE");
 
     /// @notice Initializes the BufferAdmin contract.
     /// @param _vault The address of the vault contract.
@@ -60,6 +67,35 @@ contract BufferAdmin is AccessControl {
             return bufferAsset == vault.asset();
         } catch {
             return false;
+        }
+    }
+
+    function setProvider(address _provider) public onlyRole(MODULE_MANAGER_ROLE) {
+        // Check that all assets have a defined rate as defined by provider using getAssets
+        address[] memory assets = vault.getAssets();
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address assetAddr = assets[i];
+            // Only check active assets
+            if (vault.getAsset(assetAddr).decimals > 0) {
+                // Assume provider has a getRate(address) function that reverts or returns 0 if not defined
+                try IProvider(_provider).getRate(assetAddr) returns (uint256 rate) {
+                    if (rate == 0) revert ProviderRateNotDefined(assetAddr);
+                } catch {
+                    revert ProviderRateNotDefined(assetAddr);
+                }
+            }
+        }
+
+        // Get totalBaseAssets before changing provider
+        uint256 beforeBaseAssets = vault.totalBaseAssets();
+
+        vault.setProvider(_provider);
+
+        // Get totalBaseAssets after changing provider, using computeTotalAssets (forces recompute)
+        uint256 afterBaseAssets = vault.computeTotalAssets();
+
+        if (beforeBaseAssets != afterBaseAssets) {
+            revert TotalBaseAssetsMismatch();
         }
     }
 }

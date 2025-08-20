@@ -12,8 +12,14 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error DuplicateInInput(IHooks hook);
     error CallerNotHook(address caller);
 
+    struct HookData {
+        uint8 index;
+        bool active;
+    }
+
     IVault public immutable override VAULT;
     IHooks[] public hooks;
+    mapping(IHooks => HookData) public hookData;
     Config private _config;
 
     /// @notice Role identifier for hook managers.
@@ -35,11 +41,21 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
             }
         }
 
+        // Clear existing hook data mappings
+        for (uint256 i = 0; i < hooks.length; i++) {
+            delete hookData[hooks[i]];
+        }
+
+        // Clear existing hook data mappings
+        for (uint256 i = 0; i < hooks.length; i++) {
+            delete hookData[hooks[i]];
+        }
         // Clear the hooks array before setting new hooks
         delete hooks;
 
         for (uint256 i = 0; i < hooks_.length; i++) {
             hooks.push(hooks_[i]);
+            hookData[hooks_[i]] = HookData({index: uint8(i), active: true});
 
             IHooks.Config memory config = hooks_[i].getConfig();
 
@@ -50,6 +66,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
             newConfig.beforeRedeem = newConfig.beforeRedeem || config.beforeRedeem;
             newConfig.afterRedeem = newConfig.afterRedeem || config.afterRedeem;
             newConfig.beforeWithdraw = newConfig.beforeWithdraw || config.beforeWithdraw;
+            newConfig.afterWithdraw = newConfig.afterWithdraw || config.afterWithdraw;
         }
 
         setConfig(newConfig);
@@ -61,14 +78,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     }
 
     modifier onlyHook() {
-        bool isHook = false;
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (msg.sender == address(hooks[i])) {
-                isHook = true;
-                break;
-            }
-        }
-        if (!isHook) revert CallerNotHook(msg.sender);
+        if (!hookData[IHooks(msg.sender)].active) revert CallerNotHook(msg.sender);
         _;
     }
 

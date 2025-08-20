@@ -9,6 +9,8 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
+import {Provider} from "lib/yieldnest-vault/src/module/Provider.sol";
+import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
 
 contract VaultAdminIntegrationTest is Test, Actors {
     VaultAdmin public vaultAdmin;
@@ -65,7 +67,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
     function testSetCurrentBufferRevertERC4626AssetMismatch() public {
         // Create a mock ERC4626 with wrong asset
         address wrongAsset = address(0x5678);
-        MockERC4626 mockBuffer = new MockERC4626(wrongAsset);
+        MockERC4626 mockBuffer = new MockERC4626(ERC20(wrongAsset), "MockBuffer", "MB");
 
         // Add it as a vault asset first
         address[] memory assetsToAdd = new address[](1);
@@ -78,28 +80,47 @@ contract VaultAdminIntegrationTest is Test, Actors {
         vaultAdmin.addAssets(assetsToAdd, activeFlags);
     }
 
-    function testSetProvider() public {
+    function testSetProviderToExistingProvider() public {
         address currentProvider = vault.provider();
 
-        // Get total base assets before
-        uint256 beforeBaseAssets = vault.totalBaseAssets();
+        // Process accounting to ensure totalBaseAssets() is updated
+        vault.processAccounting();
+        uint256 totalBaseAssetsBefore = vault.totalBaseAssets();
 
         vm.prank(ADMIN);
         vaultAdmin.setProvider(currentProvider); // Set to same provider
 
+        uint256 totalBaseAssetsAfter = vault.totalBaseAssets();
+        assertEq(totalBaseAssetsAfter, totalBaseAssetsBefore, "totalBaseAssets should remain the same");
+
         // Should not revert since rates are already defined
         assertEq(vault.provider(), currentProvider, "Provider should remain the same");
+    }
+
+    function testSetProviderToNewProvider() public {
+        Provider newProvider = new Provider();
+
+        vault.processAccounting();
+        uint256 totalBaseAssetsBefore = vault.totalBaseAssets();
+
+        vm.prank(ADMIN);
+        vaultAdmin.setProvider(address(newProvider));
+
+        assertEq(vault.provider(), address(newProvider), "Provider should be set to new provider");
+
+        uint256 totalBaseAssetsAfter = vault.totalBaseAssets();
+        assertEq(totalBaseAssetsAfter, totalBaseAssetsBefore, "totalBaseAssets should remain the same");
     }
 
     function testSetProviderRevertProviderRateNotDefined() public {
         MockProvider mockProvider = new MockProvider();
 
         vm.prank(ADMIN);
-        vm.expectRevert(); // Should revert due to undefined rates
+        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.ProviderRateNotDefined.selector, MC.WETH));
         vaultAdmin.setProvider(address(mockProvider));
     }
 
-    function testAddAssets() public {
+    function testAddAssetsRevertProviderRateNotDefined() public {
         // This test is complex as we need assets with defined provider rates
         // For now, test the revert case with undefined rates
 
@@ -114,22 +135,43 @@ contract VaultAdminIntegrationTest is Test, Actors {
     }
 
     function testDeleteAsset() public {
-        // Get current assets
-        address[] memory assets = vault.getAssets();
-        require(assets.length > 0, "No assets to delete");
+        // Get current assets count
+        address[] memory assetsBefore = vault.getAssets();
+        uint256 initialAssetCount = assetsBefore.length;
 
-        // Find an asset index to delete (skip index 0 as it might be the base asset)
-        uint256 indexToDelete = assets.length > 1 ? 1 : 0;
+        vault.processAccounting();
+
+        // Deploy a MockERC4626 as the new asset
+        MockERC4626 newAsset = new MockERC4626(ERC20(vault.asset()), "MockAsset", "MA");
+        address[] memory assetsToAdd = new address[](1);
+        bool[] memory activeFlags = new bool[](1);
+        assetsToAdd[0] = address(newAsset);
+        activeFlags[0] = true;
+
+        // Mock the provider to return a valid rate for the new asset
+        vm.mockCall(
+            vault.provider(), abi.encodeWithSelector(IProvider.getRate.selector, address(newAsset)), abi.encode(1e18)
+        );
+
+        vm.prank(ADMIN);
+        vaultAdmin.addAssets(assetsToAdd, activeFlags);
+
+        // Verify asset was added
+        address[] memory assetsAfterAdd = vault.getAssets();
+        assertEq(assetsAfterAdd.length, initialAssetCount + 1, "Asset should be added");
+
+        // Now delete the asset we just added (it should be at the last index)
+        uint256 indexToDelete = assetsAfterAdd.length - 1;
 
         vm.prank(ADMIN);
         vaultAdmin.deleteAsset(indexToDelete);
 
-        // Verify asset was deleted by checking the list is shorter
-        address[] memory assetsAfter = vault.getAssets();
-        assertLt(assetsAfter.length, assets.length, "Asset should be deleted");
+        // Verify asset was deleted
+        address[] memory assetsAfterDelete = vault.getAssets();
+        assertEq(assetsAfterDelete.length, initialAssetCount, "Asset should be deleted");
     }
 
-    function testIsVaultAsset() public view {
+    function testIsVaultAssetFalse() public view {
         address[] memory assets = vault.getAssets();
 
         for (uint256 i = 0; i < assets.length; i++) {
@@ -137,6 +179,15 @@ contract VaultAdminIntegrationTest is Test, Actors {
         }
 
         assertFalse(vaultAdmin._isVaultAsset(address(0x1234)), "Should not be valid vault asset");
+    }
+
+    function testIsVaultAssetTrue() public view {
+        address[] memory assets = vault.getAssets();
+        address vaultAsset = vault.asset();
+        assertTrue(vaultAdmin._isVaultAsset(vaultAsset), "Should be valid vault asset");
+        for (uint256 i = 0; i < assets.length; i++) {
+            assertTrue(vaultAdmin._isVaultAsset(assets[i]), "Should be valid vault asset");
+        }
     }
 
     function testIsERC4626Asset() public view {
@@ -179,18 +230,6 @@ contract VaultAdminIntegrationTest is Test, Actors {
         vm.prank(unauthorized);
         vm.expectRevert();
         vaultAdmin.deleteAsset(0);
-    }
-}
-
-contract MockERC4626 {
-    address public asset_;
-
-    constructor(address _asset) {
-        asset_ = _asset;
-    }
-
-    function asset() external view returns (address) {
-        return asset_;
     }
 }
 

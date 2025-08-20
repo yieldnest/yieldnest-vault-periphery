@@ -30,35 +30,35 @@ contract HooksMock is IHooks {
         return config;
     }
 
-    function beforeDeposit(uint256, address, address, uint256, uint256) external override {
+    function beforeDeposit(address, uint256, address, address, uint256, uint256) external override {
         beforeDepositCalled = true;
     }
 
-    function afterDeposit(uint256, address, address, uint256, uint256) external override {
+    function afterDeposit(address, uint256, address, address, uint256, uint256) external override {
         afterDepositCalled = true;
     }
 
-    function beforeMint(uint256, address, address, uint256, uint256) external override {
+    function beforeMint(address, uint256, address, address, uint256, uint256) external override {
         beforeMintCalled = true;
     }
 
-    function afterMint(uint256, address, address, uint256, uint256) external override {
+    function afterMint(address, uint256, address, address, uint256, uint256) external override {
         afterMintCalled = true;
     }
 
-    function beforeRedeem(uint256, address, address, address, uint256) external override {
+    function beforeRedeem(address, uint256, address, address, address, uint256) external override {
         beforeRedeemCalled = true;
     }
 
-    function afterRedeem(uint256, address, address, address, uint256) external override {
+    function afterRedeem(address, uint256, address, address, address, uint256) external override {
         afterRedeemCalled = true;
     }
 
-    function beforeWithdraw(uint256, address, address, address, uint256) external override {
+    function beforeWithdraw(address, uint256, address, address, address, uint256) external override {
         beforeWithdrawCalled = true;
     }
 
-    function afterWithdraw(uint256, address, address, address, uint256) external override {
+    function afterWithdraw(address, uint256, address, address, address, uint256) external override {
         afterWithdrawCalled = true;
     }
 
@@ -274,11 +274,11 @@ contract MetaHooksTest is Test {
 
         // Should revert if not called by vault
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.beforeDeposit(1, address(this), address(this), 1, 1);
+        metaHooks.beforeDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
 
         // Call as vault
         vm.startPrank(address(vault));
-        metaHooks.beforeDeposit(1, address(this), address(this), 1, 1);
+        metaHooks.beforeDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
         vm.stopPrank();
 
         assertTrue(hook.beforeDepositCalled(), "beforeDeposit should be called on hook");

@@ -67,6 +67,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
             newConfig.afterRedeem = newConfig.afterRedeem || config.afterRedeem;
             newConfig.beforeWithdraw = newConfig.beforeWithdraw || config.beforeWithdraw;
             newConfig.afterWithdraw = newConfig.afterWithdraw || config.afterWithdraw;
+            newConfig.beforeProcessAccounting = newConfig.beforeProcessAccounting || config.beforeProcessAccounting;
+            newConfig.afterProcessAccounting = newConfig.afterProcessAccounting || config.afterProcessAccounting;
         }
 
         setConfig(newConfig);
@@ -92,99 +94,123 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         return _config;
     }
 
-    function beforeDeposit(uint256 assets, address caller, address receiver, uint256 shares, uint256 baseAssets)
-        external
-        override
-        onlyVault
-    {
+    function beforeDeposit(
+        address _asset,
+        uint256 assets,
+        address caller,
+        address receiver,
+        uint256 shares,
+        uint256 baseAssets
+    ) external override onlyVault {
         if (!_config.beforeDeposit) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeDeposit(hooks[i], assets, caller, receiver, shares, baseAssets);
+            HooksLib.beforeDeposit(hooks[i], _asset, assets, caller, receiver, shares, baseAssets);
         }
     }
 
-    function afterDeposit(uint256 assets, address caller, address receiver, uint256 shares, uint256 baseAssets)
-        external
-        override
-        onlyVault
-    {
+    function afterDeposit(
+        address _asset,
+        uint256 assets,
+        address caller,
+        address receiver,
+        uint256 shares,
+        uint256 baseAssets
+    ) external override onlyVault {
         if (!_config.afterDeposit) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterDeposit(hooks[i], assets, caller, receiver, shares, baseAssets);
+            HooksLib.afterDeposit(hooks[i], _asset, assets, caller, receiver, shares, baseAssets);
         }
     }
 
-    function beforeMint(uint256 shares, address caller, address receiver, uint256 assets, uint256 baseAssets)
-        external
-        override
-        onlyVault
-    {
+    function beforeMint(
+        address _asset,
+        uint256 shares,
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 baseAssets
+    ) external override onlyVault {
         if (!_config.beforeMint) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeMint(hooks[i], shares, caller, receiver, assets, baseAssets);
+            HooksLib.beforeMint(hooks[i], _asset, shares, caller, receiver, assets, baseAssets);
         }
     }
 
-    function afterMint(uint256 shares, address caller, address receiver, uint256 assets, uint256 baseAssets)
-        external
-        override
-        onlyVault
-    {
+    function afterMint(
+        address _asset,
+        uint256 shares,
+        address caller,
+        address receiver,
+        uint256 assets,
+        uint256 baseAssets
+    ) external override onlyVault {
         if (!_config.afterMint) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterMint(hooks[i], shares, caller, receiver, assets, baseAssets);
+            HooksLib.afterMint(hooks[i], _asset, shares, caller, receiver, assets, baseAssets);
         }
     }
 
-    function beforeRedeem(uint256 shares, address caller, address receiver, address owner, uint256 assets)
-        external
-        override
-        onlyVault
-    {
+    function beforeRedeem(
+        address _asset,
+        uint256 shares,
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets
+    ) external override onlyVault {
         if (!_config.beforeRedeem) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeRedeem(hooks[i], shares, caller, receiver, owner, assets);
+            HooksLib.beforeRedeem(hooks[i], _asset, shares, caller, receiver, owner, assets);
         }
     }
 
-    function afterRedeem(uint256 shares, address caller, address receiver, address owner, uint256 assets)
-        external
-        override
-        onlyVault
-    {
+    function afterRedeem(
+        address _asset,
+        uint256 shares,
+        address caller,
+        address receiver,
+        address owner,
+        uint256 assets
+    ) external override onlyVault {
         if (!_config.afterRedeem) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterRedeem(hooks[i], shares, caller, receiver, owner, assets);
+            HooksLib.afterRedeem(hooks[i], _asset, shares, caller, receiver, owner, assets);
         }
     }
 
-    function beforeWithdraw(uint256 assets, address caller, address receiver, address owner, uint256 shares)
-        external
-        override
-        onlyVault
-    {
+    function beforeWithdraw(
+        address _asset,
+        uint256 assets,
+        address caller,
+        address receiver,
+        address owner,
+        uint256 shares
+    ) external override onlyVault {
         if (!_config.beforeWithdraw) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeWithdraw(hooks[i], assets, caller, receiver, owner, shares);
+            HooksLib.beforeWithdraw(hooks[i], _asset, assets, caller, receiver, owner, shares);
         }
     }
 
-    function afterWithdraw(uint256 assets, address caller, address receiver, address owner, uint256 shares)
-        external
-        override
-        onlyVault
-    {
+    function afterWithdraw(
+        address _asset,
+        uint256 assets,
+        address caller,
+        address receiver,
+        address owner,
+        uint256 shares
+    ) external override onlyVault {
         if (!_config.afterWithdraw) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterWithdraw(hooks[i], assets, caller, receiver, owner, shares);
+            HooksLib.afterWithdraw(hooks[i], _asset, assets, caller, receiver, owner, shares);
         }
     }
 

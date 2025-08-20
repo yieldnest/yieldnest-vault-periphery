@@ -31,6 +31,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         _grantRole(HOOK_MANAGER_ROLE, hookManager);
     }
 
+    /// @notice Sets the array of hooks to be executed by this MetaHooks contract
+    /// @dev This function replaces all existing hooks with the provided array. Clears existing hook data.
+    /// @param hooks_ Array of hook contracts to be set. Each hook must implement the IHooks interface.
     function setHooks(IHooks[] memory hooks_) external onlyRole(HOOK_MANAGER_ROLE) {
         Config memory newConfig;
         // Check for duplicates in hooks_
@@ -271,6 +274,10 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     // VAULT FUNCTIONS
 
+    /// @notice Allows authorized hooks to mint shares directly to a specified address
+    /// @dev This function acts as a proxy to the vault's mintShares function, restricted to registered hooks
+    /// @param to The address that will receive the newly minted shares
+    /// @param shares The number of shares to mint
     function mintShares(address to, uint256 shares) external override onlyHook {
         VAULT.mintShares(to, shares);
     }
@@ -289,24 +296,5 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     function _feeOnTotal(uint256 shares, address caller) external view override returns (uint256) {
         return VAULT._feeOnTotal(shares, caller);
-    }
-
-    // TODO: remove when interface is simplified
-
-    function performanceFee() external pure returns (uint256) {
-        // stub
-        return 0;
-    }
-
-    function performanceFeeRecipient() external pure returns (address) {
-        // stub
-        return address(0);
-    }
-
-    function setPerformanceFee(uint256 /*performanceFee_*/ ) external pure {
-        // stub
-    }
-    function setPerformanceFeeRecipient(address /*performanceFeeRecipient_*/ ) external pure {
-        // stub
     }
 }

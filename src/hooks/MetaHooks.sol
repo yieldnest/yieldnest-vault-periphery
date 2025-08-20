@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
-import {HooksLib} from "lib/yieldnest-vault/src/library/HooksLib.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 
@@ -105,7 +104,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.beforeDeposit) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeDeposit(hooks[i], _asset, assets, caller, receiver, shares, baseAssets);
+            if (hooks[i].getConfig().beforeDeposit) {
+                hooks[i].beforeDeposit(_asset, assets, caller, receiver, shares, baseAssets);
+            }
         }
     }
 
@@ -120,7 +121,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.afterDeposit) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterDeposit(hooks[i], _asset, assets, caller, receiver, shares, baseAssets);
+            if (hooks[i].getConfig().afterDeposit) {
+                hooks[i].afterDeposit(_asset, assets, caller, receiver, shares, baseAssets);
+            }
         }
     }
 
@@ -135,7 +138,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.beforeMint) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeMint(hooks[i], _asset, shares, caller, receiver, assets, baseAssets);
+            if (hooks[i].getConfig().beforeMint) {
+                hooks[i].beforeMint(_asset, shares, caller, receiver, assets, baseAssets);
+            }
         }
     }
 
@@ -150,7 +155,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.afterMint) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterMint(hooks[i], _asset, shares, caller, receiver, assets, baseAssets);
+            if (hooks[i].getConfig().afterMint) {
+                hooks[i].afterMint(_asset, shares, caller, receiver, assets, baseAssets);
+            }
         }
     }
 
@@ -165,7 +172,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.beforeRedeem) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeRedeem(hooks[i], _asset, shares, caller, receiver, owner, assets);
+            if (hooks[i].getConfig().beforeRedeem) {
+                hooks[i].beforeRedeem(_asset, shares, caller, receiver, owner, assets);
+            }
         }
     }
 
@@ -180,7 +189,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.afterRedeem) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterRedeem(hooks[i], _asset, shares, caller, receiver, owner, assets);
+            if (hooks[i].getConfig().afterRedeem) {
+                hooks[i].afterRedeem(_asset, shares, caller, receiver, owner, assets);
+            }
         }
     }
 
@@ -195,7 +206,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.beforeWithdraw) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeWithdraw(hooks[i], _asset, assets, caller, receiver, owner, shares);
+            if (hooks[i].getConfig().beforeWithdraw) {
+                hooks[i].beforeWithdraw(_asset, assets, caller, receiver, owner, shares);
+            }
         }
     }
 
@@ -210,7 +223,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.afterWithdraw) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterWithdraw(hooks[i], _asset, assets, caller, receiver, owner, shares);
+            if (hooks[i].getConfig().afterWithdraw) {
+                hooks[i].afterWithdraw(_asset, assets, caller, receiver, owner, shares);
+            }
         }
     }
 
@@ -222,9 +237,11 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.beforeProcessAccounting) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.beforeProcessAccounting(
-                hooks[i], totalAssetsBeforeAccounting, totalSupplyBeforeAccounting, totalBaseBalanceBeforeAccounting
-            );
+            if (hooks[i].getConfig().beforeProcessAccounting) {
+                hooks[i].beforeProcessAccounting(
+                    totalAssetsBeforeAccounting, totalSupplyBeforeAccounting, totalBaseBalanceBeforeAccounting
+                );
+            }
         }
     }
 
@@ -239,15 +256,16 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         if (!_config.afterProcessAccounting) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
-            HooksLib.afterProcessAccounting(
-                hooks[i],
-                totalAssetsBeforeAccounting,
-                totalAssetsAfterAccounting,
-                totalSupplyBeforeAccounting,
-                totalSupplyAfterAccounting,
-                totalBaseBalanceAfterAccounting,
-                totalBaseBalanceBeforeAccounting
-            );
+            if (hooks[i].getConfig().afterProcessAccounting) {
+                hooks[i].afterProcessAccounting(
+                    totalAssetsBeforeAccounting,
+                    totalAssetsAfterAccounting,
+                    totalSupplyBeforeAccounting,
+                    totalSupplyAfterAccounting,
+                    totalBaseBalanceAfterAccounting,
+                    totalBaseBalanceBeforeAccounting
+                );
+            }
         }
     }
 

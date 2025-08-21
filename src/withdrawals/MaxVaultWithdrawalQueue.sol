@@ -19,7 +19,7 @@ contract WithdrawalQueue is AccessControlUpgradeable {
     uint256 public nextRequestId;
     uint256 public lastFulfilledId;
     uint256 public partiallyFulfilledAmount;
-    address public immutable underlying;
+    IVault public immutable vault;
 
     /// @notice Role identifier for processors who can call vault withdraw
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
@@ -30,8 +30,8 @@ contract WithdrawalQueue is AccessControlUpgradeable {
 
     error RequesterNotWhitelisted(address requester);
 
-    constructor(address _underlying) {
-        underlying = _underlying;
+    constructor(IVault _vault) {
+        vault = _vault;
     }
 
     function setWhitelist(address requester, bool whitelisted) external onlyRole(WHITELIST_MANAGER_ROLE) {
@@ -64,18 +64,17 @@ contract WithdrawalQueue is AccessControlUpgradeable {
         request.fulfilled = true;
         
         // Transfer the underlying token (assumes underlying is available)
-        IERC20(underlying).transfer(msg.sender, request.amount);
+        IERC20(vault.asset()).transfer(msg.sender, request.amount);
         
         emit WithdrawalClaimed(requestId, msg.sender, request.amount);
     }
 
     /// @notice Admin function to withdraw from vault when withdrawal queue has balance
-    /// @param vault The vault to withdraw from
     /// @param amount The amount to withdraw
-    function processVaultWithdrawal(IVault vault, uint256 amount) external onlyRole(PROCESSOR_ROLE) {
-        uint256 balanceBefore = IERC20(underlying).balanceOf(address(this));
+    function processVaultWithdrawal(uint256 amount) external onlyRole(PROCESSOR_ROLE) {
+        uint256 balanceBefore = IERC20(vault.asset()).balanceOf(address(this));
         vault.withdraw(amount, address(this), address(this));
-        uint256 actualWithdrawn = IERC20(underlying).balanceOf(address(this)) - balanceBefore;
+        uint256 actualWithdrawn = IERC20(vault.asset()).balanceOf(address(this)) - balanceBefore;
         
         uint256 remainingToProcess = actualWithdrawn;
         uint256 currentRequestId = lastFulfilledId + 1;

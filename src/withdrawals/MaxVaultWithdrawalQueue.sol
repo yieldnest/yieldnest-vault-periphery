@@ -15,6 +15,7 @@ contract WithdrawalQueue is AccessControlUpgradeable {
     }
 
     mapping(uint256 => WithdrawalRequest) public withdrawalRequests;
+    mapping(address => bool) public whitelist;
     uint256 public nextRequestId;
     uint256 public lastFulfilledId;
     uint256 public partiallyFulfilledAmount;
@@ -22,15 +23,26 @@ contract WithdrawalQueue is AccessControlUpgradeable {
 
     /// @notice Role identifier for processors who can call vault withdraw
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
+    bytes32 public constant WHITELIST_MANAGER_ROLE = keccak256("WHITELIST_MANAGER_ROLE");
 
     event WithdrawalRequested(uint256 indexed requestId, address indexed requester, uint256 amount);
     event WithdrawalClaimed(uint256 indexed requestId, address indexed requester, uint256 amount);
+
+    error RequesterNotWhitelisted(address requester);
 
     constructor(address _underlying) {
         underlying = _underlying;
     }
 
+    function setWhitelist(address requester, bool whitelisted) external onlyRole(WHITELIST_MANAGER_ROLE) {
+        whitelist[requester] = whitelisted;
+    }
+
     function requestWithdrawal(uint256 amount) external returns (uint256 requestId) {
+        if (!whitelist[msg.sender]) {
+            revert RequesterNotWhitelisted(msg.sender);
+        }
+        
         requestId = nextRequestId++;
         
         withdrawalRequests[requestId] = WithdrawalRequest({

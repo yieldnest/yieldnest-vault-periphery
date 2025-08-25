@@ -3,10 +3,9 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {MetaHooks} from "../../src/hooks/MetaHooks.sol";
-import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
+import {IHooks, IVault} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IVaultForHooks} from "../../src/interface/IVaultForHooks.sol";
-import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 
 // Minimal mock for IHooks
 contract HooksMock is IHooks {

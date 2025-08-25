@@ -41,12 +41,6 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
                 if (hooks_[i] == hooks_[j]) revert DuplicateInInput(hooks_[i]);
             }
         }
-
-        // Clear existing hook data mappings
-        for (uint256 i = 0; i < hooks.length; i++) {
-            delete hookData[hooks[i]];
-        }
-
         // Clear existing hook data mappings
         for (uint256 i = 0; i < hooks.length; i++) {
             delete hookData[hooks[i]];

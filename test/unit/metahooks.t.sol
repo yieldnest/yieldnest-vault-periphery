@@ -6,6 +6,7 @@ import {MetaHooks} from "../../src/hooks/MetaHooks.sol";
 import {IHooks, IVault} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IVaultForHooks} from "../../src/interface/IVaultForHooks.sol";
+import {VaultMock} from "./mocks/VaultMock.sol";
 
 // Minimal mock for IHooks
 contract HooksMock is IHooks {
@@ -74,41 +75,6 @@ contract HooksMock is IHooks {
     }
 
     function setConfig(Config memory) external {}
-}
-
-// Minimal mock for IVault
-contract VaultMock is IVaultForHooks {
-    address public asset_;
-    uint256 public mintedShares;
-    uint256 public assetsToShares;
-    uint256 public feeOnRaw;
-    uint256 public feeOnTotal;
-
-    constructor(address _asset) {
-        asset_ = _asset;
-    }
-
-    function asset() external view override returns (address) {
-        return asset_;
-    }
-
-    function mintShares(address to, uint256 shares) external override {
-        mintedShares += shares;
-        // silence warning
-        to;
-    }
-
-    function convertToShares(uint256 assets) external view override returns (uint256) {
-        return assetsToShares + assets;
-    }
-
-    function _feeOnRaw(uint256 assets, address) external view override returns (uint256) {
-        return feeOnRaw + assets;
-    }
-
-    function _feeOnTotal(uint256 shares, address) external view override returns (uint256) {
-        return feeOnTotal + shares;
-    }
 }
 
 contract MetaHooksTest is Test {

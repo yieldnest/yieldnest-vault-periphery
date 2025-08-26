@@ -246,4 +246,101 @@ contract MetaHooksTest is Test {
 
         assertEq(vault.mintedShares(), 10, "mintedShares should be updated in vault");
     }
+
+    function testFuzzMetaHooksCallsAllHooksWithDifferentConfigs(
+        bool beforeDeposit,
+        bool afterDeposit,
+        bool beforeMint,
+        bool afterMint,
+        bool beforeRedeem,
+        bool afterRedeem,
+        bool beforeWithdraw,
+        bool afterWithdraw,
+        bool beforeProcessAccounting,
+        bool afterProcessAccounting
+    ) public {
+        // Create config with fuzzed boolean values
+        IHooks.Config memory config = IHooks.Config({
+            beforeDeposit: beforeDeposit,
+            afterDeposit: afterDeposit,
+            beforeMint: beforeMint,
+            afterMint: afterMint,
+            beforeRedeem: beforeRedeem,
+            afterRedeem: afterRedeem,
+            beforeWithdraw: beforeWithdraw,
+            afterWithdraw: afterWithdraw,
+            beforeProcessAccounting: beforeProcessAccounting,
+            afterProcessAccounting: afterProcessAccounting
+        });
+
+        // Create hook with fuzzed config
+        HooksMock hook = new HooksMock(config);
+        IHooks[] memory hooksArr = new IHooks[](1);
+        hooksArr[0] = IHooks(address(hook));
+
+        // Set hooks
+        vm.startPrank(hookManager);
+        metaHooks.setHooks(hooksArr);
+        vm.stopPrank();
+
+        // Test beforeDeposit
+        vm.startPrank(address(vault));
+        metaHooks.beforeDeposit(address(0xDEAD), 100, address(this), address(this), 50, 100);
+        vm.stopPrank();
+        assertEq(hook.beforeDepositCalled(), beforeDeposit, "beforeDeposit call mismatch");
+
+        // Test afterDeposit
+        vm.startPrank(address(vault));
+        metaHooks.afterDeposit(address(0xDEAD), 100, address(this), address(this), 50, 100);
+        vm.stopPrank();
+        assertEq(hook.afterDepositCalled(), afterDeposit, "afterDeposit call mismatch");
+
+        // Test beforeMint
+        vm.startPrank(address(vault));
+        metaHooks.beforeMint(address(0xDEAD), 50, address(this), address(this), 100, 100);
+        vm.stopPrank();
+        assertEq(hook.beforeMintCalled(), beforeMint, "beforeMint call mismatch");
+
+        // Test afterMint
+        vm.startPrank(address(vault));
+        metaHooks.afterMint(address(0xDEAD), 50, address(this), address(this), 100, 100);
+        vm.stopPrank();
+        assertEq(hook.afterMintCalled(), afterMint, "afterMint call mismatch");
+
+        // Test beforeRedeem
+        vm.startPrank(address(vault));
+        metaHooks.beforeRedeem(address(0xDEAD), 50, address(this), address(this), address(this), 100);
+        vm.stopPrank();
+        assertEq(hook.beforeRedeemCalled(), beforeRedeem, "beforeRedeem call mismatch");
+
+        // Test afterRedeem
+        vm.startPrank(address(vault));
+        metaHooks.afterRedeem(address(0xDEAD), 50, address(this), address(this), address(this), 100);
+        vm.stopPrank();
+        assertEq(hook.afterRedeemCalled(), afterRedeem, "afterRedeem call mismatch");
+
+        // Test beforeWithdraw
+        vm.startPrank(address(vault));
+        metaHooks.beforeWithdraw(address(0xDEAD), 100, address(this), address(this), address(this), 50);
+        vm.stopPrank();
+        assertEq(hook.beforeWithdrawCalled(), beforeWithdraw, "beforeWithdraw call mismatch");
+
+        // Test afterWithdraw
+        vm.startPrank(address(vault));
+        metaHooks.afterWithdraw(address(0xDEAD), 100, address(this), address(this), address(this), 50);
+        vm.stopPrank();
+        assertEq(hook.afterWithdrawCalled(), afterWithdraw, "afterWithdraw call mismatch");
+
+        // Test beforeProcessAccounting
+        vm.startPrank(address(vault));
+        metaHooks.beforeProcessAccounting(1000, 500, 800);
+        vm.stopPrank();
+        assertEq(hook.beforeProcessAccountingCalled(), beforeProcessAccounting, "beforeProcessAccounting call mismatch");
+
+        // Test afterProcessAccounting
+        vm.startPrank(address(vault));
+        metaHooks.afterProcessAccounting(1000, 1100, 500, 550, 850, 800);
+        vm.stopPrank();
+        assertEq(hook.afterProcessAccountingCalled(), afterProcessAccounting, "afterProcessAccounting call mismatch");
+    }
 }

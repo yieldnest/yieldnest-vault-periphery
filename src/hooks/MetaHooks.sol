@@ -9,16 +9,30 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error ZeroVaultAddress();
     error DuplicateInInput(IHooks hook);
     error CallerNotHook(address caller);
+    error NotSupported();
 
     struct HookData {
         uint8 index;
         bool active;
     }
 
+    struct ConfigBitmap {
+        uint16 beforeDeposit;
+        uint16 afterDeposit;
+        uint16 beforeMint;
+        uint16 afterMint;
+        uint16 beforeRedeem;
+        uint16 afterRedeem;
+        uint16 beforeWithdraw;
+        uint16 afterWithdraw;
+        uint16 beforeProcessAccounting;
+        uint16 afterProcessAccounting;
+    }
+
     IVault public immutable override VAULT;
     IHooks[] public hooks;
     mapping(IHooks => HookData) public hookData;
-    Config private _config;
+    ConfigBitmap private configBitmap;
 
     /// @notice Role identifier for hook managers.
     bytes32 public constant HOOK_MANAGER_ROLE = keccak256("HOOK_MANAGER_ROLE");
@@ -48,25 +62,27 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         // Clear the hooks array before setting new hooks
         delete hooks;
 
+        ConfigBitmap memory newConfigBitmap;
+
         for (uint256 i = 0; i < hooks_.length; i++) {
             hooks.push(hooks_[i]);
             hookData[hooks_[i]] = HookData({index: uint8(i), active: true});
 
             IHooks.Config memory config = hooks_[i].getConfig();
 
-            newConfig.beforeDeposit = newConfig.beforeDeposit || config.beforeDeposit;
-            newConfig.afterDeposit = newConfig.afterDeposit || config.afterDeposit;
-            newConfig.beforeMint = newConfig.beforeMint || config.beforeMint;
-            newConfig.afterMint = newConfig.afterMint || config.afterMint;
-            newConfig.beforeRedeem = newConfig.beforeRedeem || config.beforeRedeem;
-            newConfig.afterRedeem = newConfig.afterRedeem || config.afterRedeem;
-            newConfig.beforeWithdraw = newConfig.beforeWithdraw || config.beforeWithdraw;
-            newConfig.afterWithdraw = newConfig.afterWithdraw || config.afterWithdraw;
-            newConfig.beforeProcessAccounting = newConfig.beforeProcessAccounting || config.beforeProcessAccounting;
-            newConfig.afterProcessAccounting = newConfig.afterProcessAccounting || config.afterProcessAccounting;
+            if (config.beforeDeposit) newConfigBitmap.beforeDeposit |= uint16(1 << i);
+            if (config.afterDeposit) newConfigBitmap.afterDeposit |= uint16(1 << i);
+            if (config.beforeMint) newConfigBitmap.beforeMint |= uint16(1 << i);
+            if (config.afterMint) newConfigBitmap.afterMint |= uint16(1 << i);
+            if (config.beforeRedeem) newConfigBitmap.beforeRedeem |= uint16(1 << i);
+            if (config.afterRedeem) newConfigBitmap.afterRedeem |= uint16(1 << i);
+            if (config.beforeWithdraw) newConfigBitmap.beforeWithdraw |= uint16(1 << i);
+            if (config.afterWithdraw) newConfigBitmap.afterWithdraw |= uint16(1 << i);
+            if (config.beforeProcessAccounting) newConfigBitmap.beforeProcessAccounting |= uint16(1 << i);
+            if (config.afterProcessAccounting) newConfigBitmap.afterProcessAccounting |= uint16(1 << i);
         }
 
-        setConfig(newConfig);
+        configBitmap = newConfigBitmap;
     }
 
     modifier onlyVault() {
@@ -82,11 +98,22 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     // HOOKS FUNCTIONS
 
     function setConfig(Config memory config_) public override {
-        _config = config_;
+        revert NotSupported();
     }
 
     function getConfig() public view override returns (Config memory) {
-        return _config;
+        return Config({
+            beforeDeposit: configBitmap.beforeDeposit != 0,
+            afterDeposit: configBitmap.afterDeposit != 0,
+            beforeMint: configBitmap.beforeMint != 0,
+            afterMint: configBitmap.afterMint != 0,
+            beforeRedeem: configBitmap.beforeRedeem != 0,
+            afterRedeem: configBitmap.afterRedeem != 0,
+            beforeWithdraw: configBitmap.beforeWithdraw != 0,
+            afterWithdraw: configBitmap.afterWithdraw != 0,
+            beforeProcessAccounting: configBitmap.beforeProcessAccounting != 0,
+            afterProcessAccounting: configBitmap.afterProcessAccounting != 0
+        });
     }
 
     function beforeDeposit(
@@ -97,7 +124,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 shares,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!_config.beforeDeposit) return;
+        if (!getConfig().beforeDeposit) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().beforeDeposit) {
@@ -114,7 +141,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 shares,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!_config.afterDeposit) return;
+        if (!getConfig().afterDeposit) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().afterDeposit) {
@@ -131,7 +158,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 assets,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!_config.beforeMint) return;
+        if (!getConfig().beforeMint) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().beforeMint) {
@@ -148,7 +175,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 assets,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!_config.afterMint) return;
+        if (!getConfig().afterMint) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().afterMint) {
@@ -165,7 +192,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 assets
     ) external override onlyVault {
-        if (!_config.beforeRedeem) return;
+        if (!getConfig().beforeRedeem) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().beforeRedeem) {
@@ -182,7 +209,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 assets
     ) external override onlyVault {
-        if (!_config.afterRedeem) return;
+        if (!getConfig().afterRedeem) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().afterRedeem) {
@@ -199,7 +226,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 shares
     ) external override onlyVault {
-        if (!_config.beforeWithdraw) return;
+        if (!getConfig().beforeWithdraw) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().beforeWithdraw) {
@@ -216,7 +243,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 shares
     ) external override onlyVault {
-        if (!_config.afterWithdraw) return;
+        if (!getConfig().afterWithdraw) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().afterWithdraw) {
@@ -230,7 +257,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 totalSupplyBeforeAccounting,
         uint256 totalBaseBalanceBeforeAccounting
     ) external override onlyVault {
-        if (!_config.beforeProcessAccounting) return;
+        if (!getConfig().beforeProcessAccounting) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().beforeProcessAccounting) {
@@ -249,7 +276,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 totalBaseBalanceAfterAccounting,
         uint256 totalBaseBalanceBeforeAccounting
     ) external override onlyVault {
-        if (!_config.afterProcessAccounting) return;
+        if (!getConfig().afterProcessAccounting) return;
 
         for (uint256 i = 0; i < hooks.length; i++) {
             if (hooks[i].getConfig().afterProcessAccounting) {

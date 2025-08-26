@@ -10,6 +10,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error DuplicateInInput(IHooks hook);
     error CallerNotHook(address caller);
     error NotSupported();
+    error EmptyHooksArray();
+    error TooManyHooks();
 
     struct HookData {
         uint8 index;
@@ -48,7 +50,11 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     /// @dev This function replaces all existing hooks with the provided array. Clears existing hook data.
     /// @param hooks_ Array of hook contracts to be set. Each hook must implement the IHooks interface.
     function setHooks(IHooks[] memory hooks_) external onlyRole(HOOK_MANAGER_ROLE) {
-        Config memory newConfig;
+        // Check if the array is empty
+        if (hooks_.length == 0) revert EmptyHooksArray();
+        // uint16 can only hold 16 hooks
+        if (hooks_.length > 16) revert TooManyHooks();
+
         // Check for duplicates in hooks_
         for (uint256 i = 0; i < hooks_.length; i++) {
             for (uint256 j = i + 1; j < hooks_.length; j++) {
@@ -105,17 +111,18 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     }
 
     function getConfig() public view override returns (Config memory) {
+        ConfigBitmap memory bitmap = configBitmap;
         return Config({
-            beforeDeposit: configBitmap.beforeDeposit != 0,
-            afterDeposit: configBitmap.afterDeposit != 0,
-            beforeMint: configBitmap.beforeMint != 0,
-            afterMint: configBitmap.afterMint != 0,
-            beforeRedeem: configBitmap.beforeRedeem != 0,
-            afterRedeem: configBitmap.afterRedeem != 0,
-            beforeWithdraw: configBitmap.beforeWithdraw != 0,
-            afterWithdraw: configBitmap.afterWithdraw != 0,
-            beforeProcessAccounting: configBitmap.beforeProcessAccounting != 0,
-            afterProcessAccounting: configBitmap.afterProcessAccounting != 0
+            beforeDeposit: bitmap.beforeDeposit != 0,
+            afterDeposit: bitmap.afterDeposit != 0,
+            beforeMint: bitmap.beforeMint != 0,
+            afterMint: bitmap.afterMint != 0,
+            beforeRedeem: bitmap.beforeRedeem != 0,
+            afterRedeem: bitmap.afterRedeem != 0,
+            beforeWithdraw: bitmap.beforeWithdraw != 0,
+            afterWithdraw: bitmap.afterWithdraw != 0,
+            beforeProcessAccounting: bitmap.beforeProcessAccounting != 0,
+            afterProcessAccounting: bitmap.afterProcessAccounting != 0
         });
     }
 

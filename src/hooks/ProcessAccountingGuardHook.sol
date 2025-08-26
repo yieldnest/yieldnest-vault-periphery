@@ -9,6 +9,7 @@ contract ProcessAccountingGuardHook is IHooks {
     error TotalAssetsIncreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxIncreaseRatio);
     error OnlyOwner();
     error NotSupported();
+    error OnlyVault();
 
     uint256 public constant RATIO_DENOMINATOR = 1e18;
 
@@ -19,6 +20,11 @@ contract ProcessAccountingGuardHook is IHooks {
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert OnlyOwner();
+        _;
+    }
+
+    modifier onlyVault() {
+        if (msg.sender != address(VAULT)) revert OnlyVault();
         _;
     }
 
@@ -63,7 +69,7 @@ contract ProcessAccountingGuardHook is IHooks {
         uint256,
         uint256,
         uint256
-    ) external view override {
+    ) external view override onlyVault {
         if (totalAssetsBeforeAccounting == 0) return; // Skip check if starting from zero
 
         if (totalAssetsAfterAccounting < totalAssetsBeforeAccounting) {

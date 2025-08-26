@@ -69,17 +69,20 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
             hookData[hooks_[i]] = HookData({index: uint8(i), active: true});
 
             IHooks.Config memory config = hooks_[i].getConfig();
-
-            if (config.beforeDeposit) newConfigBitmap.beforeDeposit |= uint16(1 << i);
-            if (config.afterDeposit) newConfigBitmap.afterDeposit |= uint16(1 << i);
-            if (config.beforeMint) newConfigBitmap.beforeMint |= uint16(1 << i);
-            if (config.afterMint) newConfigBitmap.afterMint |= uint16(1 << i);
-            if (config.beforeRedeem) newConfigBitmap.beforeRedeem |= uint16(1 << i);
-            if (config.afterRedeem) newConfigBitmap.afterRedeem |= uint16(1 << i);
-            if (config.beforeWithdraw) newConfigBitmap.beforeWithdraw |= uint16(1 << i);
-            if (config.afterWithdraw) newConfigBitmap.afterWithdraw |= uint16(1 << i);
-            if (config.beforeProcessAccounting) newConfigBitmap.beforeProcessAccounting |= uint16(1 << i);
-            if (config.afterProcessAccounting) newConfigBitmap.afterProcessAccounting |= uint16(1 << i);
+            if (config.beforeDeposit) newConfigBitmap.beforeDeposit = setHook(i, newConfigBitmap.beforeDeposit);
+            if (config.afterDeposit) newConfigBitmap.afterDeposit = setHook(i, newConfigBitmap.afterDeposit);
+            if (config.beforeMint) newConfigBitmap.beforeMint = setHook(i, newConfigBitmap.beforeMint);
+            if (config.afterMint) newConfigBitmap.afterMint = setHook(i, newConfigBitmap.afterMint);
+            if (config.beforeRedeem) newConfigBitmap.beforeRedeem = setHook(i, newConfigBitmap.beforeRedeem);
+            if (config.afterRedeem) newConfigBitmap.afterRedeem = setHook(i, newConfigBitmap.afterRedeem);
+            if (config.beforeWithdraw) newConfigBitmap.beforeWithdraw = setHook(i, newConfigBitmap.beforeWithdraw);
+            if (config.afterWithdraw) newConfigBitmap.afterWithdraw = setHook(i, newConfigBitmap.afterWithdraw);
+            if (config.beforeProcessAccounting) {
+                newConfigBitmap.beforeProcessAccounting = setHook(i, newConfigBitmap.beforeProcessAccounting);
+            }
+            if (config.afterProcessAccounting) {
+                newConfigBitmap.afterProcessAccounting = setHook(i, newConfigBitmap.afterProcessAccounting);
+            }
         }
 
         configBitmap = newConfigBitmap;
@@ -116,6 +119,14 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         });
     }
 
+    function supportsHook(uint256 index, uint16 bitmap) internal pure returns (bool) {
+        return (bitmap & (1 << index)) != 0;
+    }
+
+    function setHook(uint256 index, uint16 bitmap) internal pure returns (uint16) {
+        return bitmap | uint16(1 << index);
+    }
+
     function beforeDeposit(
         address _asset,
         uint256 assets,
@@ -124,10 +135,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 shares,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!getConfig().beforeDeposit) return;
+        uint16 bitmap = configBitmap.beforeDeposit;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().beforeDeposit) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].beforeDeposit(_asset, assets, caller, receiver, shares, baseAssets);
             }
         }
@@ -141,10 +154,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 shares,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!getConfig().afterDeposit) return;
+        uint16 bitmap = configBitmap.afterDeposit;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().afterDeposit) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].afterDeposit(_asset, assets, caller, receiver, shares, baseAssets);
             }
         }
@@ -158,10 +173,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 assets,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!getConfig().beforeMint) return;
+        uint16 bitmap = configBitmap.beforeMint;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().beforeMint) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].beforeMint(_asset, shares, caller, receiver, assets, baseAssets);
             }
         }
@@ -175,10 +192,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 assets,
         uint256 baseAssets
     ) external override onlyVault {
-        if (!getConfig().afterMint) return;
+        uint16 bitmap = configBitmap.afterMint;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().afterMint) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].afterMint(_asset, shares, caller, receiver, assets, baseAssets);
             }
         }
@@ -192,10 +211,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 assets
     ) external override onlyVault {
-        if (!getConfig().beforeRedeem) return;
+        uint16 bitmap = configBitmap.beforeRedeem;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().beforeRedeem) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].beforeRedeem(_asset, shares, caller, receiver, owner, assets);
             }
         }
@@ -209,10 +230,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 assets
     ) external override onlyVault {
-        if (!getConfig().afterRedeem) return;
+        uint16 bitmap = configBitmap.afterRedeem;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().afterRedeem) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].afterRedeem(_asset, shares, caller, receiver, owner, assets);
             }
         }
@@ -226,10 +249,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 shares
     ) external override onlyVault {
-        if (!getConfig().beforeWithdraw) return;
+        uint16 bitmap = configBitmap.beforeWithdraw;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().beforeWithdraw) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].beforeWithdraw(_asset, assets, caller, receiver, owner, shares);
             }
         }
@@ -243,10 +268,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         address owner,
         uint256 shares
     ) external override onlyVault {
-        if (!getConfig().afterWithdraw) return;
+        uint16 bitmap = configBitmap.afterWithdraw;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().afterWithdraw) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].afterWithdraw(_asset, assets, caller, receiver, owner, shares);
             }
         }
@@ -257,10 +284,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 totalSupplyBeforeAccounting,
         uint256 totalBaseBalanceBeforeAccounting
     ) external override onlyVault {
-        if (!getConfig().beforeProcessAccounting) return;
+        uint16 bitmap = configBitmap.beforeProcessAccounting;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().beforeProcessAccounting) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].beforeProcessAccounting(
                     totalAssetsBeforeAccounting, totalSupplyBeforeAccounting, totalBaseBalanceBeforeAccounting
                 );
@@ -276,10 +305,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint256 totalBaseBalanceAfterAccounting,
         uint256 totalBaseBalanceBeforeAccounting
     ) external override onlyVault {
-        if (!getConfig().afterProcessAccounting) return;
+        uint16 bitmap = configBitmap.afterProcessAccounting;
+        if (bitmap == 0) return;
 
-        for (uint256 i = 0; i < hooks.length; i++) {
-            if (hooks[i].getConfig().afterProcessAccounting) {
+        uint256 hooksLength = hooks.length;
+        for (uint256 i = 0; i < hooksLength; i++) {
+            if (supportsHook(i, bitmap)) {
                 hooks[i].afterProcessAccounting(
                     totalAssetsBeforeAccounting,
                     totalAssetsAfterAccounting,

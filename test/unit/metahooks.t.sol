@@ -177,18 +177,18 @@ contract MetaHooksTest is Test {
     }
 
     function testOnlyVaultCanCallHooks() public {
-        // Set up a hook that sets beforeDepositCalled
+        // Set up a hook that enables all hook functions
         IHooks.Config memory config = IHooks.Config({
             beforeDeposit: true,
-            afterDeposit: false,
-            beforeMint: false,
-            afterMint: false,
-            beforeRedeem: false,
-            afterRedeem: false,
-            beforeWithdraw: false,
-            afterWithdraw: false,
-            beforeProcessAccounting: false,
-            afterProcessAccounting: false
+            afterDeposit: true,
+            beforeMint: true,
+            afterMint: true,
+            beforeRedeem: true,
+            afterRedeem: true,
+            beforeWithdraw: true,
+            afterWithdraw: true,
+            beforeProcessAccounting: true,
+            afterProcessAccounting: true
         });
         HooksMock hook = new HooksMock(config);
         IHooks[] memory hooksArr = new IHooks[](1);
@@ -198,16 +198,95 @@ contract MetaHooksTest is Test {
         metaHooks.setHooks(hooksArr);
         vm.stopPrank();
 
-        // Should revert if not called by vault
+        // Test beforeDeposit
         vm.expectRevert(IHooks.CallerNotVault.selector);
         metaHooks.beforeDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
 
-        // Call as vault
         vm.startPrank(address(vault));
         metaHooks.beforeDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        assertTrue(hook.beforeDepositCalled(), "beforeDeposit should be called on hook");
         vm.stopPrank();
 
-        assertTrue(hook.beforeDepositCalled(), "beforeDeposit should be called on hook");
+        // Test afterDeposit
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.afterDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.afterDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        assertTrue(hook.afterDepositCalled(), "afterDeposit should be called on hook");
+        vm.stopPrank();
+
+        // Test beforeMint
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.beforeMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.beforeMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        assertTrue(hook.beforeMintCalled(), "beforeMint should be called on hook");
+        vm.stopPrank();
+
+        // Test afterMint
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.afterMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.afterMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        assertTrue(hook.afterMintCalled(), "afterMint should be called on hook");
+        vm.stopPrank();
+
+        // Test beforeRedeem
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.beforeRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.beforeRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        assertTrue(hook.beforeRedeemCalled(), "beforeRedeem should be called on hook");
+        vm.stopPrank();
+
+        // Test afterRedeem
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.afterRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.afterRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        assertTrue(hook.afterRedeemCalled(), "afterRedeem should be called on hook");
+        vm.stopPrank();
+
+        // Test beforeWithdraw
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.beforeWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.beforeWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        assertTrue(hook.beforeWithdrawCalled(), "beforeWithdraw should be called on hook");
+        vm.stopPrank();
+
+        // Test afterWithdraw
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.afterWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.afterWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        assertTrue(hook.afterWithdrawCalled(), "afterWithdraw should be called on hook");
+        vm.stopPrank();
+
+        // Test beforeProcessAccounting
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.beforeProcessAccounting(1, 1, 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.beforeProcessAccounting(1, 1, 1);
+        assertTrue(hook.beforeProcessAccountingCalled(), "beforeProcessAccounting should be called on hook");
+        vm.stopPrank();
+
+        // Test afterProcessAccounting
+        vm.expectRevert(IHooks.CallerNotVault.selector);
+        metaHooks.afterProcessAccounting(1, 1, 1, 1, 1, 1);
+
+        vm.startPrank(address(vault));
+        metaHooks.afterProcessAccounting(1, 1, 1, 1, 1, 1);
+        assertTrue(hook.afterProcessAccountingCalled(), "afterProcessAccounting should be called on hook");
+        vm.stopPrank();
     }
 
     function testOnlyHookCanCallVaultFunctions() public {

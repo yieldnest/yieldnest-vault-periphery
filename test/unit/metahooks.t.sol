@@ -338,22 +338,21 @@ contract MetaHooksTest is Test {
         bool beforeProcessAccounting,
         bool afterProcessAccounting
     ) public {
-        // Create config with fuzzed boolean values
-        IHooks.Config memory config = IHooks.Config({
-            beforeDeposit: beforeDeposit,
-            afterDeposit: afterDeposit,
-            beforeMint: beforeMint,
-            afterMint: afterMint,
-            beforeRedeem: beforeRedeem,
-            afterRedeem: afterRedeem,
-            beforeWithdraw: beforeWithdraw,
-            afterWithdraw: afterWithdraw,
-            beforeProcessAccounting: beforeProcessAccounting,
-            afterProcessAccounting: afterProcessAccounting
-        });
-
         // Create hook with fuzzed config
-        HooksMock hook = new HooksMock(config);
+        HooksMock hook = new HooksMock(
+            IHooks.Config({
+                beforeDeposit: beforeDeposit,
+                afterDeposit: afterDeposit,
+                beforeMint: beforeMint,
+                afterMint: afterMint,
+                beforeRedeem: beforeRedeem,
+                afterRedeem: afterRedeem,
+                beforeWithdraw: beforeWithdraw,
+                afterWithdraw: afterWithdraw,
+                beforeProcessAccounting: beforeProcessAccounting,
+                afterProcessAccounting: afterProcessAccounting
+            })
+        );
         IHooks[] memory hooksArr = new IHooks[](1);
         hooksArr[0] = IHooks(address(hook));
 
@@ -362,65 +361,23 @@ contract MetaHooksTest is Test {
         metaHooks.setHooks(hooksArr);
         vm.stopPrank();
 
-        // Test beforeDeposit
-        vm.startPrank(address(vault));
-        metaHooks.beforeDeposit(address(0xDEAD), 100, address(this), address(this), 50, 100);
-        vm.stopPrank();
-        assertEq(hook.beforeDepositCalled(), beforeDeposit, "beforeDeposit call mismatch");
+        // Test all hook calls with the single hook
+        HooksMock[] memory hooks = new HooksMock[](1);
+        hooks[0] = hook;
 
-        // Test afterDeposit
-        vm.startPrank(address(vault));
-        metaHooks.afterDeposit(address(0xDEAD), 100, address(this), address(this), 50, 100);
-        vm.stopPrank();
-        assertEq(hook.afterDepositCalled(), afterDeposit, "afterDeposit call mismatch");
-
-        // Test beforeMint
-        vm.startPrank(address(vault));
-        metaHooks.beforeMint(address(0xDEAD), 50, address(this), address(this), 100, 100);
-        vm.stopPrank();
-        assertEq(hook.beforeMintCalled(), beforeMint, "beforeMint call mismatch");
-
-        // Test afterMint
-        vm.startPrank(address(vault));
-        metaHooks.afterMint(address(0xDEAD), 50, address(this), address(this), 100, 100);
-        vm.stopPrank();
-        assertEq(hook.afterMintCalled(), afterMint, "afterMint call mismatch");
-
-        // Test beforeRedeem
-        vm.startPrank(address(vault));
-        metaHooks.beforeRedeem(address(0xDEAD), 50, address(this), address(this), address(this), 100);
-        vm.stopPrank();
-        assertEq(hook.beforeRedeemCalled(), beforeRedeem, "beforeRedeem call mismatch");
-
-        // Test afterRedeem
-        vm.startPrank(address(vault));
-        metaHooks.afterRedeem(address(0xDEAD), 50, address(this), address(this), address(this), 100);
-        vm.stopPrank();
-        assertEq(hook.afterRedeemCalled(), afterRedeem, "afterRedeem call mismatch");
-
-        // Test beforeWithdraw
-        vm.startPrank(address(vault));
-        metaHooks.beforeWithdraw(address(0xDEAD), 100, address(this), address(this), address(this), 50);
-        vm.stopPrank();
-        assertEq(hook.beforeWithdrawCalled(), beforeWithdraw, "beforeWithdraw call mismatch");
-
-        // Test afterWithdraw
-        vm.startPrank(address(vault));
-        metaHooks.afterWithdraw(address(0xDEAD), 100, address(this), address(this), address(this), 50);
-        vm.stopPrank();
-        assertEq(hook.afterWithdrawCalled(), afterWithdraw, "afterWithdraw call mismatch");
-
-        // Test beforeProcessAccounting
-        vm.startPrank(address(vault));
-        metaHooks.beforeProcessAccounting(1000, 500, 800);
-        vm.stopPrank();
-        assertEq(hook.beforeProcessAccountingCalled(), beforeProcessAccounting, "beforeProcessAccounting call mismatch");
-
-        // Test afterProcessAccounting
-        vm.startPrank(address(vault));
-        metaHooks.afterProcessAccounting(1000, 1100, 500, 550, 850, 800);
-        vm.stopPrank();
-        assertEq(hook.afterProcessAccountingCalled(), afterProcessAccounting, "afterProcessAccounting call mismatch");
+        _testAllHookCalls(
+            hooks,
+            _castBoolToDynamic(beforeDeposit),
+            _castBoolToDynamic(afterDeposit),
+            _castBoolToDynamic(beforeMint),
+            _castBoolToDynamic(afterMint),
+            _castBoolToDynamic(beforeRedeem),
+            _castBoolToDynamic(afterRedeem),
+            _castBoolToDynamic(beforeWithdraw),
+            _castBoolToDynamic(afterWithdraw),
+            _castBoolToDynamic(beforeProcessAccounting),
+            _castBoolToDynamic(afterProcessAccounting)
+        );
     }
 
     function testMetaHooksWithMultipleHooks(
@@ -440,18 +397,20 @@ contract MetaHooksTest is Test {
 
         // Initialize hooks with fuzzed configurations
         for (uint256 i = 0; i < 5; i++) {
-            hooks[i] = new HooksMock(IHooks.Config({
-                beforeDeposit: beforeDeposits[i],
-                afterDeposit: afterDeposits[i],
-                beforeMint: beforeMints[i],
-                afterMint: afterMints[i],
-                beforeRedeem: beforeRedeems[i],
-                afterRedeem: afterRedeems[i],
-                beforeWithdraw: beforeWithdraws[i],
-                afterWithdraw: afterWithdraws[i],
-                beforeProcessAccounting: beforeProcessAccountings[i],
-                afterProcessAccounting: afterProcessAccountings[i]
-            }));
+            hooks[i] = new HooksMock(
+                IHooks.Config({
+                    beforeDeposit: beforeDeposits[i],
+                    afterDeposit: afterDeposits[i],
+                    beforeMint: beforeMints[i],
+                    afterMint: afterMints[i],
+                    beforeRedeem: beforeRedeems[i],
+                    afterRedeem: afterRedeems[i],
+                    beforeWithdraw: beforeWithdraws[i],
+                    afterWithdraw: afterWithdraws[i],
+                    beforeProcessAccounting: beforeProcessAccountings[i],
+                    afterProcessAccounting: afterProcessAccountings[i]
+                })
+            );
         }
 
         // Convert to IHooks array
@@ -484,6 +443,12 @@ contract MetaHooksTest is Test {
         for (uint256 i = 0; i < 5; i++) {
             dynamicArray[i] = fixedArray[i];
         }
+        return dynamicArray;
+    }
+
+    function _castBoolToDynamic(bool value) internal pure returns (bool[] memory) {
+        bool[] memory dynamicArray = new bool[](1);
+        dynamicArray[0] = value;
         return dynamicArray;
     }
 
@@ -571,7 +536,11 @@ contract MetaHooksTest is Test {
         metaHooks.beforeProcessAccounting(1000, 500, 800);
         vm.stopPrank();
         for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].beforeProcessAccountingCalled(), beforeProcessAccountings[i], "beforeProcessAccounting call mismatch");
+            assertEq(
+                hooks[i].beforeProcessAccountingCalled(),
+                beforeProcessAccountings[i],
+                "beforeProcessAccounting call mismatch"
+            );
         }
 
         // Test afterProcessAccounting
@@ -579,7 +548,11 @@ contract MetaHooksTest is Test {
         metaHooks.afterProcessAccounting(1000, 1100, 500, 550, 850, 800);
         vm.stopPrank();
         for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].afterProcessAccountingCalled(), afterProcessAccountings[i], "afterProcessAccounting call mismatch");
+            assertEq(
+                hooks[i].afterProcessAccountingCalled(),
+                afterProcessAccountings[i],
+                "afterProcessAccounting call mismatch"
+            );
         }
     }
 }

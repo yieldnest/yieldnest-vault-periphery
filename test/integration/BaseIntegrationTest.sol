@@ -47,10 +47,19 @@ contract BaseIntegrationTest is Test, Actors {
             0.002 ether // maxIncreaseRatio (0.2%)
         );
 
+        FeeHooks previousFeeHooks = FeeHooks(address(vault.hooks()));
+        FeeHooks feeHooks = new FeeHooks(
+            address(metaHooks),
+            onwer,
+            previousFeeHooks.performanceFee(), // performanceFee (0.1%)
+            previousFeeHooks.performanceFeeRecipient(),
+            previousFeeHooks.getConfig()
+        );
+
         // Set up hooks array for MetaHooks
         IHooks[] memory hooks = new IHooks[](3);
         hooks[0] = IHooks(address(permissionedVaultHook));
-        hooks[1] = IHooks(address(vault.hooks()));
+        hooks[1] = IHooks(address(feeHooks));
         hooks[2] = IHooks(address(processAccountingGuardHook));
 
         vm.startPrank(HOOK_MANAGER);

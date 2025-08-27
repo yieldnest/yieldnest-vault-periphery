@@ -106,7 +106,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     // HOOKS FUNCTIONS
 
-    function setConfig(Config memory config_) public override {
+    function setConfig(Config memory) public pure override {
         revert NotSupported();
     }
 
@@ -354,5 +354,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     function _feeOnTotal(uint256 shares, address caller) external view override returns (uint256) {
         return VAULT._feeOnTotal(shares, caller);
+    }
+
+    function previewDepositAsset(address assetAddress, uint256 assets) external view override returns (uint256) {
+        return VAULT.previewDepositAsset(assetAddress, assets);
     }
 }

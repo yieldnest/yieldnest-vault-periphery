@@ -36,4 +36,8 @@ contract VaultMock is IVaultForHooks {
     function _feeOnTotal(uint256 shares, address) external view override returns (uint256) {
         return feeOnTotal + shares;
     }
+
+    function previewDepositAsset(address assetAddress, uint256 assets) external view override returns (uint256) {
+        return assetsToShares + assets;
+    }
 }

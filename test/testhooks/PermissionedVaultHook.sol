@@ -53,7 +53,7 @@ contract PermissionedVaultHook is IHooks {
         });
     }
 
-    function setConfig(Config memory config) external {
+    function setConfig(Config memory) external {
         revert NotSupported();
     }
 

@@ -48,8 +48,11 @@ contract DepositHooksIntegrationTest is BaseIntegrationTest {
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), 100 ether);
         vault.deposit(100 ether, depositor);
+        vm.stopPrank();
 
+        ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
         // Now withdraw
+        vm.startPrank(depositor);
         vault.withdraw(50 ether, depositor, depositor);
         vm.stopPrank();
 
@@ -78,6 +81,24 @@ contract DepositHooksIntegrationTest is BaseIntegrationTest {
             abi.encodeWithSelector(PermissionedVaultHook.UserNotWhitelisted.selector, notWhitelisted);
         vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
         vault.withdraw(25 ether, notWhitelisted, notWhitelisted);
+        vm.stopPrank();
+    }
+
+    function test_deposit_and_processAccounting_success() public {
+        // Deposit as whitelisted user
+        deal(vault.asset(), depositor, 100 ether);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        vault.deposit(100 ether, depositor);
+        vm.stopPrank();
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), 100 ether);
+        assertEq(vault.totalAssets(), 100 ether);
+
+        // Process accounting should succeed (within allowed ratio bounds)
+        vm.startPrank(PROCESSOR);
+        vault.processAccounting();
         vm.stopPrank();
     }
 }

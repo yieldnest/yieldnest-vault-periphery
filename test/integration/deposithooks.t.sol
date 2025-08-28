@@ -41,4 +41,28 @@ contract DepositHooksIntegrationTest is BaseIntegrationTest {
         vault.deposit(100 ether, notWhitelisted);
         vm.stopPrank();
     }
+
+    function test_mint_permissionedVaultHook() public {
+        deal(vault.asset(), depositor, 100 ether);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        vault.mint(100 ether, depositor);
+        vm.stopPrank();
+
+        assertEq(vault.balanceOf(depositor), 100 ether);
+        assertEq(vault.totalAssets(), 100 ether);
+    }
+
+    function test_mint_permissionedVaultHook_revert() public {
+        address notWhitelisted = address(0xbeefee);
+        deal(vault.asset(), notWhitelisted, 100 ether);
+
+        vm.startPrank(notWhitelisted);
+        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        bytes memory revertData =
+            abi.encodeWithSelector(PermissionedVaultHook.UserNotWhitelisted.selector, notWhitelisted);
+        vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+        vault.mint(100 ether, notWhitelisted);
+        vm.stopPrank();
+    }
 }

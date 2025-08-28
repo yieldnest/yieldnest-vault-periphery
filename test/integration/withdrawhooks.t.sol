@@ -59,4 +59,46 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vault.withdraw(25 ether, notWhitelisted, notWhitelisted);
         vm.stopPrank();
     }
+
+    function test_redeem_permissionedVaultHook() public {
+        // First deposit to have shares to redeem
+        deal(vault.asset(), depositor, 100 ether);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        vault.deposit(100 ether, depositor);
+        vm.stopPrank();
+
+        ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
+        // Now redeem
+        vm.startPrank(depositor);
+        vault.redeem(50 ether, depositor, depositor);
+        vm.stopPrank();
+
+        assertEq(vault.balanceOf(depositor), 50 ether);
+        assertEq(vault.totalAssets(), 50 ether);
+    }
+
+    function test_redeem_permissionedVaultHook_revert() public {
+        address notWhitelisted = address(0xbeefee);
+
+        // First deposit as whitelisted user to create shares
+        deal(vault.asset(), depositor, 100 ether);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        vault.deposit(100 ether, depositor);
+
+        // Transfer shares to non-whitelisted user
+        vault.transfer(notWhitelisted, 50 ether);
+        vm.stopPrank();
+
+        ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
+
+        // Try to redeem as non-whitelisted user
+        vm.startPrank(notWhitelisted);
+        bytes memory revertData =
+            abi.encodeWithSelector(PermissionedVaultHook.UserNotWhitelisted.selector, notWhitelisted);
+        vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+        vault.redeem(25 ether, notWhitelisted, notWhitelisted);
+        vm.stopPrank();
+    }
 }

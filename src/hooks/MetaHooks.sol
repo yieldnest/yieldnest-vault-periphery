@@ -5,6 +5,12 @@ import {IHooks, IVault} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 
+/**
+ * @title MetaHooks
+ * @notice MetaHooks is a contract that manages a set of hooks for a vault.
+ * @dev It is used to manage the hooks for a vault and to call the hooks in the correct order.
+ * @dev It supports the IHooks interface, in order to be used as a hook for the vault.
+ */
 contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error ZeroVaultAddress();
     error DuplicateInInput(IHooks hook);
@@ -38,6 +44,16 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     /// @notice Role identifier for hook managers.
     bytes32 public constant HOOK_MANAGER_ROLE = keccak256("HOOK_MANAGER_ROLE");
+
+    modifier onlyVault() {
+        if (msg.sender != address(VAULT)) revert CallerNotVault();
+        _;
+    }
+
+    modifier onlyHook() {
+        if (!hookData[IHooks(msg.sender)].active) revert CallerNotHook(msg.sender);
+        _;
+    }
 
     constructor(address vault_, address defaultAdmin, address hookManager) {
         if (vault_ == address(0)) revert ZeroVaultAddress();
@@ -94,16 +110,6 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         configBitmap = newConfigBitmap;
     }
 
-    modifier onlyVault() {
-        if (msg.sender != address(VAULT)) revert CallerNotVault();
-        _;
-    }
-
-    modifier onlyHook() {
-        if (!hookData[IHooks(msg.sender)].active) revert CallerNotHook(msg.sender);
-        _;
-    }
-
     // CONFIG ///
 
     function setConfig(Config memory) public pure override {
@@ -112,6 +118,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     function getConfig() public view override returns (Config memory) {
         ConfigBitmap memory bitmap = configBitmap;
+        // Convert bitmap values to boolean flags for each hook type
+        // Each bitmap field is a uint16 where bits represent which hooks support that operation
+        // If any bit is set (bitmap != 0), then at least one hook supports that operation
         return Config({
             beforeDeposit: bitmap.beforeDeposit != 0,
             afterDeposit: bitmap.afterDeposit != 0,
@@ -126,10 +135,22 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         });
     }
 
+    /**
+     * @notice Check if a hook is supported in the bitmap
+     * @param index The index of the hook to check
+     * @param bitmap The bitmap to check the hook in
+     * @return True if the hook is supported, false otherwise
+     */
     function supportsHook(uint256 index, uint16 bitmap) internal pure returns (bool) {
         return (bitmap & (1 << index)) != 0;
     }
 
+    /**
+     * @notice Toggle a hook in the bitmap
+     * @param index The index of the hook to set
+     * @param bitmap The bitmap to set the hook in
+     * @return The new bitmap
+     */
     function setHook(uint256 index, uint16 bitmap) internal pure returns (uint16) {
         return bitmap | uint16(1 << index);
     }

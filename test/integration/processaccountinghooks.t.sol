@@ -12,11 +12,28 @@ import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
 import {HooksLib, HookCallFailed} from "lib/yieldnest-vault/src/library/HooksLib.sol";
 import {ProcessorUtils} from "lib/yieldnest-vault/test/utils/ProcessorUtils.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
-
+import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
+import {MockProvider} from "lib/yieldnest-vault/test/unit/mocks/MockProvider.sol";
 // Minimal mock for IHooks
+
 contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
+    MockERC4626 public slashableAsset;
+
     function setUp() public override {
         super.setUp();
+
+        // Create a slashable asset (MockERC4626)
+        slashableAsset = new MockERC4626(ERC20(vault.asset()), "Slashable Asset", "SLASH");
+
+        // Add the slashable asset to the vault
+        vm.startPrank(ADMIN);
+        vault.addAsset(address(slashableAsset), true);
+        vm.stopPrank();
+
+        // Add the slashable asset to the rate provider
+        vm.startPrank(PROVIDER_MANAGER);
+        MockProvider(address(vault.provider())).addERC4626(address(slashableAsset));
+        vm.stopPrank();
     }
 
     function test_deposit_and_processAccounting_success() public {
@@ -37,37 +54,46 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_deposit_donate_and_processAccounting_revert() public {
+    function test_deposit_donate_and_processAccounting_revert(uint256 depositAmount, uint256 donationAmount) public {
+        // Bound inputs
+        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
+        donationAmount = bound(donationAmount, 1, depositAmount * 10); // Cap donation to 10x the deposit amount
+
         // Deposit as whitelisted user
-        deal(vault.asset(), depositor, 100 ether);
+        deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        vault.deposit(100 ether, depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
         vm.stopPrank();
         // Verify deposit was successful
-        assertEq(vault.balanceOf(depositor), 100 ether);
+        assertEq(vault.balanceOf(depositor), depositAmount);
         uint256 totalAssetsBefore = vault.totalAssets();
-        assertEq(totalAssetsBefore, 100 ether);
+        assertEq(totalAssetsBefore, depositAmount);
 
         // Donate a large amount to trigger the increase ratio guard
         // This will cause totalAssets to increase significantly without corresponding shares
-        uint256 donationAmount = 10 ether;
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
         uint256 totalAssetsAfter = totalAssetsBefore + donationAmount;
         uint256 maxIncreaseRatio = processAccountingGuardHook.maxIncreaseRatio();
 
-        // Process accounting should revert due to exceeding maxIncreaseRatio (0.2%)
-        // The donation increased assets by 10% which is way above the 0.2% limit
+        // Process accounting should revert due to exceeding maxIncreaseRatio
+        // The donation increased assets significantly which should be above the maxIncreaseRatio limit
         vm.startPrank(PROCESSOR);
-        bytes memory revertData = abi.encodeWithSelector(
-            ProcessAccountingGuardHook.TotalAssetsIncreasedTooMuch.selector,
-            totalAssetsBefore,
-            totalAssetsAfter,
-            maxIncreaseRatio
-        );
-        vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+        // Calculate the actual increase ratio
+        uint256 actualIncreaseRatio = ((totalAssetsAfter - totalAssetsBefore) * 1e18) / totalAssetsBefore;
+
+        // Only expect revert if the increase ratio exceeds the maximum allowed
+        if (actualIncreaseRatio > maxIncreaseRatio) {
+            bytes memory revertData = abi.encodeWithSelector(
+                ProcessAccountingGuardHook.TotalAssetsIncreasedTooMuch.selector,
+                totalAssetsBefore,
+                totalAssetsAfter,
+                maxIncreaseRatio
+            );
+            vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+        }
         vault.processAccounting();
         vm.stopPrank();
     }

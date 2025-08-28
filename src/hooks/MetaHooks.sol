@@ -104,7 +104,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         _;
     }
 
-    // HOOKS FUNCTIONS
+    // CONFIG ///
 
     function setConfig(Config memory) public pure override {
         revert NotSupported();
@@ -133,6 +133,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     function setHook(uint256 index, uint16 bitmap) internal pure returns (uint16) {
         return bitmap | uint16(1 << index);
     }
+    /// HOOKS FUNCTIONS ///
 
     function beforeDeposit(
         address _asset,

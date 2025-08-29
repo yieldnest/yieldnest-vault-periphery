@@ -40,6 +40,13 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     IVault public immutable override VAULT;
     IHooks[] public hooks;
     mapping(IHooks => HookData) public hookData;
+    /**
+     * @notice The bitmap of the hooks that are active for each operation
+     * @dev The bitmap is a uint16 where each bit represents a hook
+     * @dev The bit is set to 1 if the hook is active for the operation
+     * @dev The bit is set to 0 if the hook is not active for the operation
+     * @dev The bitmap is used to optimize the check for what hooks to call (single slot read)
+     */
     ConfigBitmap private configBitmap;
 
     /// @notice Role identifier for hook managers.

@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {console} from "forge-std/console.sol";
 
 contract ProcessAccountingGuardHook is IHooks {
     error TotalAssetsDecreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxDecreaseRatio);
@@ -10,8 +11,10 @@ contract ProcessAccountingGuardHook is IHooks {
     error OnlyOwner();
     error NotSupported();
     error OnlyVault();
+    error ConvertToAssetsChangedDuringDeposit(uint256 valueBefore, uint256 valueAfter);
 
     uint256 public constant RATIO_DENOMINATOR = 1e18;
+    uint256 public constant CONVERT_TO_SHARES_TSTORE_SLOT = 0x01;
 
     IVault public immutable VAULT;
     address public owner;
@@ -49,10 +52,10 @@ contract ProcessAccountingGuardHook is IHooks {
             afterDeposit: false,
             beforeMint: false,
             afterMint: false,
-            beforeRedeem: false,
-            afterRedeem: false,
-            beforeWithdraw: false,
-            afterWithdraw: false,
+            beforeRedeem: true,
+            afterRedeem: true,
+            beforeWithdraw: true,
+            afterWithdraw: true,
             beforeProcessAccounting: false,
             afterProcessAccounting: true
         });
@@ -62,6 +65,9 @@ contract ProcessAccountingGuardHook is IHooks {
         revert NotSupported();
     }
 
+    /**
+     * @notice Check if the total assets decreased too much or increased too much
+     */
     function afterProcessAccounting(
         uint256 totalAssetsBeforeAccounting,
         uint256 totalAssetsAfterAccounting,
@@ -93,7 +99,55 @@ contract ProcessAccountingGuardHook is IHooks {
         }
     }
 
-    // UNUSED HOOKS
+    /// REDEEM AND WITHDRAW RATE CHECKS ///
+
+    function beforeRedeem(address, uint256, address, address, address, uint256) external override onlyVault {
+        // Store the convertToAssets(1e18) value in transient storage
+        storeConvertToAssets();
+    }
+
+    function afterRedeem(address, uint256, address, address, address, uint256) external view override onlyVault {
+        // Compare the convertToAssets(1e18) value in transient storage with the current value
+        compareConvertToAssets();
+    }
+
+    function beforeWithdraw(address, uint256, address, address, address, uint256) external override onlyVault {
+        // Store the convertToAssets(1e18) value in transient storage
+        storeConvertToAssets();
+    }
+
+    function afterWithdraw(address, uint256, address, address, address, uint256) external view override onlyVault {
+        // Compare the convertToAssets(1e18) value in transient storage with the current value
+        compareConvertToAssets();
+    }
+
+    /**
+     * @notice Store the convertToAssets(1e18) value in transient storage
+     */
+    function storeConvertToAssets() internal {
+        uint256 convertToAssetsValue = VAULT.convertToAssets(1e18);
+        assembly {
+            tstore(CONVERT_TO_SHARES_TSTORE_SLOT, convertToAssetsValue)
+        }
+    }
+
+    /**
+     * @notice Compare the convertToAssets(1e18) value in transient storage with the current value
+     */
+    function compareConvertToAssets() internal view {
+        uint256 storedValue;
+        assembly {
+            storedValue := tload(CONVERT_TO_SHARES_TSTORE_SLOT)
+        }
+        uint256 currentValue = VAULT.convertToAssets(1e18);
+        uint256 delta = currentValue > storedValue ? currentValue - storedValue : storedValue - currentValue;
+        // Rate should not change by more than 10 wei
+        if (delta >= 10 wei) {
+            revert ConvertToAssetsChangedDuringDeposit(storedValue, currentValue);
+        }
+    }
+
+    /// UNUSED HOOKS ///
 
     function beforeDeposit(address, uint256, address, address, uint256, uint256) external pure override {
         // Not implemented
@@ -108,22 +162,6 @@ contract ProcessAccountingGuardHook is IHooks {
     }
 
     function afterMint(address, uint256, address, address, uint256, uint256) external pure override {
-        // Not implemented
-    }
-
-    function beforeRedeem(address, uint256, address, address, address, uint256) external pure override {
-        // Not implemented
-    }
-
-    function afterRedeem(address, uint256, address, address, address, uint256) external pure override {
-        // Not implemented
-    }
-
-    function beforeWithdraw(address, uint256, address, address, address, uint256) external pure override {
-        // Not implemented
-    }
-
-    function afterWithdraw(address, uint256, address, address, address, uint256) external pure override {
         // Not implemented
     }
 

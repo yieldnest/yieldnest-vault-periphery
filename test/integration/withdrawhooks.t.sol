@@ -101,4 +101,42 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vault.redeem(25 ether, notWhitelisted, notWhitelisted);
         vm.stopPrank();
     }
+
+    function test_redeem_after_donation() public {
+        // First deposit to have shares to redeem
+        deal(vault.asset(), depositor, 100 ether);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        uint256 initialShares = vault.deposit(100 ether, depositor);
+        vm.stopPrank();
+
+        ProcessorUtils.allocateToBuffer(vault, 100 ether, PROCESSOR);
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setMaxIncreaseRatio(100e18); // 10000% increase allowed
+        vm.stopPrank();
+
+        {
+            // Donate assets to the vault through bob to increase totalAssets without minting shares
+            uint256 donationAmount = 100 ether;
+            address bob = makeAddr("bob");
+            deal(vault.asset(), bob, donationAmount);
+            vm.startPrank(bob);
+            IERC20(vault.asset()).transfer(address(vault), donationAmount);
+            vm.stopPrank();
+
+            vault.processAccounting();
+        }
+        // Now redeem
+        uint256 redeemShares = 10 ether;
+        vm.startPrank(depositor);
+        vault.redeem(redeemShares, depositor, depositor);
+        vm.stopPrank();
+
+        assertEq(
+            vault.balanceOf(depositor),
+            initialShares - redeemShares,
+            "Depositor should have 90 shares remaining after redeeming 10"
+        );
+    }
 }

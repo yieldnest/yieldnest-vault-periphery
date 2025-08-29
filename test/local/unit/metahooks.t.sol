@@ -6,7 +6,7 @@ import {MetaHooks} from "src/hooks/MetaHooks.sol";
 import {IHooks, IVault} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
-import {VaultMock} from "test/unit/mocks/VaultMock.sol";
+import {VaultMock} from "./mocks/VaultMock.sol";
 
 // Minimal mock for IHooks
 contract HooksMock is IHooks {

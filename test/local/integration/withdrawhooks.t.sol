@@ -60,6 +60,52 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
+    function test_withdraw_after_donation() public {
+        // First deposit to have shares to withdraw from
+        deal(vault.asset(), depositor, 100 ether);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        uint256 initialShares = vault.deposit(100 ether, depositor);
+        vm.stopPrank();
+
+        ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setMaxIncreaseRatio(100e18); // 10000% increase allowed
+
+        {
+            // Donate assets to the vault through bob to increase totalAssets without minting shares
+            uint256 donationAmount = 100 ether;
+            address bob = makeAddr("bob");
+            deal(vault.asset(), bob, donationAmount);
+            vm.startPrank(bob);
+            IERC20(vault.asset()).transfer(address(vault), donationAmount);
+            vm.stopPrank();
+
+            vault.processAccounting();
+        }
+
+        uint256 totalAssetsBefore = vault.totalAssets();
+
+        uint256 amountToWithdraw = 75 ether;
+        // Now withdraw - should get more assets due to donation
+        uint256 balanceBefore = IERC20(vault.asset()).balanceOf(depositor);
+        vm.startPrank(depositor);
+        uint256 sharesBurned = vault.withdraw(amountToWithdraw, depositor, depositor);
+        vm.stopPrank();
+        uint256 balanceAfter = IERC20(vault.asset()).balanceOf(depositor);
+        uint256 assetsWithdrawn = balanceAfter - balanceBefore;
+
+        assertEq(assetsWithdrawn, amountToWithdraw, "Assets withdrawn should be equal to the requested amount");
+        // After donation, shares should be worth more, so we should have withdrawn the requested amount
+        assertEq(vault.balanceOf(depositor), initialShares - sharesBurned, "Should have exact remaining shares");
+        assertEq(
+            vault.totalAssets(),
+            totalAssetsBefore - amountToWithdraw,
+            "Total assets should be equal to the sum of the initial total assets and the amount withdrawn"
+        );
+    }
+
     function test_redeem_permissionedVaultHook() public {
         // First deposit to have shares to redeem
         deal(vault.asset(), depositor, 100 ether);

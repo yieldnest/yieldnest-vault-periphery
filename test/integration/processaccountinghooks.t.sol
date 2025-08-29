@@ -14,6 +14,7 @@ import {ProcessorUtils} from "lib/yieldnest-vault/test/utils/ProcessorUtils.sol"
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
 import {MockProvider} from "lib/yieldnest-vault/test/unit/mocks/MockProvider.sol";
+import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 // Minimal mock for IHooks
 
 contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
@@ -91,6 +92,58 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
                 totalAssetsBefore,
                 totalAssetsAfter,
                 maxIncreaseRatio
+            );
+            vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+        }
+        vault.processAccounting();
+        vm.stopPrank();
+    }
+
+    function test_deposit_slash_and_processAccounting_revert(uint256 depositAmount, uint256 slashAmount) public {
+        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
+        slashAmount = bound(slashAmount, 1, depositAmount / 2); // Cap slash to the deposit amount
+
+        // First deposit asset() to get slashableAsset
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(slashableAsset), depositAmount);
+        IERC4626(slashableAsset).deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        // Now deposit the slashableAsset into the vault
+        uint256 slashableAssetBalance = IERC20(slashableAsset).balanceOf(depositor);
+        vm.startPrank(depositor);
+        IERC20(slashableAsset).approve(address(vault), slashableAssetBalance);
+        vault.depositAsset(address(slashableAsset), slashableAssetBalance, depositor);
+        vm.stopPrank();
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), slashableAssetBalance);
+        uint256 totalAssetsBefore = vault.totalAssets();
+        assertEq(totalAssetsBefore, slashableAssetBalance);
+
+        // Slash assets by transferring them out of the slashableAsset contract
+        // This simulates a slashing event where underlying assets are lost
+        vm.startPrank(address(slashableAsset));
+        IERC20(vault.asset()).transfer(address(0xdead), slashAmount);
+        vm.stopPrank();
+
+        uint256 totalAssetsAfter = vault.computeTotalAssets();
+        uint256 maxDecreaseRatio = processAccountingGuardHook.maxDecreaseRatio();
+
+        // Process accounting should revert due to exceeding maxDecreaseRatio
+        // The slashing decreased assets significantly which should be above the maxDecreaseRatio limit
+        vm.startPrank(PROCESSOR);
+        // Calculate the actual decrease ratio
+        uint256 actualDecreaseRatio = ((totalAssetsBefore - totalAssetsAfter) * 1e18) / totalAssetsBefore;
+
+        // Only expect revert if the decrease ratio exceeds the maximum allowed
+        if (actualDecreaseRatio > maxDecreaseRatio) {
+            bytes memory revertData = abi.encodeWithSelector(
+                ProcessAccountingGuardHook.TotalAssetsDecreasedTooMuch.selector,
+                totalAssetsBefore,
+                totalAssetsAfter,
+                maxDecreaseRatio
             );
             vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
         }

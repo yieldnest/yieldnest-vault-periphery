@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {VaultAdmin} from "../../src/admin/VaultAdmin.sol";
+import {VaultManager} from "../../src/admin/VaultManager.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
@@ -12,24 +12,24 @@ import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
 import {Provider} from "lib/yieldnest-vault/src/module/Provider.sol";
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
 
-contract VaultAdminIntegrationTest is Test, Actors {
-    VaultAdmin public vaultAdmin;
+contract VaultManagerIntegrationTest is Test, Actors {
+    VaultManager public vaultManager;
     IVault public vault;
 
     function setUp() public {
         vault = IVault(MC.YNETHX);
-        vaultAdmin = new VaultAdmin(MC.YNETHX, ADMIN, ADMIN, ADMIN);
+        vaultManager = new VaultManager(MC.YNETHX, ADMIN, ADMIN, ADMIN);
 
-        // Grant VaultAdmin the necessary roles on the vault
+        // Grant VaultManager the necessary roles on the vault
         vm.startPrank(ADMIN);
         BaseVault(payable(address(vault))).grantRole(
-            BaseVault(payable(address(vault))).ASSET_MANAGER_ROLE(), address(vaultAdmin)
+            BaseVault(payable(address(vault))).ASSET_MANAGER_ROLE(), address(vaultManager)
         );
         BaseVault(payable(address(vault))).grantRole(
-            BaseVault(payable(address(vault))).BUFFER_MANAGER_ROLE(), address(vaultAdmin)
+            BaseVault(payable(address(vault))).BUFFER_MANAGER_ROLE(), address(vaultManager)
         );
         BaseVault(payable(address(vault))).grantRole(
-            BaseVault(payable(address(vault))).PROVIDER_MANAGER_ROLE(), address(vaultAdmin)
+            BaseVault(payable(address(vault))).PROVIDER_MANAGER_ROLE(), address(vaultManager)
         );
         vm.stopPrank();
     }
@@ -41,7 +41,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
 
         // Find a valid ERC4626 asset that can be used as buffer
         for (uint256 i = 0; i < assets.length; i++) {
-            if (vaultAdmin._isVaultAsset(assets[i]) && vaultAdmin._isERC4626Asset(assets[i])) {
+            if (vaultManager._isVaultAsset(assets[i]) && vaultManager._erc4626AssetMatchesVaultAsset(assets[i])) {
                 validBuffer = assets[i];
                 break;
             }
@@ -50,7 +50,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
         require(validBuffer != address(0), "No valid buffer found");
 
         vm.startPrank(ADMIN);
-        vaultAdmin.setCurrentBuffer(validBuffer);
+        vaultManager.setCurrentBuffer(validBuffer);
         vm.stopPrank();
 
         assertEq(vault.buffer(), validBuffer, "Buffer should be set correctly");
@@ -60,8 +60,8 @@ contract VaultAdminIntegrationTest is Test, Actors {
         address invalidAsset = address(0x1234);
 
         vm.prank(ADMIN);
-        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.NotVaultAsset.selector, invalidAsset));
-        vaultAdmin.setCurrentBuffer(invalidAsset);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, invalidAsset));
+        vaultManager.setCurrentBuffer(invalidAsset);
     }
 
     function testSetCurrentBufferRevertERC4626AssetMismatch() public {
@@ -77,7 +77,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
 
         vm.prank(ADMIN);
         vm.expectRevert(); // This should revert due to provider rate not defined
-        vaultAdmin.addAssets(assetsToAdd, activeFlags);
+        vaultManager.addAssets(assetsToAdd, activeFlags);
     }
 
     function testSetProviderToExistingProvider() public {
@@ -88,7 +88,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
         uint256 totalBaseAssetsBefore = vault.totalBaseAssets();
 
         vm.prank(ADMIN);
-        vaultAdmin.setProvider(currentProvider); // Set to same provider
+        vaultManager.setProvider(currentProvider); // Set to same provider
 
         uint256 totalBaseAssetsAfter = vault.totalBaseAssets();
         assertEq(totalBaseAssetsAfter, totalBaseAssetsBefore, "totalBaseAssets should remain the same");
@@ -104,7 +104,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
         uint256 totalBaseAssetsBefore = vault.totalBaseAssets();
 
         vm.prank(ADMIN);
-        vaultAdmin.setProvider(address(newProvider));
+        vaultManager.setProvider(address(newProvider));
 
         assertEq(vault.provider(), address(newProvider), "Provider should be set to new provider");
 
@@ -116,8 +116,8 @@ contract VaultAdminIntegrationTest is Test, Actors {
         MockProvider mockProvider = new MockProvider();
 
         vm.prank(ADMIN);
-        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.ProviderRateNotDefined.selector, MC.WETH));
-        vaultAdmin.setProvider(address(mockProvider));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.ProviderRateNotDefined.selector, MC.WETH));
+        vaultManager.setProvider(address(mockProvider));
     }
 
     function testAddAssetsRevertProviderRateNotDefined() public {
@@ -130,8 +130,8 @@ contract VaultAdminIntegrationTest is Test, Actors {
         activeFlags[0] = true;
 
         vm.prank(ADMIN);
-        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.ProviderRateNotDefined.selector, address(0x9999)));
-        vaultAdmin.addAssets(assetsToAdd, activeFlags);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.ProviderRateNotDefined.selector, address(0x9999)));
+        vaultManager.addAssets(assetsToAdd, activeFlags);
     }
 
     function testDeleteAsset() public {
@@ -154,7 +154,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
         );
 
         vm.prank(ADMIN);
-        vaultAdmin.addAssets(assetsToAdd, activeFlags);
+        vaultManager.addAssets(assetsToAdd, activeFlags);
 
         // Verify asset was added
         address[] memory assetsAfterAdd = vault.getAssets();
@@ -164,7 +164,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
         uint256 indexToDelete = assetsAfterAdd.length - 1;
 
         vm.prank(ADMIN);
-        vaultAdmin.deleteAsset(indexToDelete);
+        vaultManager.deleteAsset(indexToDelete);
 
         // Verify asset was deleted
         address[] memory assetsAfterDelete = vault.getAssets();
@@ -175,18 +175,18 @@ contract VaultAdminIntegrationTest is Test, Actors {
         address[] memory assets = vault.getAssets();
 
         for (uint256 i = 0; i < assets.length; i++) {
-            assertTrue(vaultAdmin._isVaultAsset(assets[i]), "Should be valid vault asset");
+            assertTrue(vaultManager._isVaultAsset(assets[i]), "Should be valid vault asset");
         }
 
-        assertFalse(vaultAdmin._isVaultAsset(address(0x1234)), "Should not be valid vault asset");
+        assertFalse(vaultManager._isVaultAsset(address(0x1234)), "Should not be valid vault asset");
     }
 
     function testIsVaultAssetTrue() public view {
         address[] memory assets = vault.getAssets();
         address vaultAsset = vault.asset();
-        assertTrue(vaultAdmin._isVaultAsset(vaultAsset), "Should be valid vault asset");
+        assertTrue(vaultManager._isVaultAsset(vaultAsset), "Should be valid vault asset");
         for (uint256 i = 0; i < assets.length; i++) {
-            assertTrue(vaultAdmin._isVaultAsset(assets[i]), "Should be valid vault asset");
+            assertTrue(vaultManager._isVaultAsset(assets[i]), "Should be valid vault asset");
         }
     }
 
@@ -197,7 +197,7 @@ contract VaultAdminIntegrationTest is Test, Actors {
         for (uint256 i = 0; i < assets.length; i++) {
             try IERC4626(assets[i]).asset() returns (address assetAddr) {
                 if (assetAddr == vaultAsset) {
-                    assertTrue(vaultAdmin._isERC4626Asset(assets[i]), "Should be valid ERC4626 asset");
+                    assertTrue(vaultManager._erc4626AssetMatchesVaultAsset(assets[i]), "Should be valid ERC4626 asset");
                 }
             } catch {
                 // Asset is not ERC4626, skip
@@ -211,12 +211,12 @@ contract VaultAdminIntegrationTest is Test, Actors {
         // Test BUFFER_ADMIN_ROLE
         vm.prank(unauthorized);
         vm.expectRevert();
-        vaultAdmin.setCurrentBuffer(address(0x1234));
+        vaultManager.setCurrentBuffer(address(0x1234));
 
         // Test MODULE_MANAGER_ROLE
         vm.prank(unauthorized);
         vm.expectRevert();
-        vaultAdmin.setProvider(address(0x1234));
+        vaultManager.setProvider(address(0x1234));
 
         address[] memory assets = new address[](1);
         bool[] memory active = new bool[](1);
@@ -225,11 +225,11 @@ contract VaultAdminIntegrationTest is Test, Actors {
 
         vm.prank(unauthorized);
         vm.expectRevert();
-        vaultAdmin.addAssets(assets, active);
+        vaultManager.addAssets(assets, active);
 
         vm.prank(unauthorized);
         vm.expectRevert();
-        vaultAdmin.deleteAsset(0);
+        vaultManager.deleteAsset(0);
     }
 }
 

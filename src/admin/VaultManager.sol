@@ -6,10 +6,10 @@ import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessC
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 
-/// @title VaultAdmin
-/// @notice Contract for managing buffer addresses for a Vault, with role-based access control.
-/// @dev Only addresses with BUFFER_ADMIN_ROLE can set the current buffer.
-contract VaultAdmin is AccessControl {
+/// @title VaultManager
+/// @notice Contract for managing Admin functions for a Vault, with role-based access control.
+/// @notice Each wrapper function performs additional checks to ensure vault state is consistent.
+contract VaultManager is AccessControl {
     /// @notice Thrown when the buffer is not a valid asset in the vault.
     error NotVaultAsset(address buffer);
     /// @notice Thrown when the buffer does not match the ERC4626 asset.
@@ -21,7 +21,7 @@ contract VaultAdmin is AccessControl {
     /// @notice Thrown when the total base assets mismatch after changing provider.
     error TotalBaseAssetsMismatch(uint256 beforeBaseAssets, uint256 afterBaseAssets);
 
-    IVault public vault;
+    IVault public immutable vault;
 
     /// @notice Role identifier for buffer admins.
     bytes32 public constant BUFFER_ADMIN_ROLE = keccak256("BUFFER_ADMIN_ROLE");
@@ -47,7 +47,7 @@ contract VaultAdmin is AccessControl {
         if (!_isVaultAsset(_buffer)) revert NotVaultAsset(_buffer);
 
         // Check that _buffer is a valid ERC4626 asset for the vault
-        if (!_isERC4626Asset(_buffer)) revert ERC4626AssetMismatch(_buffer);
+        if (!_erc4626AssetMatchesVaultAsset(_buffer)) revert ERC4626AssetMismatch(_buffer);
 
         vault.setBuffer(_buffer);
     }
@@ -62,7 +62,7 @@ contract VaultAdmin is AccessControl {
     /// @notice Checks if an address is a valid ERC4626 asset for the vault.
     /// @param _buffer The address to check.
     /// @return True if the address is a valid ERC4626 asset, false otherwise.
-    function _isERC4626Asset(address _buffer) public view returns (bool) {
+    function _erc4626AssetMatchesVaultAsset(address _buffer) public view returns (bool) {
         // Use IVault and IERC4626 interfaces
         try IERC4626(_buffer).asset() returns (address bufferAsset) {
             return bufferAsset == vault.asset();
@@ -71,6 +71,14 @@ contract VaultAdmin is AccessControl {
         }
     }
 
+    /**
+     * @notice Set the provider for the vault.
+     * @dev Validates that the new provider can provide rates for all active vault assets
+     *      and that changing the provider doesn't affect the total base assets calculation.
+     *      This ensures consistency in asset valuation before and after the provider change.
+     * @dev Assumes that vault.processAccounting() is called before this function is called.
+     * @param _provider The provider address to set.
+     */
     function setProvider(address _provider) public onlyRole(MODULE_MANAGER_ROLE) {
         // Check that all assets have a defined rate as defined by provider using getAssets
         address[] memory assets = vault.getAssets();
@@ -100,6 +108,12 @@ contract VaultAdmin is AccessControl {
         }
     }
 
+    /**
+     * @notice Add assets to the vault.
+     * @dev Assumes that vault.processAccounting() is called before this function is called.
+     * @param _assets The addresses of the assets to add.
+     * @param _active Whether the assets are active.
+     */
     function addAssets(address[] memory _assets, bool[] memory _active) public onlyRole(MODULE_MANAGER_ROLE) {
         // Get totalBaseAssets before changing provider
         uint256 beforeBaseAssets = vault.totalBaseAssets();
@@ -122,6 +136,11 @@ contract VaultAdmin is AccessControl {
         }
     }
 
+    /**
+     * @notice Delete an asset from the vault.
+     * @dev Assumes that vault.processAccounting() is called before this function is called.
+     * @param _index The index of the asset to delete.
+     */
     function deleteAsset(uint256 _index) public onlyRole(MODULE_MANAGER_ROLE) {
         // Get totalBaseAssets before deleting asset
         uint256 beforeBaseAssets = vault.totalBaseAssets();

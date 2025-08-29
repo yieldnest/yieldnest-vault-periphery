@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {VaultAdmin} from "../../src/admin/VaultAdmin.sol";
+import {VaultManager} from "../../src/admin/VaultManager.sol";
 
 // Use the AssetParams struct from IVault interface, as per file_context_1
 struct AssetParams {
@@ -51,8 +51,8 @@ contract ERC4626Mock {
     }
 }
 
-contract vaultAdminUnitTest is Test {
-    VaultAdmin vaultAdmin;
+contract VaultManagerUnitTest is Test {
+    VaultManager vaultManager;
     VaultMock vault;
     address admin = address(0xA1);
     address bufferAdminRole = address(0xB1);
@@ -75,26 +75,26 @@ contract vaultAdminUnitTest is Test {
         vault.setAsset(address(erc4626_1), 18);
         vault.setAsset(address(erc4626_2), 18);
 
-        vaultAdmin = new VaultAdmin(address(vault), admin, bufferAdminRole, admin);
+        vaultManager = new VaultManager(address(vault), admin, bufferAdminRole, admin);
     }
 
     function testSetCurrentBuffer() public {
         vm.startPrank(bufferAdminRole);
 
         // Valid buffer
-        vaultAdmin.setCurrentBuffer(address(erc4626_1));
+        vaultManager.setCurrentBuffer(address(erc4626_1));
         assertEq(vault.currentBuffer(), address(erc4626_1), "currentBuffer should be set to erc4626_1");
 
         // Revert if not vault asset
         vault.setAsset(address(erc4626_1), 0);
-        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.NotVaultAsset.selector, address(erc4626_1)));
-        vaultAdmin.setCurrentBuffer(address(erc4626_1));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, address(erc4626_1)));
+        vaultManager.setCurrentBuffer(address(erc4626_1));
 
         // Revert if ERC4626 asset mismatch
         ERC4626Mock wrongERC4626 = new ERC4626Mock(asset2);
         vault.setAsset(address(wrongERC4626), 18);
-        vm.expectRevert(abi.encodeWithSelector(VaultAdmin.ERC4626AssetMismatch.selector, address(wrongERC4626)));
-        vaultAdmin.setCurrentBuffer(address(wrongERC4626));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.ERC4626AssetMismatch.selector, address(wrongERC4626)));
+        vaultManager.setCurrentBuffer(address(wrongERC4626));
 
         vm.stopPrank();
     }

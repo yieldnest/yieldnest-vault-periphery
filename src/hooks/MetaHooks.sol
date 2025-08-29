@@ -381,4 +381,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     function previewDepositAsset(address assetAddress, uint256 assets) external view override returns (uint256) {
         return VAULT.previewDepositAsset(assetAddress, assets);
     }
+
+    function convertToAssets(uint256 shares) external view override returns (uint256) {
+        return VAULT.convertToAssets(shares);
+    }
 }

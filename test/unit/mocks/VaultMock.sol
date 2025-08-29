@@ -40,4 +40,8 @@ contract VaultMock is IVaultForHooks {
     function previewDepositAsset(address assetAddress, uint256 assets) external view override returns (uint256) {
         return assetsToShares + assets;
     }
+
+    function convertToAssets(uint256 shares) external view override returns (uint256) {
+        return assetsToShares + shares;
+    }
 }

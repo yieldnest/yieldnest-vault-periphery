@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {ProcessAccountingGuardHook} from "../../src/hooks/ProcessAccountingGuardHook.sol";
+import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 
 contract ProcessAccountingGuardHookTest is Test {
     ProcessAccountingGuardHook public processAccountingGuardHook;

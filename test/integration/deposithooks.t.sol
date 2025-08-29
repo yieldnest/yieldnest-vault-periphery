@@ -2,11 +2,11 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {MetaHooks} from "../../src/hooks/MetaHooks.sol";
+import {MetaHooks} from "src/hooks/MetaHooks.sol";
 import {IHooks, IVault} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {IVaultForHooks} from "../../src/interface/IVaultForHooks.sol";
-import {BaseIntegrationTest} from "./BaseIntegrationTest.sol";
+import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
+import {BaseIntegrationTest} from "test/integration/BaseIntegrationTest.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
 import {HooksLib, HookCallFailed} from "lib/yieldnest-vault/src/library/HooksLib.sol";

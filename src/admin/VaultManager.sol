@@ -53,10 +53,13 @@ contract VaultManager is AccessControl {
     }
 
     /// @notice Checks if an address is a valid vault asset.
-    /// @param _buffer The address to check.
+    /// @param asset The address to check.
     /// @return True if the address is a valid asset, false otherwise.
-    function _isVaultAsset(address _buffer) public view returns (bool) {
-        return vault.getAsset(_buffer).decimals > 0;
+    function _isVaultAsset(address asset) public view returns (bool) {
+        // TODO: optimizse using vault.hasAsset() post upgrade
+        uint256 vaultIndex = vault.getAsset(asset).index;
+        address[] memory allAssets = vault.getAssets();
+        return vaultIndex < allAssets.length && allAssets[vaultIndex] == asset;
     }
 
     /// @notice Checks if an address is a valid ERC4626 asset for the vault.

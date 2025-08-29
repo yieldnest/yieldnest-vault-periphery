@@ -9,9 +9,9 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
 import {SetupVault, Vault, WETH9} from "lib/yieldnest-vault/test/unit/helpers/SetupVault.sol";
-import {MetaHooks} from "../../src/hooks/MetaHooks.sol";
-import {PermissionedVaultHook} from "../testhooks/PermissionedVaultHook.sol";
-import {ProcessAccountingGuardHook} from "../../src/hooks/ProcessAccountingGuardHook.sol";
+import {MetaHooks} from "src/hooks/MetaHooks.sol";
+import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
+import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {FeeHooks} from "lib/yieldnest-vault/src/module/FeeHooks.sol";
 

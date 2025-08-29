@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {VaultManager} from "../../src/admin/VaultManager.sol";
+import {VaultManager} from "src/admin/VaultManager.sol";
 
 // Use the AssetParams struct from IVault interface, as per file_context_1
 struct AssetParams {
@@ -21,9 +21,11 @@ contract VaultMock is IVaultMock {
     mapping(address => AssetParams) public assets;
     address public override asset;
     address public currentBuffer;
+    address[] public allAssets;
 
     function setAsset(address _addr, uint8 _decimals) external {
-        assets[_addr] = AssetParams({index: 0, active: true, decimals: _decimals});
+        assets[_addr] = AssetParams({index: allAssets.length, active: true, decimals: _decimals});
+        allAssets.push(_addr);
     }
 
     function getAsset(address _addr) external view override returns (AssetParams memory) {
@@ -36,6 +38,10 @@ contract VaultMock is IVaultMock {
 
     function setBuffer(address _buffer) external override {
         currentBuffer = _buffer;
+    }
+
+    function getAssets() external view returns (address[] memory) {
+        return allAssets;
     }
 }
 
@@ -86,9 +92,9 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.currentBuffer(), address(erc4626_1), "currentBuffer should be set to erc4626_1");
 
         // Revert if not vault asset
-        vault.setAsset(address(erc4626_1), 0);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, address(erc4626_1)));
-        vaultManager.setCurrentBuffer(address(erc4626_1));
+        address nonAsset = address(0xbeef331);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, nonAsset));
+        vaultManager.setCurrentBuffer(nonAsset);
 
         // Revert if ERC4626 asset mismatch
         ERC4626Mock wrongERC4626 = new ERC4626Mock(asset2);

@@ -377,12 +377,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         return VAULT.asset();
     }
 
-    function _feeOnRaw(uint256 assets, address caller) external view override returns (uint256) {
-        return VAULT._feeOnRaw(assets, caller);
+    function _feeOnRaw(uint256 amount, address caller) external view override returns (uint256) {
+        return VAULT._feeOnRaw(amount, caller);
     }
 
-    function _feeOnTotal(uint256 shares, address caller) external view override returns (uint256) {
-        return VAULT._feeOnTotal(shares, caller);
+    function _feeOnTotal(uint256 amount, address caller) external view override returns (uint256) {
+        return VAULT._feeOnTotal(amount, caller);
     }
 
     function previewDepositAsset(address assetAddress, uint256 assets) external view override returns (uint256) {

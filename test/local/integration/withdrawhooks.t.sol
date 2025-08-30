@@ -107,21 +107,47 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
     }
 
     function test_redeem_permissionedVaultHook() public {
+        uint256 initialAssets = 100 ether;
         // First deposit to have shares to redeem
-        deal(vault.asset(), depositor, 100 ether);
+        deal(vault.asset(), depositor, initialAssets);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        vault.deposit(100 ether, depositor);
+        IERC20(vault.asset()).approve(address(vault), initialAssets);
+        vault.deposit(initialAssets, depositor);
         vm.stopPrank();
 
         ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
-        // Now redeem
-        vm.startPrank(depositor);
-        vault.redeem(50 ether, depositor, depositor);
-        vm.stopPrank();
 
-        assertEq(vault.balanceOf(depositor), 50 ether);
-        assertEq(vault.totalAssets(), 50 ether);
+        uint256 sharesToRedeem = 50 ether;
+        // Now redeem
+        uint256 balanceBefore = IERC20(vault.asset()).balanceOf(depositor);
+        uint256 sharesBefore = vault.balanceOf(depositor);
+        vm.startPrank(depositor);
+        uint256 amountRedeemed = vault.redeem(sharesToRedeem, depositor, depositor);
+        vm.stopPrank();
+        uint256 balanceAfter = IERC20(vault.asset()).balanceOf(depositor);
+
+        vault.processAccounting();
+
+        assertEq(vault.convertToAssets(1e18), 1e18, "Vault should have a 1:1 ratio of shares to assets");
+
+        assertEq(vault.totalAssets(), vault.totalSupply());
+
+        assertEq(balanceAfter - balanceBefore, amountRedeemed, "Depositor balance should increase by 50 ether");
+        assertEq(
+            vault.balanceOf(depositor), sharesBefore - sharesToRedeem, "Depositor should have 50 ether shares remaining"
+        );
+
+        assertEq(
+            vault.balanceOf(feeHooks.performanceFeeRecipient()) + amountRedeemed,
+            sharesToRedeem,
+            "fee + redeem should be equal to 50 ether"
+        );
+
+        assertEq(
+            vault.totalAssets() + balanceAfter,
+            initialAssets,
+            "assets redeemed + remaining assets should be equal to initial assets"
+        );
     }
 
     function test_redeem_permissionedVaultHook_revert() public {

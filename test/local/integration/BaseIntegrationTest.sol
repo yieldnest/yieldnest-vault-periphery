@@ -22,6 +22,7 @@ contract BaseIntegrationTest is Test, Actors {
     MetaHooks public metaHooks;
     PermissionedVaultHook public permissionedVaultHook;
     ProcessAccountingGuardHook public processAccountingGuardHook;
+    FeeHooks public feeHooks;
 
     address public constant onwer = address(111222333);
 
@@ -47,7 +48,7 @@ contract BaseIntegrationTest is Test, Actors {
         );
 
         FeeHooks previousFeeHooks = FeeHooks(address(vault.hooks()));
-        FeeHooks feeHooks = new FeeHooks(
+        feeHooks = new FeeHooks(
             address(metaHooks),
             onwer,
             previousFeeHooks.performanceFee(), // performanceFee (0.1%)
@@ -67,6 +68,10 @@ contract BaseIntegrationTest is Test, Actors {
 
         vm.startPrank(HOOKS_MANAGER);
         vault.setHooks(address(metaHooks));
+        vm.stopPrank();
+
+        vm.startPrank(ADMIN);
+        vault.setBaseWithdrawalFee(1e5); // 0.1% (1e5 / 1e8)
         vm.stopPrank();
     }
 }

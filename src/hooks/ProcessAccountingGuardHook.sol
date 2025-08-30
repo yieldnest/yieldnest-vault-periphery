@@ -128,6 +128,7 @@ contract ProcessAccountingGuardHook is IHooks {
      */
     function storeConvertToAssets() internal {
         uint256 convertToAssetsValue = VAULT.convertToAssets(1e18);
+        console.log("convertToAssetsValue", convertToAssetsValue);
         assembly {
             tstore(CONVERT_TO_SHARES_TSTORE_SLOT, convertToAssetsValue)
         }
@@ -141,6 +142,7 @@ contract ProcessAccountingGuardHook is IHooks {
         assembly {
             storedValue := tload(CONVERT_TO_SHARES_TSTORE_SLOT)
         }
+        console.log("storedValue", storedValue);
         uint256 currentValue = VAULT.convertToAssets(1e18);
         uint256 delta = currentValue > storedValue ? currentValue - storedValue : storedValue - currentValue;
         // Rate should not change by more than 10 wei

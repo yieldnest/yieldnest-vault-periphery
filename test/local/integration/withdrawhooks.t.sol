@@ -20,20 +20,40 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
 
     function test_withdraw_permissionedVaultHook() public {
         // First deposit to have shares to withdraw
-        deal(vault.asset(), depositor, 100 ether);
+        uint256 depositAmount = 100 ether;
+        uint256 bufferAmount = 80 ether;
+        uint256 withdrawAmount = 50 ether;
+        deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        vault.deposit(100 ether, depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        uint256 initialShares = vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
+        ProcessorUtils.allocateToBuffer(vault, bufferAmount, PROCESSOR);
+
+        // Calculate expected shares to be burned for withdrawal (including fee)
+        uint256 withdrawFee = vault._feeOnRaw(withdrawAmount, depositor);
+        uint256 totalAssetsNeeded = withdrawAmount + withdrawFee;
+        uint256 sharesToBurn = vault.convertToShares(totalAssetsNeeded);
+        uint256 expectedRemainingShares = initialShares - sharesToBurn;
+        uint256 expectedRemainingAssets = depositAmount - withdrawAmount;
+
         // Now withdraw
         vm.startPrank(depositor);
-        vault.withdraw(50 ether, depositor, depositor);
+        vault.withdraw(withdrawAmount, depositor, depositor);
         vm.stopPrank();
+        assertEq(
+            vault.balanceOf(depositor), expectedRemainingShares, "Depositor should have less shares after withdrawal"
+        );
+        assertEq(vault.totalAssets(), expectedRemainingAssets, "Vault should have less total assets after withdrawal");
 
-        assertEq(vault.balanceOf(depositor), 50 ether);
-        assertEq(vault.totalAssets(), 50 ether);
+        // Check that fee recipient received shares from the withdrawal fee
+        address feeRecipient = feeHooks.performanceFeeRecipient();
+        uint256 feeRecipientShares = vault.balanceOf(feeRecipient);
+        uint256 expectedFeeShares = vault.convertToShares(withdrawFee);
+        assertEq(
+            feeRecipientShares, expectedFeeShares, "Fee recipient should have received exact fee shares from withdrawal"
+        );
     }
 
     function test_withdraw_permissionedVaultHook_revert() public {

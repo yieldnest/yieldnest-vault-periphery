@@ -9,6 +9,7 @@ import {TStore} from "src/lib/TStore.sol";
 abstract contract BaseRedemptionGuardHook is IHooks {
     error NotSupported();
     error OnlyVault();
+    error ConvertToAssetsDecreasedDuringRedemption(uint256 valueBefore, uint256 valueAfter);
     error ConvertToAssetsChangedDuringRedemption(uint256 valueBefore, uint256 valueAfter);
     error CheckInProgress();
     error CheckNotInProgress();
@@ -51,13 +52,17 @@ abstract contract BaseRedemptionGuardHook is IHooks {
         uint256 currentValue = VAULT.convertToAssets(1e18);
         uint256 storedValue = TStore.loadUint256(CONVERT_TO_ASSETS_SLOT);
 
-        uint256 delta = currentValue > storedValue ? currentValue - storedValue : storedValue - currentValue;
+        if (currentValue < storedValue) {
+            revert ConvertToAssetsDecreasedDuringRedemption(storedValue, currentValue);
+        }
+
+        uint256 delta = currentValue - storedValue;
         // Rate should not change by more than 10 wei
-        if (delta >= 10 wei) {
+        if (delta >= 100 wei) {
             revert ConvertToAssetsChangedDuringRedemption(storedValue, currentValue);
         }
 
-        TStore.clear(CHECK_IN_PROGRESS_SLOT);
+        TStore.store(CHECK_IN_PROGRESS_SLOT, false);
         TStore.clear(CONVERT_TO_ASSETS_SLOT);
     }
 

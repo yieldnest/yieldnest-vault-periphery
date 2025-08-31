@@ -6,7 +6,7 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {BaseRedemptionGuardHook} from "src/hooks/redeem/BaseRedemptionGuardHook.sol";
 
 contract WithdrawGuardHook is BaseRedemptionGuardHook {
-    constructor(address _vault) BaseRedemptionGuardHook(_vault) {}
+    constructor(address _vault, uint256 _maxDelta) BaseRedemptionGuardHook(_vault, _maxDelta) {}
 
     function getConfig() external pure override returns (Config memory) {
         return Config({

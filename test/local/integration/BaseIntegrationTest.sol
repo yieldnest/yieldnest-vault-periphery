@@ -60,8 +60,8 @@ contract BaseIntegrationTest is Test, Actors {
             previousFeeHooks.getConfig()
         );
 
-        redeemGuardHook = new RedeemGuardHook(address(metaHooks));
-        withdrawGuardHook = new WithdrawGuardHook(address(metaHooks));
+        redeemGuardHook = new RedeemGuardHook(address(metaHooks), 100 wei);
+        withdrawGuardHook = new WithdrawGuardHook(address(metaHooks), 100 wei);
 
         // Set up hooks array for MetaHooks
         IHooks[] memory hooks = new IHooks[](5);

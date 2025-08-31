@@ -18,14 +18,16 @@ abstract contract BaseRedemptionGuardHook is IHooks {
     bytes32 public constant CHECK_IN_PROGRESS_SLOT = bytes32(uint256(0x02));
 
     IVault public immutable VAULT;
+    uint256 public immutable maxDelta;
 
     modifier onlyVault() {
         if (msg.sender != address(VAULT)) revert OnlyVault();
         _;
     }
 
-    constructor(address _vault) {
+    constructor(address _vault, uint256 _maxDelta) {
         VAULT = IVault(_vault);
+        maxDelta = _maxDelta;
     }
 
     function setConfig(Config memory) external pure virtual override {
@@ -58,7 +60,7 @@ abstract contract BaseRedemptionGuardHook is IHooks {
 
         uint256 delta = currentValue - storedValue;
         // Rate should not change by more than 10 wei
-        if (delta >= 100 wei) {
+        if (delta >= maxDelta) {
             revert ConvertToAssetsChangedDuringRedemption(storedValue, currentValue);
         }
 

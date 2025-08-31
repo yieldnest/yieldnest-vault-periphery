@@ -11,6 +11,7 @@ import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.so
 import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
 import {HooksLib, HookCallFailed} from "lib/yieldnest-vault/src/library/HooksLib.sol";
 import {ProcessorUtils} from "lib/yieldnest-vault/test/utils/ProcessorUtils.sol";
+import {FeeMath} from "lib/yieldnest-vault/src/module/FeeMath.sol";
 
 // Minimal mock for IHooks
 contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
@@ -86,22 +87,33 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_withdraw_after_donation() public {
+    function test_withdraw_after_donation(
+        uint256 depositAmount,
+        uint256 bufferAmount,
+        uint256 donationAmount,
+        uint256 amountToWithdraw
+    ) public {
+        depositAmount = bound(depositAmount, 1 ether, 100_000 ether);
+        bufferAmount = bound(bufferAmount, 10000 wei, depositAmount);
+        donationAmount = bound(donationAmount, 10000 wei, 20 * depositAmount);
+        uint256 maxFee = FeeMath.feeOnRaw(bufferAmount, feeHooks.performanceFee() / 1e10);
+        amountToWithdraw = bound(amountToWithdraw, 1000 wei, bufferAmount - maxFee);
+
         // First deposit to have shares to withdraw from
-        deal(vault.asset(), depositor, 100 ether);
+        deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        uint256 initialShares = vault.deposit(100 ether, depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        uint256 initialShares = vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
+        ProcessorUtils.allocateToBuffer(vault, bufferAmount, PROCESSOR);
 
         vm.startPrank(processAccountingGuardHook.owner());
         processAccountingGuardHook.setMaxIncreaseRatio(100e18); // 10000% increase allowed
+        vm.stopPrank();
 
         {
             // Donate assets to the vault through bob to increase totalAssets without minting shares
-            uint256 donationAmount = 100 ether;
             address bob = makeAddr("bob");
             deal(vault.asset(), bob, donationAmount);
             vm.startPrank(bob);
@@ -113,7 +125,6 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
 
         uint256 totalAssetsBefore = vault.totalAssets();
 
-        uint256 amountToWithdraw = 75 ether;
         // Now withdraw - should get more assets due to donation
         uint256 balanceBefore = IERC20(vault.asset()).balanceOf(depositor);
         vm.startPrank(depositor);

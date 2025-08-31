@@ -18,51 +18,59 @@ contract DepositHooksIntegrationTest is BaseIntegrationTest {
         super.setUp();
     }
 
-    function test_deposit_permissionedVaultHook() public {
-        deal(vault.asset(), depositor, 100 ether);
+    function test_deposit_permissionedVaultHook(uint256 amount) public {
+        amount = bound(amount, 1000 wei, 100_000 ether);
+
+        deal(vault.asset(), depositor, amount);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        vault.deposit(100 ether, depositor);
+        IERC20(vault.asset()).approve(address(vault), amount);
+        vault.deposit(amount, depositor);
         vm.stopPrank();
 
-        assertEq(vault.balanceOf(depositor), 100 ether);
-        assertEq(vault.totalAssets(), 100 ether);
+        assertEq(vault.balanceOf(depositor), amount);
+        assertEq(vault.totalAssets(), amount);
     }
 
-    function test_deposit_permissionedVaultHook_revert() public {
+    function test_deposit_permissionedVaultHook_revert(uint256 amount) public {
+        amount = bound(amount, 1000 wei, 100_000 ether);
+
         address notWhitelisted = address(0xbeefee);
-        deal(vault.asset(), notWhitelisted, 100 ether);
+        deal(vault.asset(), notWhitelisted, amount);
 
         vm.startPrank(notWhitelisted);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        IERC20(vault.asset()).approve(address(vault), amount);
         bytes memory revertData =
             abi.encodeWithSelector(PermissionedVaultHook.UserNotWhitelisted.selector, notWhitelisted);
         vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
-        vault.deposit(100 ether, notWhitelisted);
+        vault.deposit(amount, notWhitelisted);
         vm.stopPrank();
     }
 
-    function test_mint_permissionedVaultHook() public {
-        deal(vault.asset(), depositor, 100 ether);
+    function test_mint_permissionedVaultHook(uint256 shares) public {
+        shares = bound(shares, 1000 wei, 100_000 ether);
+
+        deal(vault.asset(), depositor, shares);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        vault.mint(100 ether, depositor);
+        IERC20(vault.asset()).approve(address(vault), shares);
+        vault.mint(shares, depositor);
         vm.stopPrank();
 
-        assertEq(vault.balanceOf(depositor), 100 ether);
-        assertEq(vault.totalAssets(), 100 ether);
+        assertEq(vault.balanceOf(depositor), shares);
+        assertEq(vault.totalAssets(), shares);
     }
 
-    function test_mint_permissionedVaultHook_revert() public {
+    function test_mint_permissionedVaultHook_revert(uint256 shares) public {
+        shares = bound(shares, 1000 wei, 100_000 ether);
+
         address notWhitelisted = address(0xbeefee);
-        deal(vault.asset(), notWhitelisted, 100 ether);
+        deal(vault.asset(), notWhitelisted, shares);
 
         vm.startPrank(notWhitelisted);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
+        IERC20(vault.asset()).approve(address(vault), shares);
         bytes memory revertData =
             abi.encodeWithSelector(PermissionedVaultHook.UserNotWhitelisted.selector, notWhitelisted);
         vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
-        vault.mint(100 ether, notWhitelisted);
+        vault.mint(shares, notWhitelisted);
         vm.stopPrank();
     }
 }

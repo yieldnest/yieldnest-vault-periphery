@@ -18,11 +18,16 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         super.setUp();
     }
 
-    function test_withdraw_permissionedVaultHook() public {
+    function test_withdraw_permissionedVaultHook(uint256 depositAmount, uint256 bufferAmount, uint256 withdrawAmount)
+        public
+    {
+        // Bound inputs to reasonable ranges
+
+        depositAmount = bound(depositAmount, 1 ether, 100_000 ether);
+        bufferAmount = bound(bufferAmount, 10000 wei, depositAmount);
+        withdrawAmount = bound(withdrawAmount, 8000 wei, 9 * bufferAmount / 10); // Ensure withdraw is below buffer
+
         // First deposit to have shares to withdraw
-        uint256 depositAmount = 100 ether;
-        uint256 bufferAmount = 80 ether;
-        uint256 withdrawAmount = 50 ether;
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), depositAmount);
@@ -35,6 +40,7 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         uint256 withdrawFee = vault._feeOnRaw(withdrawAmount, depositor);
         uint256 totalAssetsNeeded = withdrawAmount + withdrawFee;
         uint256 sharesToBurn = vault.convertToShares(totalAssetsNeeded);
+
         uint256 expectedRemainingShares = initialShares - sharesToBurn;
         uint256 expectedRemainingAssets = depositAmount - withdrawAmount;
 
@@ -126,8 +132,12 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         );
     }
 
-    function test_redeem_permissionedVaultHook() public {
-        uint256 initialAssets = 100 ether;
+    function test_redeem_permissionedVaultHook(uint256 initialAssets, uint256 bufferAmount, uint256 sharesToRedeem)
+        public
+    {
+        initialAssets = bound(initialAssets, 1 ether, 100_000 ether);
+        bufferAmount = bound(bufferAmount, 10000 wei, initialAssets);
+        sharesToRedeem = bound(sharesToRedeem, 8000 wei, 9 * bufferAmount / 10); // Ensure withdraw is below buffer
         // First deposit to have shares to redeem
         deal(vault.asset(), depositor, initialAssets);
         vm.startPrank(depositor);
@@ -135,9 +145,8 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vault.deposit(initialAssets, depositor);
         vm.stopPrank();
 
-        ProcessorUtils.allocateToBuffer(vault, 80 ether, PROCESSOR);
+        ProcessorUtils.allocateToBuffer(vault, bufferAmount, PROCESSOR);
 
-        uint256 sharesToRedeem = 50 ether;
         // Now redeem
         uint256 balanceBefore = IERC20(vault.asset()).balanceOf(depositor);
         uint256 sharesBefore = vault.balanceOf(depositor);

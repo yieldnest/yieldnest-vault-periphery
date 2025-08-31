@@ -214,15 +214,26 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_redeem_after_donation() public {
+    function test_redeem_after_donation(
+        uint256 depositAmount,
+        uint256 bufferAmount,
+        uint256 donationAmount,
+        uint256 amountToWithdraw
+    ) public {
+        depositAmount = bound(depositAmount, 1 ether, 100_000 ether);
+        bufferAmount = bound(bufferAmount, 10000 wei, depositAmount);
+        donationAmount = bound(donationAmount, 10000 wei, 20 * depositAmount);
+        uint256 maxFee = FeeMath.feeOnRaw(bufferAmount, feeHooks.performanceFee() / 1e10);
+        amountToWithdraw = bound(amountToWithdraw, 1000 wei, bufferAmount - maxFee);
+
         // First deposit to have shares to redeem
-        deal(vault.asset(), depositor, 100 ether);
+        deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        uint256 initialShares = vault.deposit(100 ether, depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        uint256 initialShares = vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        ProcessorUtils.allocateToBuffer(vault, 100 ether, PROCESSOR);
+        ProcessorUtils.allocateToBuffer(vault, bufferAmount, PROCESSOR);
 
         vm.startPrank(processAccountingGuardHook.owner());
         processAccountingGuardHook.setMaxIncreaseRatio(100e18); // 10000% increase allowed
@@ -230,7 +241,6 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
 
         {
             // Donate assets to the vault through bob to increase totalAssets without minting shares
-            uint256 donationAmount = 100 ether;
             address bob = makeAddr("bob");
             deal(vault.asset(), bob, donationAmount);
             vm.startPrank(bob);
@@ -240,7 +250,7 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
             vault.processAccounting();
         }
         // Now redeem
-        uint256 redeemShares = 10 ether;
+        uint256 redeemShares = vault.previewWithdraw(amountToWithdraw);
         vm.startPrank(depositor);
         vault.redeem(redeemShares, depositor, depositor);
         vm.stopPrank();

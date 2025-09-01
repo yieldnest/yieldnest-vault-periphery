@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {MetaHooks} from "src/hooks/MetaHooks.sol";
 import {IHooks, IVault} from "lib/yieldnest-vault/src/interface/IHooks.sol";
-import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
+import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 import {HooksMock} from "./HooksMock.sol";
 import {VaultMock} from "../mocks/VaultMock.sol";
@@ -93,5 +93,204 @@ contract MetaHooksTest is Test {
             expected = expected || hookIsActive[i];
         }
         assertEq(configValue, expected, "configValue should match OR of all hooks");
+    }
+
+    function test_setHooks_duplicates() public {
+        // Create two hooks
+        IHooks.Config memory config = IHooks.Config({
+            beforeDeposit: false,
+            afterDeposit: false,
+            beforeMint: false,
+            afterMint: false,
+            beforeRedeem: false,
+            afterRedeem: false,
+            beforeWithdraw: false,
+            afterWithdraw: false,
+            beforeProcessAccounting: false,
+            afterProcessAccounting: false
+        });
+        HooksMock hook1 = new HooksMock(config);
+        HooksMock hook2 = new HooksMock(config);
+
+        vm.startPrank(hookManager);
+
+        // Test duplicate hooks in array should revert
+        IHooks[] memory dupArr = new IHooks[](3);
+        dupArr[0] = IHooks(address(hook1));
+        dupArr[1] = IHooks(address(hook2));
+        dupArr[2] = IHooks(address(hook1)); // Duplicate
+
+        vm.expectRevert(abi.encodeWithSelector(MetaHooks.DuplicateInInput.selector, address(hook1)));
+        metaHooks.setHooks(dupArr);
+
+        vm.stopPrank();
+    }
+
+    function test_setHooks_empty() public {
+        vm.startPrank(hookManager);
+
+        // Test empty hooks array should revert
+        IHooks[] memory emptyArr = new IHooks[](0);
+        vm.expectRevert(abi.encodeWithSelector(MetaHooks.EmptyHooksArray.selector));
+        metaHooks.setHooks(emptyArr);
+
+        vm.stopPrank();
+    }
+
+    function test_setHooks_tooMany() public {
+        vm.startPrank(hookManager);
+
+        // Test too many hooks (more than 16) should revert
+        IHooks[] memory tooManyArr = new IHooks[](17);
+
+        // Create 17 hooks
+        IHooks.Config memory config = IHooks.Config({
+            beforeDeposit: false,
+            afterDeposit: false,
+            beforeMint: false,
+            afterMint: false,
+            beforeRedeem: false,
+            afterRedeem: false,
+            beforeWithdraw: false,
+            afterWithdraw: false,
+            beforeProcessAccounting: false,
+            afterProcessAccounting: false
+        });
+
+        for (uint256 i = 0; i < 17; i++) {
+            HooksMock hook = new HooksMock(config);
+            tooManyArr[i] = IHooks(address(hook));
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(MetaHooks.TooManyHooks.selector));
+        metaHooks.setHooks(tooManyArr);
+
+        vm.stopPrank();
+    }
+
+    function test_setHooks_notAllowed() public {
+        // Test that non-hook manager cannot call setHooks
+        address unauthorizedUser = address(0xC1);
+        vm.startPrank(unauthorizedUser);
+
+        IHooks[] memory hooksArr = new IHooks[](1);
+        IHooks.Config memory config = IHooks.Config({
+            beforeDeposit: false,
+            afterDeposit: false,
+            beforeMint: false,
+            afterMint: false,
+            beforeRedeem: false,
+            afterRedeem: false,
+            beforeWithdraw: false,
+            afterWithdraw: false,
+            beforeProcessAccounting: false,
+            afterProcessAccounting: false
+        });
+        HooksMock hook = new HooksMock(config);
+        hooksArr[0] = IHooks(address(hook));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                unauthorizedUser,
+                metaHooks.HOOK_MANAGER_ROLE()
+            )
+        );
+        metaHooks.setHooks(hooksArr);
+
+        vm.stopPrank();
+    }
+
+    function test_setHooks_clearsPreExistingData() public {
+        vm.startPrank(hookManager);
+
+        // First, set up initial hooks with all configurations set to true
+        uint256 initialNumHooks = 3;
+        IHooks[] memory initialHooks = new IHooks[](initialNumHooks);
+
+        for (uint256 i = 0; i < initialNumHooks; i++) {
+            HooksMock hook = new HooksMock(
+                IHooks.Config({
+                    beforeDeposit: true,
+                    afterDeposit: true,
+                    beforeMint: true,
+                    afterMint: true,
+                    beforeRedeem: true,
+                    afterRedeem: true,
+                    beforeWithdraw: true,
+                    afterWithdraw: true,
+                    beforeProcessAccounting: true,
+                    afterProcessAccounting: true
+                })
+            );
+            initialHooks[i] = IHooks(address(hook));
+        }
+
+        // Set the initial hooks
+        metaHooks.setHooks(initialHooks);
+
+        // Verify initial state - all config flags should be true
+        IHooks.Config memory initialConfig = metaHooks.getConfig();
+        assertTrue(initialConfig.beforeDeposit);
+        assertTrue(initialConfig.afterDeposit);
+        assertTrue(initialConfig.beforeMint);
+        assertTrue(initialConfig.afterMint);
+        assertTrue(initialConfig.beforeRedeem);
+        assertTrue(initialConfig.afterRedeem);
+        assertTrue(initialConfig.beforeWithdraw);
+        assertTrue(initialConfig.afterWithdraw);
+        assertTrue(initialConfig.beforeProcessAccounting);
+        assertTrue(initialConfig.afterProcessAccounting);
+
+        // Verify hooks array length
+        assertEq(metaHooks.hooksLength(), initialNumHooks);
+
+        // Now set new hooks with different configuration (all false)
+        uint256 newNumHooks = 2;
+        IHooks[] memory newHooks = new IHooks[](newNumHooks);
+
+        for (uint256 i = 0; i < newNumHooks; i++) {
+            HooksMock hook = new HooksMock(
+                IHooks.Config({
+                    beforeDeposit: false,
+                    afterDeposit: false,
+                    beforeMint: false,
+                    afterMint: false,
+                    beforeRedeem: false,
+                    afterRedeem: false,
+                    beforeWithdraw: false,
+                    afterWithdraw: false,
+                    beforeProcessAccounting: false,
+                    afterProcessAccounting: false
+                })
+            );
+            newHooks[i] = IHooks(address(hook));
+        }
+
+        // Set the new hooks - this should clear all pre-existing data
+        metaHooks.setHooks(newHooks);
+
+        // Verify that all previous configuration is cleared
+        IHooks.Config memory newConfig = metaHooks.getConfig();
+        assertFalse(newConfig.beforeDeposit);
+        assertFalse(newConfig.afterDeposit);
+        assertFalse(newConfig.beforeMint);
+        assertFalse(newConfig.afterMint);
+        assertFalse(newConfig.beforeRedeem);
+        assertFalse(newConfig.afterRedeem);
+        assertFalse(newConfig.beforeWithdraw);
+        assertFalse(newConfig.afterWithdraw);
+        assertFalse(newConfig.beforeProcessAccounting);
+        assertFalse(newConfig.afterProcessAccounting);
+
+        // Verify hooks array is updated with new length
+        assertEq(metaHooks.hooksLength(), newNumHooks);
+
+        // Verify the new hooks are correctly set
+        for (uint256 i = 0; i < newNumHooks; i++) {
+            assertEq(address(metaHooks.hooks(i)), address(newHooks[i]));
+        }
+
+        vm.stopPrank();
     }
 }

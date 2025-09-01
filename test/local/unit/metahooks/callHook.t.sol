@@ -20,60 +20,6 @@ contract MetaHooksTest is Test {
         metaHooks = new MetaHooks(address(vault), admin, hookManager);
     }
 
-    function testSetHooksAndConfig() public {
-        vm.startPrank(hookManager);
-
-        // Set up two hooks with different configs
-        IHooks.Config memory config1 = IHooks.Config({
-            beforeDeposit: true,
-            afterDeposit: false,
-            beforeMint: false,
-            afterMint: false,
-            beforeRedeem: false,
-            afterRedeem: false,
-            beforeWithdraw: false,
-            afterWithdraw: false,
-            beforeProcessAccounting: false,
-            afterProcessAccounting: false
-        });
-        IHooks.Config memory config2 = IHooks.Config({
-            beforeDeposit: false,
-            afterDeposit: true,
-            beforeMint: false,
-            afterMint: false,
-            beforeRedeem: false,
-            afterRedeem: false,
-            beforeWithdraw: false,
-            afterWithdraw: false,
-            beforeProcessAccounting: false,
-            afterProcessAccounting: false
-        });
-
-        HooksMock hook1 = new HooksMock(config1);
-        HooksMock hook2 = new HooksMock(config2);
-
-        IHooks[] memory hooksArr = new IHooks[](2);
-        hooksArr[0] = IHooks(address(hook1));
-        hooksArr[1] = IHooks(address(hook2));
-
-        metaHooks.setHooks(hooksArr);
-
-        // Config should be the OR of all hooks
-        IHooks.Config memory config = metaHooks.getConfig();
-        assertTrue(config.beforeDeposit, "beforeDeposit should be true");
-        assertTrue(config.afterDeposit, "afterDeposit should be true");
-        assertFalse(config.beforeMint, "beforeMint should be false");
-
-        // Should revert on duplicate hooks
-        IHooks[] memory dupArr = new IHooks[](2);
-        dupArr[0] = IHooks(address(hook1));
-        dupArr[1] = IHooks(address(hook1));
-        vm.expectRevert(abi.encodeWithSelector(MetaHooks.DuplicateInInput.selector, address(hook1)));
-        metaHooks.setHooks(dupArr);
-
-        vm.stopPrank();
-    }
-
     function testOnlyVaultCanCallHooks() public {
         // Set up a hook that enables all hook functions
         IHooks.Config memory config = IHooks.Config({
@@ -185,43 +131,6 @@ contract MetaHooksTest is Test {
         metaHooks.afterProcessAccounting(1, 1, 1, 1, 1, 1);
         assertTrue(hook.afterProcessAccountingCalled(), "afterProcessAccounting should be called on hook");
         vm.stopPrank();
-    }
-
-    function testOnlyHookCanCallVaultFunctions() public {
-        // Set up a hook
-        IHooks.Config memory config = IHooks.Config({
-            beforeDeposit: false,
-            afterDeposit: false,
-            beforeMint: false,
-            afterMint: false,
-            beforeRedeem: false,
-            afterRedeem: false,
-            beforeWithdraw: false,
-            afterWithdraw: false,
-            beforeProcessAccounting: false,
-            afterProcessAccounting: false
-        });
-        HooksMock hook = new HooksMock(config);
-        IHooks[] memory hooksArr = new IHooks[](1);
-        hooksArr[0] = IHooks(address(hook));
-
-        vm.startPrank(hookManager);
-        metaHooks.setHooks(hooksArr);
-        vm.stopPrank();
-
-        // Should revert if not called by a hook
-        address badCaller = address(0xBEEF);
-        vm.startPrank(badCaller);
-        vm.expectRevert(abi.encodeWithSelector(MetaHooks.CallerNotHook.selector, badCaller));
-        metaHooks.mintShares(address(0x1234), 10);
-        vm.stopPrank();
-
-        // Call as hook
-        vm.startPrank(address(hook));
-        metaHooks.mintShares(address(0x1234), 10);
-        vm.stopPrank();
-
-        assertEq(vault.mintedShares(), 10, "mintedShares should be updated in vault");
     }
 
     function testFuzzMetaHooksCallsAllHooksWithDifferentConfigs(

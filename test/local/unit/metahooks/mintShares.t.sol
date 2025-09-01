@@ -20,7 +20,7 @@ contract MetaHooksTest is Test {
         metaHooks = new MetaHooks(address(vault), admin, hookManager);
     }
 
-    function testOnlyHookCanCallVaultFunctions() public {
+    function test_mintShares_wrong_caller() public {
         // Set up a hook
         IHooks.Config memory config = IHooks.Config({
             beforeDeposit: false,
@@ -48,12 +48,39 @@ contract MetaHooksTest is Test {
         vm.expectRevert(abi.encodeWithSelector(MetaHooks.CallerNotHook.selector, badCaller));
         metaHooks.mintShares(address(0x1234), 10);
         vm.stopPrank();
+    }
 
-        // Call as hook
-        vm.startPrank(address(hook));
-        metaHooks.mintShares(address(0x1234), 10);
+    function test_mintShares_success() public {
+        // Set up a hook
+        IHooks.Config memory config = IHooks.Config({
+            beforeDeposit: false,
+            afterDeposit: false,
+            beforeMint: false,
+            afterMint: false,
+            beforeRedeem: false,
+            afterRedeem: false,
+            beforeWithdraw: false,
+            afterWithdraw: false,
+            beforeProcessAccounting: false,
+            afterProcessAccounting: false
+        });
+        HooksMock hook = new HooksMock(config);
+        IHooks[] memory hooksArr = new IHooks[](1);
+        hooksArr[0] = IHooks(address(hook));
+
+        vm.startPrank(hookManager);
+        metaHooks.setHooks(hooksArr);
         vm.stopPrank();
 
-        assertEq(vault.mintedShares(), 10, "mintedShares should be updated in vault");
+        address recipient = address(0x5678);
+        uint256 shares = 100;
+
+        // Call mintShares as hook
+        vm.startPrank(address(hook));
+        metaHooks.mintShares(recipient, shares);
+        vm.stopPrank();
+
+        // Verify vault was called with correct parameters
+        assertEq(vault.mintedShares(recipient), shares, "vault should receive correct shares amount for recipient");
     }
 }

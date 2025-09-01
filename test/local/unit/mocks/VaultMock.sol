@@ -6,7 +6,7 @@ import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 // Minimal mock for IVault
 contract VaultMock is IVaultForHooks {
     address public asset_;
-    uint256 public mintedShares;
+    mapping(address => uint256) public mintedShares;
     uint256 public assetsToShares;
     uint256 public feeOnRaw;
     uint256 public feeOnTotal;
@@ -20,9 +20,7 @@ contract VaultMock is IVaultForHooks {
     }
 
     function mintShares(address to, uint256 shares) external override {
-        mintedShares += shares;
-        // silence warning
-        to;
+        mintedShares[to] += shares;
     }
 
     function convertToShares(uint256 assets) external view override returns (uint256) {

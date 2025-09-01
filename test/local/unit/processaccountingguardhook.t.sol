@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
+import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 
 contract ProcessAccountingGuardHookTest is Test {
     ProcessAccountingGuardHook public processAccountingGuardHook;
@@ -89,6 +90,68 @@ contract ProcessAccountingGuardHookTest is Test {
             0, // unused parameter
             0 // unused parameter
         );
+        vm.stopPrank();
+    }
+
+    function test_setConfig_reverts() public {
+        // Test that setConfig reverts with NotSupported error
+        IHooks.Config memory config = IHooks.Config({
+            beforeDeposit: true,
+            afterDeposit: true,
+            beforeMint: true,
+            afterMint: true,
+            beforeRedeem: true,
+            afterRedeem: true,
+            beforeWithdraw: true,
+            afterWithdraw: true,
+            beforeProcessAccounting: true,
+            afterProcessAccounting: true
+        });
+
+        vm.expectRevert(ProcessAccountingGuardHook.NotSupported.selector);
+        processAccountingGuardHook.setConfig(config);
+    }
+
+    function test_setMaxDecreaseRatio_success() public {
+        uint256 newMaxDecreaseRatio = 0.2e18; // 20%
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setMaxDecreaseRatio(newMaxDecreaseRatio);
+        vm.stopPrank();
+
+        assertEq(processAccountingGuardHook.maxDecreaseRatio(), newMaxDecreaseRatio);
+    }
+
+    function test_setMaxDecreaseRatio_onlyOwner() public {
+        uint256 newMaxDecreaseRatio = 0.2e18; // 20%
+
+        address wrongCaller = address(0x123323);
+        // Test that non-owner cannot call setMaxDecreaseRatio
+        vm.startPrank(wrongCaller);
+        vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
+        processAccountingGuardHook.setMaxDecreaseRatio(newMaxDecreaseRatio);
+        vm.stopPrank();
+    }
+
+    function test_setMaxIncreaseRatio_success() public {
+        uint256 newMaxIncreaseRatio = 0.3e18; // 30%
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setMaxIncreaseRatio(newMaxIncreaseRatio);
+        vm.stopPrank();
+
+        assertEq(processAccountingGuardHook.maxIncreaseRatio(), newMaxIncreaseRatio);
+    }
+
+    function test_setMaxIncreaseRatio_onlyOwner() public {
+        uint256 newMaxIncreaseRatio = 0.3e18; // 30%
+
+        address wrongCaller = address(0x123323);
+
+        // Test that non-owner cannot call setMaxIncreaseRatio
+        vm.startPrank(wrongCaller);
+        vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
+        processAccountingGuardHook.setMaxIncreaseRatio(newMaxIncreaseRatio);
         vm.stopPrank();
     }
 }

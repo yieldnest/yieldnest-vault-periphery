@@ -293,4 +293,48 @@ contract MetaHooksTest is Test {
 
         vm.stopPrank();
     }
+
+    function test_setConfig_reverts() public {
+        vm.startPrank(hookManager);
+
+        // setConfig should revert with NotSupported error
+        IHooks.Config memory config = IHooks.Config({
+            beforeDeposit: true,
+            afterDeposit: true,
+            beforeMint: true,
+            afterMint: true,
+            beforeRedeem: true,
+            afterRedeem: true,
+            beforeWithdraw: true,
+            afterWithdraw: true,
+            beforeProcessAccounting: true,
+            afterProcessAccounting: true
+        });
+
+        vm.expectRevert(MetaHooks.NotSupported.selector);
+        metaHooks.setConfig(config);
+
+        vm.stopPrank();
+    }
+
+    function test_supportsHook_fuzz(uint8 hookIndex, uint16 bitmap) public {
+        // Bound hookIndex to valid range (0-15 since we support max 16 hooks)
+        hookIndex = uint8(bound(hookIndex, 0, 15));
+
+        // Test supportsHook function with alternative implementation
+        bool expectedResult = (bitmap & (2 ** hookIndex)) != 0;
+        bool actualResult = metaHooks.supportsHook(hookIndex, bitmap);
+
+        assertEq(actualResult, expectedResult, "supportsHook should return correct result based on bitmap");
+    }
+
+    function test_setHook_fuzz(uint8 hookIndex, uint16 bitmap, bool active) public {
+        // Bound hookIndex to valid range (0-15 since we support max 16 hooks)
+        hookIndex = uint8(bound(hookIndex, 0, 15));
+
+        uint16 expectedResult = uint16(2 ** hookIndex | bitmap);
+
+        uint256 updatedBitmap = metaHooks.setHook(hookIndex, bitmap);
+        assertEq(updatedBitmap, expectedResult, "setHook should return correct result based on bitmap");
+    }
 }

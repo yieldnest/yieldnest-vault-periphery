@@ -148,7 +148,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
      * @param bitmap The bitmap to check the hook in
      * @return True if the hook is supported, false otherwise
      */
-    function supportsHook(uint256 index, uint16 bitmap) internal pure returns (bool) {
+    function supportsHook(uint256 index, uint16 bitmap) public pure returns (bool) {
         return (bitmap & (1 << index)) != 0;
     }
 
@@ -158,9 +158,14 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
      * @param bitmap The bitmap to set the hook in
      * @return The new bitmap
      */
-    function setHook(uint256 index, uint16 bitmap) internal pure returns (uint16) {
+    function setHook(uint256 index, uint16 bitmap) public pure returns (uint16) {
         return bitmap | uint16(1 << index);
     }
+
+    function hooksLength() public view returns (uint256) {
+        return hooks.length;
+    }
+
     /// HOOKS FUNCTIONS ///
 
     function beforeDeposit(
@@ -174,8 +179,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.beforeDeposit;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeDeposit(_asset, assets, caller, receiver, shares, baseAssets);
             }
@@ -193,8 +198,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.afterDeposit;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterDeposit(_asset, assets, caller, receiver, shares, baseAssets);
             }
@@ -212,8 +217,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.beforeMint;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeMint(_asset, shares, caller, receiver, assets, baseAssets);
             }
@@ -231,8 +236,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.afterMint;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterMint(_asset, shares, caller, receiver, assets, baseAssets);
             }
@@ -250,8 +255,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.beforeRedeem;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeRedeem(_asset, shares, caller, receiver, owner, assets);
             }
@@ -269,8 +274,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.afterRedeem;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterRedeem(_asset, shares, caller, receiver, owner, assets);
             }
@@ -288,8 +293,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.beforeWithdraw;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeWithdraw(_asset, assets, caller, receiver, owner, shares);
             }
@@ -307,8 +312,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.afterWithdraw;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterWithdraw(_asset, assets, caller, receiver, owner, shares);
             }
@@ -323,8 +328,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.beforeProcessAccounting;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeProcessAccounting(
                     totalAssetsBeforeAccounting, totalSupplyBeforeAccounting, totalBaseBalanceBeforeAccounting
@@ -344,8 +349,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 bitmap = configBitmap.afterProcessAccounting;
         if (bitmap == 0) return;
 
-        uint256 hooksLength = hooks.length;
-        for (uint256 i = 0; i < hooksLength; i++) {
+        uint256 _hooksLength = hooks.length;
+        for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterProcessAccounting(
                     totalAssetsBeforeAccounting,

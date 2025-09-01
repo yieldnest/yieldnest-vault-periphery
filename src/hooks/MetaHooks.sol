@@ -38,7 +38,17 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     }
 
     IVault public immutable override VAULT;
+    /**
+     * @notice The array of hooks that are active for this MetaHooks contract
+     * @dev The array is used to call the hooks in the correct order
+     */
     IHooks[] public hooks;
+    /**
+     * @notice The mapping of the hooks that are active for each operation
+     * @dev The mapping is used to store the index and active status of the hooks
+     * @dev The index is used to call the hooks in the correct order
+     * @dev The active status is used to check if the hook is active for the operation
+     */
     mapping(IHooks => HookData) public hookData;
     /**
      * @notice The bitmap of the hooks that are active for each operation
@@ -373,27 +383,53 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     function mintShares(address to, uint256 shares) external override onlyHook {
         VAULT.mintShares(to, shares);
     }
+    /// @notice Converts a given amount of assets to the equivalent amount of shares
+    /// @dev This function acts as a proxy to the vault's convertToShares function
+    /// @param assets The amount of assets to convert
+    /// @return The equivalent amount of shares
 
     function convertToShares(uint256 assets) external view override returns (uint256) {
         return VAULT.convertToShares(assets);
     }
 
+    /// @notice Returns the address of the underlying asset
+    /// @dev This function acts as a proxy to the vault's asset function
+    /// @return The address of the underlying asset
     function asset() external view override returns (address) {
         return VAULT.asset();
     }
 
+    /// @notice Calculates the fee on raw assets
+    /// @dev This function acts as a proxy to the vault's _feeOnRaw function
+    /// @param amount The amount of assets to calculate the fee for
+    /// @param caller The address of the caller
+    /// @return The calculated fee amount
     function _feeOnRaw(uint256 amount, address caller) external view override returns (uint256) {
         return VAULT._feeOnRaw(amount, caller);
     }
 
+    /// @notice Calculates the fee on total shares
+    /// @dev This function acts as a proxy to the vault's _feeOnTotal function
+    /// @param amount The amount of shares to calculate the fee for
+    /// @param caller The address of the caller
+    /// @return The calculated fee amount
     function _feeOnTotal(uint256 amount, address caller) external view override returns (uint256) {
         return VAULT._feeOnTotal(amount, caller);
     }
 
+    /// @notice Previews the amount of shares that would be received for depositing a specific asset
+    /// @dev This function acts as a proxy to the vault's previewDepositAsset function
+    /// @param assetAddress The address of the asset to deposit
+    /// @param assets The amount of assets to deposit
+    /// @return The amount of shares that would be received
     function previewDepositAsset(address assetAddress, uint256 assets) external view override returns (uint256) {
         return VAULT.previewDepositAsset(assetAddress, assets);
     }
 
+    /// @notice Converts a given amount of shares to the equivalent amount of assets
+    /// @dev This function acts as a proxy to the vault's convertToAssets function
+    /// @param shares The amount of shares to convert
+    /// @return The equivalent amount of assets
     function convertToAssets(uint256 shares) external view override returns (uint256) {
         return VAULT.convertToAssets(shares);
     }

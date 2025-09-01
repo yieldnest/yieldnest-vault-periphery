@@ -20,7 +20,7 @@ contract MetaHooksTest is Test {
         metaHooks = new MetaHooks(address(vault), admin, hookManager);
     }
 
-    function test_getConfig_emptyHooks() public {
+    function test_getConfig_emptyHooks() public view {
         // Test getConfig when no hooks are set
         IHooks.Config memory config = metaHooks.getConfig();
 
@@ -121,45 +121,45 @@ contract MetaHooksTest is Test {
         vm.stopPrank();
     }
 
-    function test_getHooksLength_empty() public {
+    function test_getHooksLength_empty() public view {
         // Test getHooksLength when no hooks are set
         assertEq(metaHooks.hooksLength(), 0, "hooksLength should be 0 when no hooks are set");
     }
 
-    function test_vault_view() public {
+    function test_vault_view() public view {
         // Test that vault() returns the correct vault address
         assertEq(address(metaHooks.VAULT()), address(vault), "VAULT() should return the correct vault address");
     }
 
-    function test_convertToShares(uint256 assets) public {
+    function test_convertToShares(uint256 assets) public view {
         // Test convertToShares view function
         uint256 shares = metaHooks.convertToShares(assets);
         uint256 expectedShares = vault.convertToShares(assets);
         assertEq(shares, expectedShares, "convertToShares should match vault's convertToShares");
     }
 
-    function test_asset() public {
+    function test_asset() public view {
         // Test asset view function
         address assetAddress = metaHooks.asset();
         address expectedAsset = vault.asset();
         assertEq(assetAddress, expectedAsset, "asset() should return the same asset as vault");
     }
 
-    function test_feeOnRaw(uint256 amount, address caller) public {
+    function test_feeOnRaw(uint256 amount, address caller) public view {
         // Test _feeOnRaw view function
         uint256 fee = metaHooks._feeOnRaw(amount, caller);
         uint256 expectedFee = vault._feeOnRaw(amount, caller);
         assertEq(fee, expectedFee, "_feeOnRaw should match vault's _feeOnRaw");
     }
 
-    function test_feeOnTotal(uint256 amount, address caller) public {
+    function test_feeOnTotal(uint256 amount, address caller) public view {
         // Test _feeOnTotal view function
         uint256 fee = metaHooks._feeOnTotal(amount, caller);
         uint256 expectedFee = vault._feeOnTotal(amount, caller);
         assertEq(fee, expectedFee, "_feeOnTotal should match vault's _feeOnTotal");
     }
 
-    function test_previewDepositAsset(uint256 assets) public {
+    function test_previewDepositAsset(uint256 assets) public view {
         // Test previewDepositAsset view function
         address assetAddress = vault.asset();
         uint256 shares = metaHooks.previewDepositAsset(assetAddress, assets);
@@ -167,7 +167,7 @@ contract MetaHooksTest is Test {
         assertEq(shares, expectedShares, "previewDepositAsset should match vault's previewDepositAsset");
     }
 
-    function test_convertToAssets(uint256 shares) public {
+    function test_convertToAssets(uint256 shares) public view {
         // Test convertToAssets view function
         uint256 assets = metaHooks.convertToAssets(shares);
         uint256 expectedAssets = vault.convertToAssets(shares);

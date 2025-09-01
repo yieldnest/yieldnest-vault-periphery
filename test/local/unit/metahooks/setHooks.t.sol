@@ -87,7 +87,7 @@ contract MetaHooksTest is Test {
         vm.stopPrank();
     }
 
-    function assertHookToggle(bool configValue, bool[5] memory hookIsActive) internal {
+    function assertHookToggle(bool configValue, bool[5] memory hookIsActive) internal pure {
         bool expected = false;
         for (uint256 i = 0; i < 5; i++) {
             expected = expected || hookIsActive[i];
@@ -317,7 +317,7 @@ contract MetaHooksTest is Test {
         vm.stopPrank();
     }
 
-    function test_supportsHook_fuzz(uint8 hookIndex, uint16 bitmap) public {
+    function test_supportsHook_fuzz(uint8 hookIndex, uint16 bitmap) public view {
         // Bound hookIndex to valid range (0-15 since we support max 16 hooks)
         hookIndex = uint8(bound(hookIndex, 0, 15));
 
@@ -328,7 +328,7 @@ contract MetaHooksTest is Test {
         assertEq(actualResult, expectedResult, "supportsHook should return correct result based on bitmap");
     }
 
-    function test_setHook_fuzz(uint8 hookIndex, uint16 bitmap, bool active) public {
+    function test_setHook_fuzz(uint8 hookIndex, uint16 bitmap) public view {
         // Bound hookIndex to valid range (0-15 since we support max 16 hooks)
         hookIndex = uint8(bound(hookIndex, 0, 15));
 

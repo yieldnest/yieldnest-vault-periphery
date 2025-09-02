@@ -129,10 +129,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     // CONFIG ///
 
+    /// @inheritdoc IHooks
     function setConfig(Config memory) public pure override {
         revert NotSupported();
     }
 
+    /// @inheritdoc IHooks
     function getConfig() public view override returns (Config memory) {
         ConfigBitmap memory bitmap = configBitmap;
         // Convert bitmap values to boolean flags for each hook type
@@ -178,6 +180,10 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     /// HOOKS FUNCTIONS ///
 
+    function callHooks(uint16 bitmap, function(address, uint256, address, address, uint256, uint256) external)
+        external
+    {}
+
     function beforeDeposit(
         address _asset,
         uint256 assets,
@@ -216,6 +222,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function beforeMint(
         address _asset,
         uint256 shares,
@@ -235,6 +242,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function afterMint(
         address _asset,
         uint256 shares,
@@ -254,6 +262,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function beforeRedeem(
         address _asset,
         uint256 shares,
@@ -273,6 +282,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function afterRedeem(
         address _asset,
         uint256 shares,
@@ -292,6 +302,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function beforeWithdraw(
         address _asset,
         uint256 assets,
@@ -311,6 +322,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function afterWithdraw(
         address _asset,
         uint256 assets,
@@ -330,6 +342,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function beforeProcessAccounting(
         uint256 totalAssetsBeforeAccounting,
         uint256 totalSupplyBeforeAccounting,
@@ -348,6 +361,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
+    /// @inheritdoc IHooks
     function afterProcessAccounting(
         uint256 totalAssetsBeforeAccounting,
         uint256 totalAssetsAfterAccounting,

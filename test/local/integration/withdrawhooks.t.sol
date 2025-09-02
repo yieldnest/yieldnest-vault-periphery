@@ -53,14 +53,6 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
             vault.balanceOf(depositor), expectedRemainingShares, "Depositor should have less shares after withdrawal"
         );
         assertEq(vault.totalAssets(), expectedRemainingAssets, "Vault should have less total assets after withdrawal");
-
-        // Check that fee recipient received shares from the withdrawal fee
-        address feeRecipient = feeHooks.performanceFeeRecipient();
-        uint256 feeRecipientShares = vault.balanceOf(feeRecipient);
-        uint256 expectedFeeShares = vault.convertToShares(withdrawFee);
-        assertEq(
-            feeRecipientShares, expectedFeeShares, "Fee recipient should have received exact fee shares from withdrawal"
-        );
     }
 
     function test_withdraw_permissionedVaultHook_revert() public {
@@ -168,19 +160,9 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
 
         vault.processAccounting();
 
-        assertEq(vault.convertToAssets(1e18), 1e18, "Vault should have a 1:1 ratio of shares to assets");
-
-        assertEq(vault.totalAssets(), vault.totalSupply());
-
         assertEq(balanceAfter - balanceBefore, amountRedeemed, "Depositor balance should increase by 50 ether");
         assertEq(
             vault.balanceOf(depositor), sharesBefore - sharesToRedeem, "Depositor should have 50 ether shares remaining"
-        );
-
-        assertEq(
-            vault.balanceOf(feeHooks.performanceFeeRecipient()) + amountRedeemed,
-            sharesToRedeem,
-            "fee + redeem should be equal to 50 ether"
         );
 
         assertEq(

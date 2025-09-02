@@ -5,6 +5,15 @@ import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {console} from "forge-std/console.sol";
 
+/**
+ * @title ProcessAccountingGuardHook
+ * @notice This hook is used to check for excessive totalAssets changes
+ *         when calling the processAccounting function for the vault.
+ * It checks if the total assets decreased too much or increased too much.
+ * It is used to prevent the vault from being exposed to anomalous totalAssets fluctuations.
+ * which can be a result of oracle manipulation or 3rd party protocol failures.
+ * the processAccounting call reverts if the totalAssets changed too much.
+ */
 contract ProcessAccountingGuardHook is IHooks {
     error TotalAssetsDecreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxDecreaseRatio);
     error TotalAssetsIncreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxIncreaseRatio);
@@ -37,10 +46,18 @@ contract ProcessAccountingGuardHook is IHooks {
         maxIncreaseRatio = _maxIncreaseRatio;
     }
 
+    /**
+     * @notice Set the maximum decrease ratio
+     * @param _maxDecreaseRatio The maximum decrease ratio
+     */
     function setMaxDecreaseRatio(uint256 _maxDecreaseRatio) external onlyOwner {
         maxDecreaseRatio = _maxDecreaseRatio;
     }
 
+    /**
+     * @notice Set the maximum increase ratio
+     * @param _maxIncreaseRatio The maximum increase ratio
+     */
     function setMaxIncreaseRatio(uint256 _maxIncreaseRatio) external onlyOwner {
         maxIncreaseRatio = _maxIncreaseRatio;
     }

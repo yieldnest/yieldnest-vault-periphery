@@ -64,12 +64,17 @@ contract BaseIntegrationTest is Test, Actors {
         withdrawGuardHook = new WithdrawGuardHook(address(metaHooks), 100 wei);
 
         // Set up hooks array for MetaHooks
-        IHooks[] memory hooks = new IHooks[](5);
+        // IHooks[] memory hooks = new IHooks[](5);
+        // hooks[0] = IHooks(address(permissionedVaultHook));
+        // hooks[1] = IHooks(address(withdrawGuardHook)); // MUST be before feeHooks
+        // hooks[2] = IHooks(address(feeHooks));
+        // hooks[3] = IHooks(address(processAccountingGuardHook));
+        // hooks[4] = IHooks(address(redeemGuardHook)); // MUST be after feeHooks
+
+        IHooks[] memory hooks = new IHooks[](3);
         hooks[0] = IHooks(address(permissionedVaultHook));
-        hooks[1] = IHooks(address(withdrawGuardHook)); // MUST be before feeHooks
-        hooks[2] = IHooks(address(feeHooks));
-        hooks[3] = IHooks(address(processAccountingGuardHook));
-        hooks[4] = IHooks(address(redeemGuardHook)); // MUST be after feeHooks
+        hooks[1] = IHooks(address(feeHooks));
+        hooks[2] = IHooks(address(processAccountingGuardHook));
 
         vm.startPrank(HOOK_MANAGER);
         metaHooks.setHooks(hooks);

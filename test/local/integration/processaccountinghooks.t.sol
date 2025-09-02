@@ -37,22 +37,28 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_deposit_and_processAccounting_success() public {
-        // Deposit as whitelisted user
-        deal(vault.asset(), depositor, 100 ether);
-        vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), 100 ether);
-        vault.deposit(100 ether, depositor);
-        vm.stopPrank();
+    function test_deposit_and_processAccounting_multiple_times_success() public {
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        for (uint256 i = 0; i < 5; i++) {
+            // Deposit as whitelisted user
+            deal(vault.asset(), depositor, depositAmount);
+            vm.startPrank(depositor);
+            IERC20(vault.asset()).approve(address(vault), depositAmount);
+            vault.deposit(depositAmount, depositor);
+            vm.stopPrank();
 
-        // Verify deposit was successful
-        assertEq(vault.balanceOf(depositor), 100 ether);
-        assertEq(vault.totalAssets(), 100 ether);
+            expectedTotalAssetsAndShares += depositAmount;
 
-        // Process accounting should succeed (within allowed ratio bounds)
-        vm.startPrank(PROCESSOR);
-        vault.processAccounting();
-        vm.stopPrank();
+            // Verify deposit was successful
+            assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+            assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+            // Process accounting should succeed (within allowed ratio bounds)
+            vm.startPrank(PROCESSOR);
+            vault.processAccounting();
+            vm.stopPrank();
+        }
     }
 
     function test_deposit_donate_and_processAccounting_revert(uint256 depositAmount, uint256 donationAmount) public {

@@ -70,50 +70,43 @@ abstract contract BaseRedemptionGuardHook is IHooks {
 
     /// UNUSED HOOKS ///
 
-    function beforeWithdraw(address, uint256, address, address, address, uint256) external virtual override {
+    function beforeWithdraw(WithdrawParams memory) external virtual override {
         // Not implemented
     }
 
-    function afterWithdraw(address, uint256, address, address, address, uint256) external virtual override {
+    function afterWithdraw(WithdrawParams memory) external virtual override {
         // Not implemented
     }
 
-    function beforeRedeem(address, uint256, address, address, address, uint256) external virtual override {
+    function beforeRedeem(RedeemParams memory) external virtual override {
         // Not implemented
     }
 
-    function afterRedeem(address, uint256, address, address, address, uint256) external virtual override {
+    function afterRedeem(RedeemParams memory) external virtual override {
         // Not implemented
     }
 
-    function beforeDeposit(address, uint256, address, address, uint256, uint256) external virtual override {
+    function beforeDeposit(DepositParams memory) external virtual override {
         // Not implemented
     }
 
-    function afterDeposit(address, uint256, address, address, uint256, uint256) external virtual override {
+    function afterDeposit(DepositParams memory) external virtual override {
         // Not implemented
     }
 
-    function beforeMint(address, uint256, address, address, uint256, uint256) external virtual override {
+    function beforeMint(MintParams memory) external virtual override {
         // Not implemented
     }
 
-    function afterMint(address, uint256, address, address, uint256, uint256) external pure virtual override {
+    function afterMint(MintParams memory) external virtual override {
         // Not implemented
     }
 
-    function beforeProcessAccounting(uint256, uint256, uint256) external pure virtual override {
+    function beforeProcessAccounting(BeforeProcessAccountingParams memory) external virtual override {
         // Not implemented
     }
 
-    function afterProcessAccounting(
-        uint256 totalAssetsBeforeAccounting,
-        uint256 totalAssetsAfterAccounting,
-        uint256,
-        uint256,
-        uint256,
-        uint256
-    ) external view virtual {
+    function afterProcessAccounting(AfterProcessAccountingParams memory) external virtual override {
         // Not implemented
     }
 }

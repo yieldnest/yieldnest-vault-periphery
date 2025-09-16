@@ -26,43 +26,43 @@ contract HooksMock is IHooks {
         return config;
     }
 
-    function beforeDeposit(address, uint256, address, address, uint256, uint256) external override {
+    function beforeDeposit(DepositParams memory) external override {
         beforeDepositCalled = true;
     }
 
-    function afterDeposit(address, uint256, address, address, uint256, uint256) external override {
+    function afterDeposit(DepositParams memory) external override {
         afterDepositCalled = true;
     }
 
-    function beforeMint(address, uint256, address, address, uint256, uint256) external override {
+    function beforeMint(MintParams memory) external override {
         beforeMintCalled = true;
     }
 
-    function afterMint(address, uint256, address, address, uint256, uint256) external override {
+    function afterMint(MintParams memory) external override {
         afterMintCalled = true;
     }
 
-    function beforeRedeem(address, uint256, address, address, address, uint256) external override {
+    function beforeRedeem(RedeemParams memory) external override {
         beforeRedeemCalled = true;
     }
 
-    function afterRedeem(address, uint256, address, address, address, uint256) external override {
+    function afterRedeem(RedeemParams memory) external override {
         afterRedeemCalled = true;
     }
 
-    function beforeWithdraw(address, uint256, address, address, address, uint256) external override {
+    function beforeWithdraw(WithdrawParams memory) external override {
         beforeWithdrawCalled = true;
     }
 
-    function afterWithdraw(address, uint256, address, address, address, uint256) external override {
+    function afterWithdraw(WithdrawParams memory) external override {
         afterWithdrawCalled = true;
     }
 
-    function beforeProcessAccounting(uint256, uint256, uint256) external override {
+    function beforeProcessAccounting(BeforeProcessAccountingParams memory) external override {
         beforeProcessAccountingCalled = true;
     }
 
-    function afterProcessAccounting(uint256, uint256, uint256, uint256, uint256, uint256) external override {
+    function afterProcessAccounting(AfterProcessAccountingParams memory) external override {
         afterProcessAccountingCalled = true;
     }
 

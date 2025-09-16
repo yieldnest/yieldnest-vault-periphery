@@ -25,11 +25,11 @@ contract WithdrawGuardHook is BaseRedemptionGuardHook {
 
     /// WITHDRAW RATE CHECKS ///
 
-    function beforeWithdraw(address, uint256, address, address, address, uint256) external override onlyVault {
+    function beforeWithdraw(WithdrawParams memory) external override onlyVault {
         storeConvertToAssets();
     }
 
-    function afterWithdraw(address, uint256, address, address, address, uint256) external override onlyVault {
+    function afterWithdraw(WithdrawParams memory) external override onlyVault {
         // Compare the convertToAssets(1e18) value in transient storage with the current value
         // and check that the rate did not change
         compareConvertToAssets();

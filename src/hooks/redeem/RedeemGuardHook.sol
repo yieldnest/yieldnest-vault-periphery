@@ -25,11 +25,11 @@ contract RedeemGuardHook is BaseRedemptionGuardHook {
 
     /// REDEEM RATE CHECKS ///
 
-    function beforeRedeem(address, uint256, address, address, address, uint256) external override onlyVault {
+    function beforeRedeem(RedeemParams memory) external override onlyVault {
         storeConvertToAssets();
     }
 
-    function afterRedeem(address, uint256, address, address, address, uint256) external override onlyVault {
+    function afterRedeem(RedeemParams memory) external override onlyVault {
         // Compare the convertToAssets(1e18) value in transient storage with the current value
         // and check that the rate did not change
         compareConvertToAssets();

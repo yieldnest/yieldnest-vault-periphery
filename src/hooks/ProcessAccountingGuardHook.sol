@@ -84,32 +84,25 @@ contract ProcessAccountingGuardHook is IHooks {
     /**
      * @notice Check if the total assets decreased too much or increased too much
      */
-    function afterProcessAccounting(
-        uint256 totalAssetsBeforeAccounting,
-        uint256 totalAssetsAfterAccounting,
-        uint256,
-        uint256,
-        uint256,
-        uint256
-    ) external view override onlyVault {
-        if (totalAssetsBeforeAccounting == 0) return; // Skip check if starting from zero
+    function afterProcessAccounting(AfterProcessAccountingParams memory params) external view override onlyVault {
+        if (params.totalAssetsBeforeAccounting == 0) return; // Skip check if starting from zero
 
-        if (totalAssetsAfterAccounting < totalAssetsBeforeAccounting) {
+        if (params.totalAssetsAfterAccounting < params.totalAssetsBeforeAccounting) {
             // Check for excessive decrease
-            uint256 decrease = totalAssetsBeforeAccounting - totalAssetsAfterAccounting;
-            uint256 decreaseRatio = (decrease * RATIO_DENOMINATOR) / totalAssetsBeforeAccounting;
+            uint256 decrease = params.totalAssetsBeforeAccounting - params.totalAssetsAfterAccounting;
+            uint256 decreaseRatio = (decrease * RATIO_DENOMINATOR) / params.totalAssetsBeforeAccounting;
             if (decreaseRatio > maxDecreaseRatio) {
                 revert TotalAssetsDecreasedTooMuch(
-                    totalAssetsBeforeAccounting, totalAssetsAfterAccounting, maxDecreaseRatio
+                    params.totalAssetsBeforeAccounting, params.totalAssetsAfterAccounting, maxDecreaseRatio
                 );
             }
-        } else if (totalAssetsAfterAccounting > totalAssetsBeforeAccounting) {
+        } else if (params.totalAssetsAfterAccounting > params.totalAssetsBeforeAccounting) {
             // Check for excessive increase
-            uint256 increase = totalAssetsAfterAccounting - totalAssetsBeforeAccounting;
-            uint256 increaseRatio = (increase * RATIO_DENOMINATOR) / totalAssetsBeforeAccounting;
+            uint256 increase = params.totalAssetsAfterAccounting - params.totalAssetsBeforeAccounting;
+            uint256 increaseRatio = (increase * RATIO_DENOMINATOR) / params.totalAssetsBeforeAccounting;
             if (increaseRatio > maxIncreaseRatio) {
                 revert TotalAssetsIncreasedTooMuch(
-                    totalAssetsBeforeAccounting, totalAssetsAfterAccounting, maxIncreaseRatio
+                    params.totalAssetsBeforeAccounting, params.totalAssetsAfterAccounting, maxIncreaseRatio
                 );
             }
         }
@@ -117,39 +110,39 @@ contract ProcessAccountingGuardHook is IHooks {
 
     /// UNUSED HOOKS ///
 
-    function beforeDeposit(address, uint256, address, address, uint256, uint256) external pure override {
+    function beforeDeposit(DepositParams memory) external pure override {
         // Not implemented
     }
 
-    function afterDeposit(address, uint256, address, address, uint256, uint256) external pure override {
+    function afterDeposit(DepositParams memory) external pure override {
         // Not implemented
     }
 
-    function beforeMint(address, uint256, address, address, uint256, uint256) external pure override {
+    function beforeMint(MintParams memory) external pure override {
         // Not implemented
     }
 
-    function afterMint(address, uint256, address, address, uint256, uint256) external pure override {
+    function afterMint(MintParams memory) external pure override {
         // Not implemented
     }
 
-    function beforeRedeem(address, uint256, address, address, address, uint256) external pure override {
+    function beforeRedeem(RedeemParams memory) external pure override {
         // Not implemented
     }
 
-    function afterRedeem(address, uint256, address, address, address, uint256) external pure override {
+    function afterRedeem(RedeemParams memory) external pure override {
         // Not implemented
     }
 
-    function beforeWithdraw(address, uint256, address, address, address, uint256) external pure override {
+    function beforeWithdraw(WithdrawParams memory) external pure override {
         // Not implemented
     }
 
-    function afterWithdraw(address, uint256, address, address, address, uint256) external pure override {
+    function afterWithdraw(WithdrawParams memory) external pure override {
         // Not implemented
     }
 
-    function beforeProcessAccounting(uint256, uint256, uint256) external pure override {
+    function beforeProcessAccounting(BeforeProcessAccountingParams memory) external pure override {
         // Not implemented
     }
 }

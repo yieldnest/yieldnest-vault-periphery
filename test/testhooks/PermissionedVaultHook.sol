@@ -57,110 +57,43 @@ contract PermissionedVaultHook is IHooks {
         revert NotSupported();
     }
 
-    function beforeDeposit(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        uint256 shares,
-        uint256 baseAssets
-    ) external override onlyWhitelisted(caller) {
+    function beforeDeposit(DepositParams memory params) external override onlyWhitelisted(params.caller) {
         // Allow deposit if caller is whitelisted
     }
 
-    function afterDeposit(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        uint256 shares,
-        uint256 baseAssets
-    ) external override {
+    function afterDeposit(DepositParams memory params) external override {
         // Not implemented
     }
 
-    function beforeMint(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        uint256 assets,
-        uint256 baseAssets
-    ) external override onlyWhitelisted(caller) {
+    function beforeMint(MintParams memory params) external override onlyWhitelisted(params.caller) {
         // Allow mint if caller is whitelisted
     }
 
-    function afterMint(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        uint256 assets,
-        uint256 baseAssets
-    ) external override {
+    function afterMint(MintParams memory params) external override {
         // Not implemented
     }
 
-    function beforeRedeem(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        address owner_,
-        uint256 assets
-    ) external override onlyWhitelisted(caller) {
+    function beforeRedeem(RedeemParams memory params) external override onlyWhitelisted(params.caller) {
         // Allow redeem if caller is whitelisted
     }
 
-    function afterRedeem(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        address owner_,
-        uint256 assets
-    ) external override {
+    function afterRedeem(RedeemParams memory params) external override {
         // Not implemented
     }
 
-    function beforeWithdraw(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        address owner_,
-        uint256 shares
-    ) external override onlyWhitelisted(caller) {
+    function beforeWithdraw(WithdrawParams memory params) external override onlyWhitelisted(params.caller) {
         // Allow withdraw if caller is whitelisted
     }
 
-    function afterWithdraw(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        address owner_,
-        uint256 shares
-    ) external override {
+    function afterWithdraw(WithdrawParams memory params) external override {
         // Not implemented
     }
 
-    function beforeProcessAccounting(
-        uint256 totalAssetsBeforeAccounting,
-        uint256 totalSupplyBeforeAccounting,
-        uint256 totalBaseBalanceBeforeAccounting
-    ) external override {
+    function beforeProcessAccounting(BeforeProcessAccountingParams memory params) external override {
         // Not implemented
     }
 
-    function afterProcessAccounting(
-        uint256 totalAssetsBeforeAccounting,
-        uint256 totalAssetsAfterAccounting,
-        uint256 totalSupplyBeforeAccounting,
-        uint256 totalSupplyAfterAccounting,
-        uint256 totalBaseBalanceAfterAccounting,
-        uint256 totalBaseBalanceBeforeAccounting
-    ) external override {
+    function afterProcessAccounting(AfterProcessAccountingParams memory params) external override {
         // Not implemented
     }
 }

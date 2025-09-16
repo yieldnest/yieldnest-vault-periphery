@@ -10,10 +10,10 @@ import {HooksMock} from "./HooksMock.sol";
 import {VaultMock} from "../mocks/VaultMock.sol";
 
 contract MetaHooksTest is Test {
-    MetaHooks metaHooks;
-    VaultMock vault;
-    address admin = address(0xA1);
-    address hookManager = address(0xB1);
+    MetaHooks public metaHooks;
+    VaultMock public vault;
+    address public admin = address(0xA1);
+    address public hookManager = address(0xB1);
 
     function setUp() public {
         vault = new VaultMock(address(0xDEAD));
@@ -43,92 +43,137 @@ contract MetaHooksTest is Test {
         vm.stopPrank();
 
         // Test beforeDeposit
+        IHooks.DepositParams memory depositParams = IHooks.DepositParams({
+            asset: address(0xDEAD),
+            assets: 1,
+            caller: address(this),
+            receiver: address(this),
+            shares: 1,
+            baseAssets: 1
+        });
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.beforeDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.beforeDeposit(depositParams);
 
         vm.startPrank(address(vault));
-        metaHooks.beforeDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.beforeDeposit(depositParams);
         assertTrue(hook.beforeDepositCalled(), "beforeDeposit should be called on hook");
         vm.stopPrank();
 
         // Test afterDeposit
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.afterDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.afterDeposit(depositParams);
 
         vm.startPrank(address(vault));
-        metaHooks.afterDeposit(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.afterDeposit(depositParams);
         assertTrue(hook.afterDepositCalled(), "afterDeposit should be called on hook");
         vm.stopPrank();
 
         // Test beforeMint
+        IHooks.MintParams memory mintParams = IHooks.MintParams({
+            asset: address(0xDEAD),
+            shares: 1,
+            caller: address(this),
+            receiver: address(this),
+            assets: 1,
+            baseAssets: 1
+        });
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.beforeMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.beforeMint(mintParams);
 
         vm.startPrank(address(vault));
-        metaHooks.beforeMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.beforeMint(mintParams);
         assertTrue(hook.beforeMintCalled(), "beforeMint should be called on hook");
         vm.stopPrank();
 
         // Test afterMint
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.afterMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.afterMint(mintParams);
 
         vm.startPrank(address(vault));
-        metaHooks.afterMint(address(0xDEAD), 1, address(this), address(this), 1, 1);
+        metaHooks.afterMint(mintParams);
         assertTrue(hook.afterMintCalled(), "afterMint should be called on hook");
         vm.stopPrank();
 
         // Test beforeRedeem
+        IHooks.RedeemParams memory redeemParams = IHooks.RedeemParams({
+            asset: address(0xDEAD),
+            shares: 1,
+            caller: address(this),
+            receiver: address(this),
+            owner: address(0xBEEF),
+            assets: 1
+        });
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.beforeRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.beforeRedeem(redeemParams);
 
         vm.startPrank(address(vault));
-        metaHooks.beforeRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.beforeRedeem(redeemParams);
         assertTrue(hook.beforeRedeemCalled(), "beforeRedeem should be called on hook");
         vm.stopPrank();
 
         // Test afterRedeem
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.afterRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.afterRedeem(redeemParams);
 
         vm.startPrank(address(vault));
-        metaHooks.afterRedeem(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.afterRedeem(redeemParams);
         assertTrue(hook.afterRedeemCalled(), "afterRedeem should be called on hook");
         vm.stopPrank();
 
         // Test beforeWithdraw
+        IHooks.WithdrawParams memory withdrawParams = IHooks.WithdrawParams({
+            asset: address(0xDEAD),
+            assets: 1,
+            caller: address(this),
+            receiver: address(this),
+            owner: address(0xBEEF),
+            shares: 1
+        });
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.beforeWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.beforeWithdraw(withdrawParams);
 
         vm.startPrank(address(vault));
-        metaHooks.beforeWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.beforeWithdraw(withdrawParams);
         assertTrue(hook.beforeWithdrawCalled(), "beforeWithdraw should be called on hook");
         vm.stopPrank();
 
         // Test afterWithdraw
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.afterWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.afterWithdraw(withdrawParams);
 
         vm.startPrank(address(vault));
-        metaHooks.afterWithdraw(address(0xDEAD), 1, address(this), address(this), address(0xBEEF), 1);
+        metaHooks.afterWithdraw(withdrawParams);
         assertTrue(hook.afterWithdrawCalled(), "afterWithdraw should be called on hook");
         vm.stopPrank();
 
         // Test beforeProcessAccounting
+        IHooks.BeforeProcessAccountingParams memory beforeAccountingParams = IHooks.BeforeProcessAccountingParams({
+            totalAssetsBeforeAccounting: 1,
+            totalSupplyBeforeAccounting: 1,
+            totalBaseAssetsBeforeAccounting: 1
+        });
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.beforeProcessAccounting(1, 1, 1);
+        metaHooks.beforeProcessAccounting(beforeAccountingParams);
 
         vm.startPrank(address(vault));
-        metaHooks.beforeProcessAccounting(1, 1, 1);
+        metaHooks.beforeProcessAccounting(beforeAccountingParams);
         assertTrue(hook.beforeProcessAccountingCalled(), "beforeProcessAccounting should be called on hook");
         vm.stopPrank();
 
         // Test afterProcessAccounting
+        IHooks.AfterProcessAccountingParams memory afterAccountingParams = IHooks.AfterProcessAccountingParams({
+            totalAssetsBeforeAccounting: 1,
+            totalAssetsAfterAccounting: 1,
+            totalSupplyBeforeAccounting: 1,
+            totalSupplyAfterAccounting: 1,
+            totalBaseAssetsBeforeAccounting: 1,
+            totalBaseAssetsAfterAccounting: 1
+        });
         vm.expectRevert(IHooks.CallerNotVault.selector);
-        metaHooks.afterProcessAccounting(1, 1, 1, 1, 1, 1);
+        metaHooks.afterProcessAccounting(afterAccountingParams);
 
         vm.startPrank(address(vault));
-        metaHooks.afterProcessAccounting(1, 1, 1, 1, 1, 1);
+        metaHooks.afterProcessAccounting(afterAccountingParams);
         assertTrue(hook.afterProcessAccountingCalled(), "afterProcessAccounting should be called on hook");
         vm.stopPrank();
     }
@@ -274,92 +319,149 @@ contract MetaHooksTest is Test {
     ) internal {
         uint256 count = hooks.length;
 
-        // Test beforeDeposit
-        vm.startPrank(address(vault));
-        metaHooks.beforeDeposit(address(0xDEAD), 100, address(this), address(this), 50, 100);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].beforeDepositCalled(), beforeDeposits[i], "beforeDeposit call mismatch");
+        {
+            // Test beforeDeposit
+            vm.startPrank(address(vault));
+            IHooks.DepositParams memory depositParams = IHooks.DepositParams({
+                asset: address(0xDEAD),
+                assets: 100,
+                caller: address(this),
+                receiver: address(this),
+                shares: 50,
+                baseAssets: 100
+            });
+            metaHooks.beforeDeposit(depositParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].beforeDepositCalled(), beforeDeposits[i], "beforeDeposit call mismatch");
+            }
+
+            // Test afterDeposit
+            vm.startPrank(address(vault));
+            metaHooks.afterDeposit(depositParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].afterDepositCalled(), afterDeposits[i], "afterDeposit call mismatch");
+            }
         }
 
-        // Test afterDeposit
-        vm.startPrank(address(vault));
-        metaHooks.afterDeposit(address(0xDEAD), 100, address(this), address(this), 50, 100);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].afterDepositCalled(), afterDeposits[i], "afterDeposit call mismatch");
+        {
+            // Test beforeMint
+            vm.startPrank(address(vault));
+            IHooks.MintParams memory mintParams = IHooks.MintParams({
+                asset: address(0xDEAD),
+                shares: 50,
+                caller: address(this),
+                receiver: address(this),
+                assets: 100,
+                baseAssets: 100
+            });
+            metaHooks.beforeMint(mintParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].beforeMintCalled(), beforeMints[i], "beforeMint call mismatch");
+            }
+
+            // Test afterMint
+            vm.startPrank(address(vault));
+            metaHooks.afterMint(mintParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].afterMintCalled(), afterMints[i], "afterMint call mismatch");
+            }
         }
 
-        // Test beforeMint
-        vm.startPrank(address(vault));
-        metaHooks.beforeMint(address(0xDEAD), 50, address(this), address(this), 100, 100);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].beforeMintCalled(), beforeMints[i], "beforeMint call mismatch");
+        {
+            // Test beforeRedeem
+            vm.startPrank(address(vault));
+            IHooks.RedeemParams memory redeemParams = IHooks.RedeemParams({
+                asset: address(0xDEAD),
+                shares: 50,
+                caller: address(this),
+                receiver: address(this),
+                owner: address(this),
+                assets: 100
+            });
+            metaHooks.beforeRedeem(redeemParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].beforeRedeemCalled(), beforeRedeems[i], "beforeRedeem call mismatch");
+            }
+
+            // Test afterRedeem
+            vm.startPrank(address(vault));
+            metaHooks.afterRedeem(redeemParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].afterRedeemCalled(), afterRedeems[i], "afterRedeem call mismatch");
+            }
         }
 
-        // Test afterMint
-        vm.startPrank(address(vault));
-        metaHooks.afterMint(address(0xDEAD), 50, address(this), address(this), 100, 100);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].afterMintCalled(), afterMints[i], "afterMint call mismatch");
+        {
+            // Test beforeWithdraw
+            vm.startPrank(address(vault));
+            IHooks.WithdrawParams memory withdrawParams = IHooks.WithdrawParams({
+                asset: address(0xDEAD),
+                assets: 100,
+                caller: address(this),
+                receiver: address(this),
+                owner: address(this),
+                shares: 50
+            });
+            metaHooks.beforeWithdraw(withdrawParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].beforeWithdrawCalled(), beforeWithdraws[i], "beforeWithdraw call mismatch");
+            }
+
+            // Test afterWithdraw
+            vm.startPrank(address(vault));
+            metaHooks.afterWithdraw(withdrawParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(hooks[i].afterWithdrawCalled(), afterWithdraws[i], "afterWithdraw call mismatch");
+            }
         }
 
-        // Test beforeRedeem
-        vm.startPrank(address(vault));
-        metaHooks.beforeRedeem(address(0xDEAD), 50, address(this), address(this), address(this), 100);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].beforeRedeemCalled(), beforeRedeems[i], "beforeRedeem call mismatch");
+        {
+            // Test beforeProcessAccounting
+            vm.startPrank(address(vault));
+            IHooks.BeforeProcessAccountingParams memory beforeAccountingParams = IHooks.BeforeProcessAccountingParams({
+                totalAssetsBeforeAccounting: 1000,
+                totalSupplyBeforeAccounting: 500,
+                totalBaseAssetsBeforeAccounting: 800
+            });
+            metaHooks.beforeProcessAccounting(beforeAccountingParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(
+                    hooks[i].beforeProcessAccountingCalled(),
+                    beforeProcessAccountings[i],
+                    "beforeProcessAccounting call mismatch"
+                );
+            }
         }
 
-        // Test afterRedeem
-        vm.startPrank(address(vault));
-        metaHooks.afterRedeem(address(0xDEAD), 50, address(this), address(this), address(this), 100);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].afterRedeemCalled(), afterRedeems[i], "afterRedeem call mismatch");
-        }
-
-        // Test beforeWithdraw
-        vm.startPrank(address(vault));
-        metaHooks.beforeWithdraw(address(0xDEAD), 100, address(this), address(this), address(this), 50);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].beforeWithdrawCalled(), beforeWithdraws[i], "beforeWithdraw call mismatch");
-        }
-
-        // Test afterWithdraw
-        vm.startPrank(address(vault));
-        metaHooks.afterWithdraw(address(0xDEAD), 100, address(this), address(this), address(this), 50);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(hooks[i].afterWithdrawCalled(), afterWithdraws[i], "afterWithdraw call mismatch");
-        }
-
-        // Test beforeProcessAccounting
-        vm.startPrank(address(vault));
-        metaHooks.beforeProcessAccounting(1000, 500, 800);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(
-                hooks[i].beforeProcessAccountingCalled(),
-                beforeProcessAccountings[i],
-                "beforeProcessAccounting call mismatch"
-            );
-        }
-
-        // Test afterProcessAccounting
-        vm.startPrank(address(vault));
-        metaHooks.afterProcessAccounting(1000, 1100, 500, 550, 850, 800);
-        vm.stopPrank();
-        for (uint256 i = 0; i < count; i++) {
-            assertEq(
-                hooks[i].afterProcessAccountingCalled(),
-                afterProcessAccountings[i],
-                "afterProcessAccounting call mismatch"
-            );
+        {
+            // Test afterProcessAccounting
+            vm.startPrank(address(vault));
+            IHooks.AfterProcessAccountingParams memory afterAccountingParams = IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: 1000,
+                totalAssetsAfterAccounting: 1100,
+                totalSupplyBeforeAccounting: 500,
+                totalSupplyAfterAccounting: 550,
+                totalBaseAssetsBeforeAccounting: 850,
+                totalBaseAssetsAfterAccounting: 800
+            });
+            metaHooks.afterProcessAccounting(afterAccountingParams);
+            vm.stopPrank();
+            for (uint256 i = 0; i < count; i++) {
+                assertEq(
+                    hooks[i].afterProcessAccountingCalled(),
+                    afterProcessAccountings[i],
+                    "afterProcessAccounting call mismatch"
+                );
+            }
         }
     }
 }

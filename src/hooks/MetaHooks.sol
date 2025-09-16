@@ -180,210 +180,132 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     /// HOOKS FUNCTIONS ///
 
-    function callHooks(uint16 bitmap, function(address, uint256, address, address, uint256, uint256) external)
-        external
-    {}
-
-    function beforeDeposit(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        uint256 shares,
-        uint256 baseAssets
-    ) external override onlyVault {
+    /// @inheritdoc IHooks
+    function beforeDeposit(DepositParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.beforeDeposit;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].beforeDeposit(_asset, assets, caller, receiver, shares, baseAssets);
+                hooks[i].beforeDeposit(params);
             }
         }
     }
 
-    function afterDeposit(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        uint256 shares,
-        uint256 baseAssets
-    ) external override onlyVault {
+    /// @inheritdoc IHooks
+    function afterDeposit(DepositParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.afterDeposit;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].afterDeposit(_asset, assets, caller, receiver, shares, baseAssets);
+                hooks[i].afterDeposit(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function beforeMint(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        uint256 assets,
-        uint256 baseAssets
-    ) external override onlyVault {
+    function beforeMint(MintParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.beforeMint;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].beforeMint(_asset, shares, caller, receiver, assets, baseAssets);
+                hooks[i].beforeMint(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function afterMint(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        uint256 assets,
-        uint256 baseAssets
-    ) external override onlyVault {
+    function afterMint(MintParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.afterMint;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].afterMint(_asset, shares, caller, receiver, assets, baseAssets);
+                hooks[i].afterMint(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function beforeRedeem(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        address owner,
-        uint256 assets
-    ) external override onlyVault {
+    function beforeRedeem(RedeemParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.beforeRedeem;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].beforeRedeem(_asset, shares, caller, receiver, owner, assets);
+                hooks[i].beforeRedeem(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function afterRedeem(
-        address _asset,
-        uint256 shares,
-        address caller,
-        address receiver,
-        address owner,
-        uint256 assets
-    ) external override onlyVault {
+    function afterRedeem(RedeemParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.afterRedeem;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].afterRedeem(_asset, shares, caller, receiver, owner, assets);
+                hooks[i].afterRedeem(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function beforeWithdraw(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        address owner,
-        uint256 shares
-    ) external override onlyVault {
+    function beforeWithdraw(WithdrawParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.beforeWithdraw;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].beforeWithdraw(_asset, assets, caller, receiver, owner, shares);
+                hooks[i].beforeWithdraw(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function afterWithdraw(
-        address _asset,
-        uint256 assets,
-        address caller,
-        address receiver,
-        address owner,
-        uint256 shares
-    ) external override onlyVault {
+    function afterWithdraw(WithdrawParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.afterWithdraw;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].afterWithdraw(_asset, assets, caller, receiver, owner, shares);
+                hooks[i].afterWithdraw(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function beforeProcessAccounting(
-        uint256 totalAssetsBeforeAccounting,
-        uint256 totalSupplyBeforeAccounting,
-        uint256 totalBaseBalanceBeforeAccounting
-    ) external override onlyVault {
+    function beforeProcessAccounting(BeforeProcessAccountingParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.beforeProcessAccounting;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].beforeProcessAccounting(
-                    totalAssetsBeforeAccounting, totalSupplyBeforeAccounting, totalBaseBalanceBeforeAccounting
-                );
+                hooks[i].beforeProcessAccounting(params);
             }
         }
     }
 
     /// @inheritdoc IHooks
-    function afterProcessAccounting(
-        uint256 totalAssetsBeforeAccounting,
-        uint256 totalAssetsAfterAccounting,
-        uint256 totalSupplyBeforeAccounting,
-        uint256 totalSupplyAfterAccounting,
-        uint256 totalBaseBalanceAfterAccounting,
-        uint256 totalBaseBalanceBeforeAccounting
-    ) external override onlyVault {
+    function afterProcessAccounting(AfterProcessAccountingParams memory params) external override onlyVault {
         uint16 bitmap = configBitmap.afterProcessAccounting;
         if (bitmap == 0) return;
 
         uint256 _hooksLength = hooks.length;
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
-                hooks[i].afterProcessAccounting(
-                    totalAssetsBeforeAccounting,
-                    totalAssetsAfterAccounting,
-                    totalSupplyBeforeAccounting,
-                    totalSupplyAfterAccounting,
-                    totalBaseBalanceAfterAccounting,
-                    totalBaseBalanceBeforeAccounting
-                );
+                hooks[i].afterProcessAccounting(params);
             }
         }
     }

@@ -44,12 +44,14 @@ contract ProcessAccountingGuardHookTest is Test {
         }
 
         processAccountingGuardHook.afterProcessAccounting(
-            totalAssetsBeforeAccounting,
-            totalAssetsAfterAccounting,
-            0, // unused parameter
-            0, // unused parameter
-            0, // unused parameter
-            0 // unused parameter
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: totalAssetsBeforeAccounting,
+                totalAssetsAfterAccounting: totalAssetsAfterAccounting,
+                totalSupplyBeforeAccounting: 0,
+                totalSupplyAfterAccounting: 0,
+                totalBaseAssetsBeforeAccounting: 0,
+                totalBaseAssetsAfterAccounting: 0
+            })
         );
         vm.stopPrank();
     }
@@ -83,12 +85,14 @@ contract ProcessAccountingGuardHookTest is Test {
         }
 
         processAccountingGuardHook.afterProcessAccounting(
-            totalAssetsBeforeAccounting,
-            totalAssetsAfterAccounting,
-            0, // unused parameter
-            0, // unused parameter
-            0, // unused parameter
-            0 // unused parameter
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: totalAssetsBeforeAccounting,
+                totalAssetsAfterAccounting: totalAssetsAfterAccounting,
+                totalSupplyBeforeAccounting: 0,
+                totalSupplyAfterAccounting: 0,
+                totalBaseAssetsBeforeAccounting: 0,
+                totalBaseAssetsAfterAccounting: 0
+            })
         );
         vm.stopPrank();
     }

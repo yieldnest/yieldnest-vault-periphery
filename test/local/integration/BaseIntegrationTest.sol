@@ -14,8 +14,6 @@ import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {FeeHooks} from "lib/yieldnest-vault/src/module/FeeHooks.sol";
-import {RedeemGuardHook} from "src/hooks/redeem/RedeemGuardHook.sol";
-import {WithdrawGuardHook} from "src/hooks/redeem/WithdrawGuardHook.sol";
 
 contract BaseIntegrationTest is Test, Actors {
     Vault public vault;
@@ -25,8 +23,6 @@ contract BaseIntegrationTest is Test, Actors {
     PermissionedVaultHook public permissionedVaultHook;
     ProcessAccountingGuardHook public processAccountingGuardHook;
     FeeHooks public feeHooks;
-    RedeemGuardHook public redeemGuardHook;
-    WithdrawGuardHook public withdrawGuardHook;
 
     address public constant onwer = address(111222333);
 
@@ -59,18 +55,7 @@ contract BaseIntegrationTest is Test, Actors {
             previousFeeHooks.performanceFeeRecipient(),
             previousFeeHooks.getConfig()
         );
-
-        redeemGuardHook = new RedeemGuardHook(address(metaHooks), 100 wei);
-        withdrawGuardHook = new WithdrawGuardHook(address(metaHooks), 100 wei);
-
         // Set up hooks array for MetaHooks
-        // IHooks[] memory hooks = new IHooks[](5);
-        // hooks[0] = IHooks(address(permissionedVaultHook));
-        // hooks[1] = IHooks(address(withdrawGuardHook)); // MUST be before feeHooks
-        // hooks[2] = IHooks(address(feeHooks));
-        // hooks[3] = IHooks(address(processAccountingGuardHook));
-        // hooks[4] = IHooks(address(redeemGuardHook)); // MUST be after feeHooks
-
         IHooks[] memory hooks = new IHooks[](3);
         hooks[0] = IHooks(address(permissionedVaultHook));
         hooks[1] = IHooks(address(feeHooks));

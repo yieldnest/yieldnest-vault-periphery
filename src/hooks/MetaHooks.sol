@@ -18,6 +18,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error NotSupported();
     error EmptyHooksArray();
     error TooManyHooks();
+    error IndexOutOfBounds();
 
     struct HookData {
         uint8 index;
@@ -161,6 +162,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
      * @return True if the hook is supported, false otherwise
      */
     function supportsHook(uint256 index, uint16 bitmap) public pure returns (bool) {
+        if (index >= 16) revert IndexOutOfBounds();
         return (bitmap & (1 << index)) != 0;
     }
 
@@ -171,6 +173,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
      * @return The new bitmap
      */
     function setHook(uint256 index, uint16 bitmap) public pure returns (uint16) {
+        if (index >= 16) revert IndexOutOfBounds();
         return bitmap | uint16(1 << index);
     }
 

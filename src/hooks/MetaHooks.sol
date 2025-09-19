@@ -20,6 +20,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error TooManyHooks();
     error IndexOutOfBounds();
 
+    event HookSet(IHooks hook, HookData hookData, IHooks.Config config);
+    event SharesMinted(address indexed to, uint256 shares, address indexed hook);
+
     struct HookData {
         uint8 index;
         bool active;
@@ -37,6 +40,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 beforeProcessAccounting;
         uint16 afterProcessAccounting;
     }
+
+    uint256 public constant MAX_HOOK_COUNT = 16;
 
     IVault public immutable override VAULT;
     /**
@@ -87,7 +92,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         // Check if the array is empty
         if (hooks_.length == 0) revert EmptyHooksArray();
         // uint16 can only hold 16 hooks
-        if (hooks_.length > 16) revert TooManyHooks();
+        if (hooks_.length > MAX_HOOK_COUNT) revert TooManyHooks();
 
         // Check for duplicates in hooks_
         for (uint256 i = 0; i < hooks_.length; i++) {
@@ -123,6 +128,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
             if (config.afterProcessAccounting) {
                 newConfigBitmap.afterProcessAccounting = setHook(i, newConfigBitmap.afterProcessAccounting);
             }
+
+            emit HookSet(hooks_[i], hookData[hooks_[i]], config);
         }
 
         configBitmap = newConfigBitmap;
@@ -162,7 +169,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
      * @return True if the hook is supported, false otherwise
      */
     function supportsHook(uint256 index, uint16 bitmap) public pure returns (bool) {
-        if (index >= 16) revert IndexOutOfBounds();
+        if (index >= MAX_HOOK_COUNT) revert IndexOutOfBounds();
         return (bitmap & (1 << index)) != 0;
     }
 
@@ -173,7 +180,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
      * @return The new bitmap
      */
     function setHook(uint256 index, uint16 bitmap) public pure returns (uint16) {
-        if (index >= 16) revert IndexOutOfBounds();
+        if (index >= MAX_HOOK_COUNT) revert IndexOutOfBounds();
         return bitmap | uint16(1 << index);
     }
 
@@ -321,6 +328,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     /// @param shares The number of shares to mint
     function mintShares(address to, uint256 shares) external override onlyHook {
         VAULT.mintShares(to, shares);
+        emit SharesMinted(to, shares, msg.sender);
     }
     /// @notice Converts a given amount of assets to the equivalent amount of shares
     /// @dev This function acts as a proxy to the vault's convertToShares function

@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IHooks, IVault} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
+import {HooksLib} from "lib/yieldnest-vault/src/library/HooksLib.sol";
 
 /**
  * @title MetaHooks
@@ -19,6 +20,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error EmptyHooksArray();
     error TooManyHooks();
     error IndexOutOfBounds();
+
+    event HookCalled(IHooks hook, HooksLib.HookType hookType);
 
     event HookSet(IHooks hook, HookData hookData, IHooks.Config config);
     event SharesMinted(address indexed to, uint256 shares, address indexed hook);
@@ -199,6 +202,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeDeposit(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.BEFORE_DEPOSIT);
             }
         }
     }
@@ -212,6 +216,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterDeposit(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.AFTER_DEPOSIT);
             }
         }
     }
@@ -225,6 +230,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeMint(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.BEFORE_MINT);
             }
         }
     }
@@ -238,6 +244,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterMint(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.AFTER_MINT);
             }
         }
     }
@@ -251,6 +258,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeRedeem(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.BEFORE_REDEEM);
             }
         }
     }
@@ -264,6 +272,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterRedeem(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.AFTER_REDEEM);
             }
         }
     }
@@ -277,6 +286,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeWithdraw(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.BEFORE_WITHDRAW);
             }
         }
     }
@@ -290,6 +300,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterWithdraw(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.AFTER_WITHDRAW);
             }
         }
     }
@@ -303,6 +314,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].beforeProcessAccounting(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.BEFORE_PROCESS_ACCOUNTING);
             }
         }
     }
@@ -316,6 +328,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < _hooksLength; i++) {
             if (supportsHook(i, bitmap)) {
                 hooks[i].afterProcessAccounting(params);
+                emit HookCalled(hooks[i], HooksLib.HookType.AFTER_PROCESS_ACCOUNTING);
             }
         }
     }

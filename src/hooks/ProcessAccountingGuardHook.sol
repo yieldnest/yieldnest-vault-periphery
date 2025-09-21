@@ -87,6 +87,10 @@ contract ProcessAccountingGuardHook is IHooks {
     function afterProcessAccounting(AfterProcessAccountingParams memory params) external view override onlyVault {
         if (params.totalAssetsBeforeAccounting == 0) return; // Skip check if starting from zero
 
+        checkTotalAssetsChange(params);
+    }
+
+    function checkTotalAssetsChange(AfterProcessAccountingParams memory params) internal view {
         if (params.totalAssetsAfterAccounting < params.totalAssetsBeforeAccounting) {
             // Check for excessive decrease
             uint256 decrease = params.totalAssetsBeforeAccounting - params.totalAssetsAfterAccounting;

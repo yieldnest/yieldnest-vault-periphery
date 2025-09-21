@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
+import {VaultMock} from "test/local/unit/mocks/VaultMock.sol";
 
 contract ProcessAccountingGuardHookTest is Test {
     ProcessAccountingGuardHook public processAccountingGuardHook;
@@ -11,7 +12,12 @@ contract ProcessAccountingGuardHookTest is Test {
     address vaultMock = address(0x123321);
     address owner = address(0x123322222222);
 
+    address mockAsset = address(0x123323);
+
     function setUp() public {
+        VaultMock vaultMockContract = new VaultMock(mockAsset);
+        bytes memory vaultMockBytecode = address(vaultMockContract).code;
+        vm.etch(vaultMock, vaultMockBytecode);
         processAccountingGuardHook = new ProcessAccountingGuardHook(vaultMock, owner, 0.001 ether, 0.002 ether, 0);
     }
 

@@ -17,6 +17,14 @@ contract VaultMock is IVaultForHooks {
         asset_ = _asset;
     }
 
+    function setTotalSupply(uint256 _totalSupply) external {
+        totalSupply_ = _totalSupply;
+    }
+
+    function setTotalAssets(uint256 _totalAssets) external {
+        totalAssets_ = _totalAssets;
+    }
+
     function asset() external view override returns (address) {
         return asset_;
     }

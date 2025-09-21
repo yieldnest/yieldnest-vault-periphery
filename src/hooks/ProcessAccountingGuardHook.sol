@@ -140,7 +140,7 @@ contract ProcessAccountingGuardHook is IHooks {
     function checkTotalSupplyChange(AfterProcessAccountingParams memory params) internal view {
         uint256 totalSupplyAfterAccounting = VAULT.totalSupply();
 
-        if (params.totalSupplyAfterAccounting < params.totalSupplyBeforeAccounting) {
+        if (totalSupplyAfterAccounting < params.totalSupplyBeforeAccounting) {
             // total supply must not decrease
             revert TotalSupplyDecreased();
         }

@@ -103,6 +103,38 @@ contract ProcessAccountingGuardHookTest is Test {
         vm.stopPrank();
     }
 
+    function testFuzz_afterProcessAccounting_supplyDecrease(
+        uint256 totalSupplyBeforeAccounting,
+        uint256 totalSupplyAfterAccounting
+    ) public {
+        // Bound inputs to reasonable ranges to avoid overflow and ensure meaningful tests
+        totalSupplyBeforeAccounting = bound(totalSupplyBeforeAccounting, 1e18, 100_000 ether); // 1 to 100k tokens
+
+        // Bound totalSupplyAfterAccounting to ensure decrease scenario
+        totalSupplyAfterAccounting = bound(totalSupplyAfterAccounting, 0, totalSupplyBeforeAccounting - 1);
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyBeforeAccounting);
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+
+        vm.startPrank(vaultMock);
+
+        // Should revert when supply decreases
+        vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.TotalSupplyDecreased.selector));
+
+        processAccountingGuardHook.afterProcessAccounting(
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: 1e18,
+                totalAssetsAfterAccounting: 1e18,
+                totalSupplyBeforeAccounting: totalSupplyBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyBeforeAccounting, // this parameter is ignored
+                totalBaseAssetsBeforeAccounting: 1e18,
+                totalBaseAssetsAfterAccounting: 1e18
+            })
+        );
+        vm.stopPrank();
+    }
+
     function test_setConfig_reverts() public {
         // Test that setConfig reverts with NotSupported error
         IHooks.Config memory config = IHooks.Config({
@@ -162,6 +194,23 @@ contract ProcessAccountingGuardHookTest is Test {
         vm.startPrank(wrongCaller);
         vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
         processAccountingGuardHook.setMaxIncreaseRatio(newMaxIncreaseRatio);
+        vm.stopPrank();
+    }
+
+    function test_setExpectedPerformanceFee_success() public {
+        uint256 newExpectedPerformanceFee = 0.4e18; // 40%
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setExpectedPerformanceFee(newExpectedPerformanceFee);
+        vm.stopPrank();
+    }
+
+    function test_setExpectedPerformanceFee_onlyOwner() public {
+        uint256 newExpectedPerformanceFee = 0.4e18; // 40%
+
+        vm.startPrank(address(0x123323));
+        vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
+        processAccountingGuardHook.setExpectedPerformanceFee(newExpectedPerformanceFee);
         vm.stopPrank();
     }
 }

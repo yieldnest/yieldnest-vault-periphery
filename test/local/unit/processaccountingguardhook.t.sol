@@ -12,7 +12,7 @@ contract ProcessAccountingGuardHookTest is Test {
     address owner = address(0x123322222222);
 
     function setUp() public {
-        processAccountingGuardHook = new ProcessAccountingGuardHook(vaultMock, owner, 0.001 ether, 0.002 ether);
+        processAccountingGuardHook = new ProcessAccountingGuardHook(vaultMock, owner, 0.001 ether, 0.002 ether, 0);
     }
 
     function testFuzz_afterProcessAccounting_ratioIncrease(

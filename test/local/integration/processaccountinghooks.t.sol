@@ -61,6 +61,73 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         }
     }
 
+    function test_deposit_and_processAccounting_with_fees_success() public {
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        uint256 totalSupplyBefore = vault.totalSupply();
+
+        // Process accounting should succeed (within allowed ratio bounds)
+        vm.startPrank(PROCESSOR);
+        vault.processAccounting();
+        vm.stopPrank();
+
+        uint256 totalSupplyAfter = vault.totalSupply();
+        assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
+    }
+
+    function test_deposit_and_processAccounting_revert_fee_increase() public {
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // set a performance fee higher than what the processaccountingguardhook expects
+        vm.startPrank(owner);
+        feeHooks.setPerformanceFee(feeHooks.performanceFee() * 2);
+        vm.stopPrank();
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        // Process accounting should succeed (within allowed ratio bounds)
+        vm.startPrank(PROCESSOR);
+        vm.expectRevert();
+        vault.processAccounting();
+        vm.stopPrank();
+    }
+
     function test_deposit_donate_and_processAccounting_revert(uint256 depositAmount, uint256 donationAmount) public {
         // Bound inputs
         depositAmount = bound(depositAmount, 1 ether, 1000 ether);

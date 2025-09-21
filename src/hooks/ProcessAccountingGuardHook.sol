@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {console} from "forge-std/console.sol";
 
 /**
@@ -15,19 +16,27 @@ import {console} from "forge-std/console.sol";
  * the processAccounting call reverts if the totalAssets changed too much.
  */
 contract ProcessAccountingGuardHook is IHooks {
+    using Math for uint256;
+
     error TotalAssetsDecreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxDecreaseRatio);
     error TotalAssetsIncreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxIncreaseRatio);
     error OnlyOwner();
     error NotSupported();
     error OnlyVault();
     error ConvertToAssetsChangedDuringDeposit(uint256 valueBefore, uint256 valueAfter);
+    error TotalSupplyDecreased();
+    error TotalSupplyIncreasedForLoss();
+    error TotalSupplyIncreasedTooMuch(uint256 totalSupplyBefore, uint256 totalSupplyAfter, uint256 maxShares);
 
     uint256 public constant RATIO_DENOMINATOR = 1e18;
+    uint256 public constant FEE_DENOMINATOR = 1e18;
 
     IVault public immutable VAULT;
     address public owner;
     uint256 public maxDecreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
     uint256 public maxIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
+
+    uint256 public expectedPerformanceFee;
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert OnlyOwner();
@@ -39,11 +48,18 @@ contract ProcessAccountingGuardHook is IHooks {
         _;
     }
 
-    constructor(address _vault, address _owner, uint256 _maxDecreaseRatio, uint256 _maxIncreaseRatio) {
+    constructor(
+        address _vault,
+        address _owner,
+        uint256 _maxDecreaseRatio,
+        uint256 _maxIncreaseRatio,
+        uint256 _expectedPerformanceFee
+    ) {
         VAULT = IVault(_vault);
         owner = _owner;
         maxDecreaseRatio = _maxDecreaseRatio;
         maxIncreaseRatio = _maxIncreaseRatio;
+        expectedPerformanceFee = _expectedPerformanceFee;
     }
 
     /**
@@ -60,6 +76,14 @@ contract ProcessAccountingGuardHook is IHooks {
      */
     function setMaxIncreaseRatio(uint256 _maxIncreaseRatio) external onlyOwner {
         maxIncreaseRatio = _maxIncreaseRatio;
+    }
+
+    /**
+     * @notice Set the expected performance fee
+     * @param _expectedPerformanceFee The expected performance fee
+     */
+    function setExpectedPerformanceFee(uint256 _expectedPerformanceFee) external onlyOwner {
+        expectedPerformanceFee = _expectedPerformanceFee;
     }
 
     function getConfig() external pure override returns (Config memory) {
@@ -88,6 +112,7 @@ contract ProcessAccountingGuardHook is IHooks {
         if (params.totalAssetsBeforeAccounting == 0) return; // Skip check if starting from zero
 
         checkTotalAssetsChange(params);
+        checkTotalSupplyChange(params);
     }
 
     function checkTotalAssetsChange(AfterProcessAccountingParams memory params) internal view {
@@ -110,6 +135,47 @@ contract ProcessAccountingGuardHook is IHooks {
                 );
             }
         }
+    }
+
+    function checkTotalSupplyChange(AfterProcessAccountingParams memory params) internal view {
+        uint256 totalSupplyAfterAccounting = VAULT.totalSupply();
+
+        if (params.totalSupplyAfterAccounting < params.totalSupplyBeforeAccounting) {
+            // total supply must not decrease
+            revert TotalSupplyDecreased();
+        }
+
+        uint256 totalSupplyIncrease = totalSupplyAfterAccounting - params.totalSupplyBeforeAccounting;
+
+        if (totalSupplyIncrease > 0) {
+            if (params.totalBaseAssetsAfterAccounting <= params.totalBaseAssetsBeforeAccounting) {
+                // no shares should be minted for loss
+                revert TotalSupplyIncreasedForLoss();
+            }
+
+            uint256 totalBaseAssetsIncrease =
+                params.totalBaseAssetsAfterAccounting - params.totalBaseAssetsBeforeAccounting;
+
+            uint256 maxFeeInBaseAssets =
+                totalBaseAssetsIncrease.mulDiv(expectedPerformanceFee, FEE_DENOMINATOR, Math.Rounding.Floor);
+            uint256 maxShares = convertToShares(
+                maxFeeInBaseAssets, totalSupplyAfterAccounting, params.totalAssetsAfterAccounting, Math.Rounding.Floor
+            );
+
+            if (totalSupplyIncrease > maxShares) {
+                revert TotalSupplyIncreasedTooMuch(
+                    params.totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares
+                );
+            }
+        }
+    }
+
+    function convertToShares(uint256 assets, uint256 totalSupply, uint256 totalAssets, Math.Rounding rounding)
+        internal
+        pure
+        returns (uint256)
+    {
+        return assets.mulDiv(totalSupply + 1, totalAssets + 1, rounding);
     }
 
     /// UNUSED HOOKS ///

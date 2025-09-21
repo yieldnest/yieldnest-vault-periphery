@@ -24,7 +24,7 @@ contract BaseIntegrationTest is Test, Actors {
     ProcessAccountingGuardHook public processAccountingGuardHook;
     FeeHooks public feeHooks;
 
-    address public constant onwer = address(111222333);
+    address public constant owner = address(111222333);
 
     address public constant HOOK_MANAGER = 0x1234567890123456789012345678911234567891;
     address public constant depositor = address(0xbeefe1);
@@ -39,22 +39,25 @@ contract BaseIntegrationTest is Test, Actors {
         // Create individual hooks
         address[] memory whitelistedUsers = new address[](1);
         whitelistedUsers[0] = depositor;
-        permissionedVaultHook = new PermissionedVaultHook(address(metaHooks), onwer, whitelistedUsers);
-        processAccountingGuardHook = new ProcessAccountingGuardHook(
-            address(metaHooks),
-            ADMIN,
-            0.001 ether, // maxDecreaseRatio (0.1%)
-            0.002 ether // maxIncreaseRatio (0.2%)
-        );
+        permissionedVaultHook = new PermissionedVaultHook(address(metaHooks), owner, whitelistedUsers);
 
         FeeHooks previousFeeHooks = FeeHooks(address(vault.hooks()));
         feeHooks = new FeeHooks(
             address(metaHooks),
-            onwer,
+            owner,
             previousFeeHooks.performanceFee(), // performanceFee (0.1%)
             previousFeeHooks.performanceFeeRecipient(),
             previousFeeHooks.getConfig()
         );
+
+        processAccountingGuardHook = new ProcessAccountingGuardHook(
+            address(metaHooks),
+            ADMIN,
+            0.001 ether, // maxDecreaseRatio (0.1%)
+            0.002 ether, // maxIncreaseRatio (0.2%)
+            previousFeeHooks.performanceFee()
+        );
+
         // Set up hooks array for MetaHooks
         IHooks[] memory hooks = new IHooks[](3);
         hooks[0] = IHooks(address(permissionedVaultHook));

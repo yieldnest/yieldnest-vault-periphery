@@ -164,7 +164,7 @@ contract ProcessAccountingGuardHookTest is Test {
 
     function test_afterProcessAccounting_supplyIncrease_totalAssetsIncrease_success() public {
         uint256 totalSupplyBeforeAccounting = 1e18;
-        uint256 totalSupplyAfterAccounting = 1.055 ether;
+        uint256 totalSupplyAfterAccounting = 1.05 ether;
 
         vm.startPrank(processAccountingGuardHook.owner());
         processAccountingGuardHook.setMaxIncreaseRatio(1 ether);

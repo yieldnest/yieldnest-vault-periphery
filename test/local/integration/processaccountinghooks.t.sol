@@ -15,9 +15,13 @@ import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.s
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
 import {MockProvider} from "lib/yieldnest-vault/test/unit/mocks/MockProvider.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+import {console} from "lib/forge-std/src/console.sol";
+import {Math} from "lib/yieldnest-vault/src/Common.sol";
 // Minimal mock for IHooks
 
 contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
+    using Math for uint256;
+
     MockERC4626 public slashableAsset;
 
     function setUp() public override {
@@ -92,6 +96,56 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
 
         uint256 totalSupplyAfter = vault.totalSupply();
         assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
+        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
+        console.log("Total supply increase:", supplyIncrease);
+    }
+
+    function test_deposit_and_processAccounting_with_100_percent_fees_success() public {
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        vm.startPrank(owner);
+        feeHooks.setPerformanceFee(1 ether);
+        processAccountingGuardHook.setExpectedPerformanceFee(1 ether);
+        vm.stopPrank();
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        uint256 totalSupplyBefore = vault.totalSupply();
+
+        // Process accounting should succeed (within allowed ratio bounds)
+        vm.startPrank(PROCESSOR);
+        vault.processAccounting();
+        vm.stopPrank();
+
+        uint256 totalSupplyAfter = vault.totalSupply();
+        assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
+        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
+        console.log("Total supply increase:", supplyIncrease);
+    }
+
+    function convertToShares(uint256 assets, uint256 totalSupply, uint256 totalAssets, Math.Rounding rounding)
+        internal
+        pure
+        returns (uint256)
+    {
+        return assets.mulDiv(totalSupply + 1, totalAssets + 1, rounding);
     }
 
     function test_fuzz_deposit_and_processAccounting_with_fees_success(
@@ -138,6 +192,16 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
 
         uint256 totalSupplyAfter = vault.totalSupply();
         assertGe(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
+
+        uint256 feeInBaseAssets = donationAmount.mulDiv(performanceFee, 1e18, Math.Rounding.Floor);
+        uint256 feeShares =
+            convertToShares(feeInBaseAssets, vault.totalSupply(), vault.totalSupply(), Math.Rounding.Floor);
+
+        assertGe(
+            feeShares,
+            totalSupplyAfter - totalSupplyBefore,
+            "Fee shares should be greater than or equal to total supply increase"
+        );
     }
 
     function test_deposit_and_processAccounting_revert_fee_increase() public {

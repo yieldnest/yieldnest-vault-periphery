@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {console} from "forge-std/console.sol";
 
 /**
  * @title ProcessAccountingGuardHook
@@ -158,6 +157,9 @@ contract ProcessAccountingGuardHook is IHooks {
 
             uint256 maxFeeInBaseAssets =
                 totalBaseAssetsIncrease.mulDiv(expectedPerformanceFee, FEE_DENOMINATOR, Math.Rounding.Floor);
+
+            // maxShares is a looser bound that ensures the fee asset amount converted to vault shares at rate post mint
+            // is less than or equal to the total supply increase
             uint256 maxShares = convertToShares(
                 maxFeeInBaseAssets, totalSupplyAfterAccounting, params.totalAssetsAfterAccounting, Math.Rounding.Floor
             );

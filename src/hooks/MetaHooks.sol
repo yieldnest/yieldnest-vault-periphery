@@ -177,6 +177,10 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         return bitmap | uint16(1 << index);
     }
 
+    function getHooks() public view returns (IHooks[] memory) {
+        return hooks;
+    }
+
     function hooksLength() public view returns (uint256) {
         return hooks.length;
     }

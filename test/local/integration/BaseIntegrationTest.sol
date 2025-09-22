@@ -52,7 +52,7 @@ contract BaseIntegrationTest is Test, Actors {
 
         processAccountingGuardHook = new ProcessAccountingGuardHook(
             address(metaHooks),
-            ADMIN,
+            owner,
             0.001 ether, // maxDecreaseRatio (0.1%)
             0.002 ether, // maxIncreaseRatio (0.2%)
             previousFeeHooks.performanceFee()

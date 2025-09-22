@@ -94,6 +94,52 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
     }
 
+    function test_fuzz_deposit_and_processAccounting_with_fees_success(
+        uint256 depositAmount,
+        uint256 performanceFee,
+        uint256 donationAmount
+    ) public {
+        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
+        performanceFee = bound(performanceFee, 0, 1 ether); // from 0 to 100%
+        donationAmount = bound(donationAmount, 1, depositAmount / 100); // Bound donation to reasonable range
+
+        // Set the performance fee first
+        vm.startPrank(owner);
+        feeHooks.setPerformanceFee(performanceFee);
+        processAccountingGuardHook.setExpectedPerformanceFee(performanceFee);
+        processAccountingGuardHook.setMaxIncreaseRatio(0.1 ether);
+        vm.stopPrank();
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // Donate to vault to trigger fee calculation
+
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        uint256 totalSupplyBefore = vault.totalSupply();
+
+        // Process accounting should succeed (within allowed ratio bounds)
+        vm.startPrank(PROCESSOR);
+        vault.processAccounting();
+        vm.stopPrank();
+
+        uint256 totalSupplyAfter = vault.totalSupply();
+        assertGe(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
+    }
+
     function test_deposit_and_processAccounting_revert_fee_increase() public {
         uint256 depositAmount = 100 ether;
         uint256 expectedTotalAssetsAndShares = 0;

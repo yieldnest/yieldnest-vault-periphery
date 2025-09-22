@@ -162,6 +162,32 @@ contract ProcessAccountingGuardHookTest is Test {
         vm.stopPrank();
     }
 
+    function test_afterProcessAccounting_supplyIncrease_totalAssetsIncrease_success() public {
+        uint256 totalSupplyBeforeAccounting = 1e18;
+        uint256 totalSupplyAfterAccounting = 1.055 ether;
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setMaxIncreaseRatio(1 ether);
+        processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
+        vm.stopPrank();
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+        vm.startPrank(vaultMock);
+
+        // Should succeed when supply increases and total assets increase
+        processAccountingGuardHook.afterProcessAccounting(
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: 1e18,
+                totalAssetsAfterAccounting: 2e18,
+                totalSupplyBeforeAccounting: totalSupplyBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyAfterAccounting,
+                totalBaseAssetsBeforeAccounting: 1e18,
+                totalBaseAssetsAfterAccounting: 2e18
+            })
+        );
+        vm.stopPrank();
+    }
+
     function test_setConfig_reverts() public {
         // Test that setConfig reverts with NotSupported error
         IHooks.Config memory config = IHooks.Config({

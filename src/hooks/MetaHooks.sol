@@ -372,4 +372,18 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     function convertToAssets(uint256 shares) external view override returns (uint256) {
         return VAULT.convertToAssets(shares);
     }
+
+    /// @notice Returns the total supply of shares
+    /// @dev This function acts as a proxy to the vault's totalSupply function
+    /// @return The total supply of shares
+    function totalSupply() external view override returns (uint256) {
+        return VAULT.totalSupply();
+    }
+
+    /// @notice Returns the total amount of assets held by the vault
+    /// @dev This function acts as a proxy to the vault's totalAssets function
+    /// @return The total amount of assets
+    function totalAssets() external view override returns (uint256) {
+        return VAULT.totalAssets();
+    }
 }

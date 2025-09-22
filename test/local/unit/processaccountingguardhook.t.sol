@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
+import {VaultMock} from "test/local/unit/mocks/VaultMock.sol";
 
 contract ProcessAccountingGuardHookTest is Test {
     ProcessAccountingGuardHook public processAccountingGuardHook;
@@ -11,8 +12,13 @@ contract ProcessAccountingGuardHookTest is Test {
     address vaultMock = address(0x123321);
     address owner = address(0x123322222222);
 
+    address mockAsset = address(0x123323);
+
     function setUp() public {
-        processAccountingGuardHook = new ProcessAccountingGuardHook(vaultMock, owner, 0.001 ether, 0.002 ether);
+        VaultMock vaultMockContract = new VaultMock(mockAsset);
+        bytes memory vaultMockBytecode = address(vaultMockContract).code;
+        vm.etch(vaultMock, vaultMockBytecode);
+        processAccountingGuardHook = new ProcessAccountingGuardHook(vaultMock, owner, 0.001 ether, 0.002 ether, 0);
     }
 
     function testFuzz_afterProcessAccounting_ratioIncrease(
@@ -97,6 +103,91 @@ contract ProcessAccountingGuardHookTest is Test {
         vm.stopPrank();
     }
 
+    function testFuzz_afterProcessAccounting_supplyDecrease(
+        uint256 totalSupplyBeforeAccounting,
+        uint256 totalSupplyAfterAccounting
+    ) public {
+        // Bound inputs to reasonable ranges to avoid overflow and ensure meaningful tests
+        totalSupplyBeforeAccounting = bound(totalSupplyBeforeAccounting, 1e18, 100_000 ether); // 1 to 100k tokens
+
+        // Bound totalSupplyAfterAccounting to ensure decrease scenario
+        totalSupplyAfterAccounting = bound(totalSupplyAfterAccounting, 0, totalSupplyBeforeAccounting - 1);
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyBeforeAccounting);
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+
+        vm.startPrank(vaultMock);
+
+        // Should revert when supply decreases
+        vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.TotalSupplyDecreased.selector));
+
+        processAccountingGuardHook.afterProcessAccounting(
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: 1e18,
+                totalAssetsAfterAccounting: 1e18,
+                totalSupplyBeforeAccounting: totalSupplyBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyBeforeAccounting, // this parameter is ignored
+                totalBaseAssetsBeforeAccounting: 1e18,
+                totalBaseAssetsAfterAccounting: 1e18
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function testFuzz_afterProcessAccounting_supplyIncrease_totalAssetsDecrease(
+        uint256 totalSupplyBeforeAccounting,
+        uint256 totalSupplyAfterAccounting
+    ) public {
+        // Bound inputs to reasonable ranges to avoid overflow and ensure meaningful tests
+        totalSupplyBeforeAccounting = bound(totalSupplyBeforeAccounting, 1e18, 100_000 ether); // 1 to 100k tokens
+
+        totalSupplyAfterAccounting = bound(totalSupplyAfterAccounting, totalSupplyBeforeAccounting + 1, 200_000 ether);
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+        vm.startPrank(vaultMock);
+
+        // Should revert when supply increases
+        vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.TotalSupplyIncreasedForLoss.selector));
+        processAccountingGuardHook.afterProcessAccounting(
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: 1e18,
+                totalAssetsAfterAccounting: 1e18 - 1,
+                totalSupplyBeforeAccounting: totalSupplyBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyAfterAccounting,
+                totalBaseAssetsBeforeAccounting: 1e18,
+                totalBaseAssetsAfterAccounting: 1e18 - 1
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function test_afterProcessAccounting_supplyIncrease_totalAssetsIncrease_success() public {
+        uint256 totalSupplyBeforeAccounting = 1e18;
+        uint256 totalSupplyAfterAccounting = 1.05 ether;
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setMaxIncreaseRatio(1 ether);
+        processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
+        vm.stopPrank();
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+        vm.startPrank(vaultMock);
+
+        // Should succeed when supply increases and total assets increase
+        processAccountingGuardHook.afterProcessAccounting(
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: 1e18,
+                totalAssetsAfterAccounting: 2e18,
+                totalSupplyBeforeAccounting: totalSupplyBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyAfterAccounting,
+                totalBaseAssetsBeforeAccounting: 1e18,
+                totalBaseAssetsAfterAccounting: 2e18
+            })
+        );
+        vm.stopPrank();
+    }
+
     function test_setConfig_reverts() public {
         // Test that setConfig reverts with NotSupported error
         IHooks.Config memory config = IHooks.Config({
@@ -156,6 +247,23 @@ contract ProcessAccountingGuardHookTest is Test {
         vm.startPrank(wrongCaller);
         vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
         processAccountingGuardHook.setMaxIncreaseRatio(newMaxIncreaseRatio);
+        vm.stopPrank();
+    }
+
+    function test_setExpectedPerformanceFee_success() public {
+        uint256 newExpectedPerformanceFee = 0.4e18; // 40%
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        processAccountingGuardHook.setExpectedPerformanceFee(newExpectedPerformanceFee);
+        vm.stopPrank();
+    }
+
+    function test_setExpectedPerformanceFee_onlyOwner() public {
+        uint256 newExpectedPerformanceFee = 0.4e18; // 40%
+
+        vm.startPrank(address(0x123323));
+        vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
+        processAccountingGuardHook.setExpectedPerformanceFee(newExpectedPerformanceFee);
         vm.stopPrank();
     }
 }

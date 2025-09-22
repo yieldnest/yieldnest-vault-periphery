@@ -9,4 +9,6 @@ interface IVaultForHooks {
     function _feeOnTotal(uint256 shares, address caller) external view returns (uint256);
     function previewDepositAsset(address assetAddress, uint256 assets) external view returns (uint256);
     function convertToAssets(uint256 shares) external view returns (uint256);
+    function totalSupply() external view returns (uint256);
+    function totalAssets() external view returns (uint256);
 }

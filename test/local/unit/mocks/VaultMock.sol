@@ -10,9 +10,19 @@ contract VaultMock is IVaultForHooks {
     uint256 public assetsToShares;
     uint256 public feeOnRaw;
     uint256 public feeOnTotal;
+    uint256 public totalSupply_;
+    uint256 public totalAssets_;
 
     constructor(address _asset) {
         asset_ = _asset;
+    }
+
+    function setTotalSupply(uint256 _totalSupply) external {
+        totalSupply_ = _totalSupply;
+    }
+
+    function setTotalAssets(uint256 _totalAssets) external {
+        totalAssets_ = _totalAssets;
     }
 
     function asset() external view override returns (address) {
@@ -41,5 +51,13 @@ contract VaultMock is IVaultForHooks {
 
     function convertToAssets(uint256 shares) external view override returns (uint256) {
         return assetsToShares + shares;
+    }
+
+    function totalSupply() external view override returns (uint256) {
+        return totalSupply_;
+    }
+
+    function totalAssets() external view override returns (uint256) {
+        return totalAssets_;
     }
 }

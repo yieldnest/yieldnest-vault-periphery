@@ -97,7 +97,44 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         uint256 totalSupplyAfter = vault.totalSupply();
         assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
         uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
-        console.log("Total supply increase:", supplyIncrease);
+    }
+
+    function test_deposit_and_processAccounting_doubleAsset_increase_success() public {
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        vm.startPrank(owner);
+        processAccountingGuardHook.setMaxIncreaseRatio(1 ether);
+        processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
+        vm.stopPrank();
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        uint256 totalSupplyBefore = vault.totalSupply();
+
+        // Process accounting should succeed (within allowed ratio bounds)
+        vm.startPrank(PROCESSOR);
+        vault.processAccounting();
+        vm.stopPrank();
+
+        uint256 totalSupplyAfter = vault.totalSupply();
+        assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
     }
 
     function test_deposit_and_processAccounting_with_100_percent_fees_success() public {

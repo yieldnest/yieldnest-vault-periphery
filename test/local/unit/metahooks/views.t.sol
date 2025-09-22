@@ -121,9 +121,87 @@ contract MetaHooksTest is Test {
         vm.stopPrank();
     }
 
+    function test_getHooks_empty() public view {
+        // Test getHooks when no hooks are set
+        IHooks[] memory hooks = metaHooks.getHooks();
+        assertEq(hooks.length, 0, "hooks should be empty when no hooks are set");
+    }
+
     function test_getHooksLength_empty() public view {
         // Test getHooksLength when no hooks are set
         assertEq(metaHooks.hooksLength(), 0, "hooksLength should be 0 when no hooks are set");
+    }
+
+    function test_getHooks_withHooks() public {
+        // Test getHooks when hooks are set
+        vm.startPrank(hookManager);
+
+        IHooks[] memory hooks = new IHooks[](3);
+        hooks[0] = IHooks(
+            address(
+                new HooksMock(
+                    IHooks.Config({
+                        beforeDeposit: true,
+                        afterDeposit: false,
+                        beforeMint: false,
+                        afterMint: true,
+                        beforeRedeem: false,
+                        afterRedeem: false,
+                        beforeWithdraw: false,
+                        afterWithdraw: false,
+                        beforeProcessAccounting: false,
+                        afterProcessAccounting: false
+                    })
+                )
+            )
+        );
+        hooks[1] = IHooks(
+            address(
+                new HooksMock(
+                    IHooks.Config({
+                        beforeDeposit: false,
+                        afterDeposit: true,
+                        beforeMint: false,
+                        afterMint: false,
+                        beforeRedeem: true,
+                        afterRedeem: false,
+                        beforeWithdraw: false,
+                        afterWithdraw: false,
+                        beforeProcessAccounting: false,
+                        afterProcessAccounting: false
+                    })
+                )
+            )
+        );
+        hooks[2] = IHooks(
+            address(
+                new HooksMock(
+                    IHooks.Config({
+                        beforeDeposit: false,
+                        afterDeposit: false,
+                        beforeMint: false,
+                        afterMint: false,
+                        beforeRedeem: false,
+                        afterRedeem: false,
+                        beforeWithdraw: true,
+                        afterWithdraw: false,
+                        beforeProcessAccounting: false,
+                        afterProcessAccounting: true
+                    })
+                )
+            )
+        );
+
+        metaHooks.setHooks(hooks);
+
+        IHooks[] memory retrievedHooks = metaHooks.getHooks();
+        assertEq(retrievedHooks.length, 3, "hooks should be 3 when hooks are set");
+        assertEq(metaHooks.hooksLength(), 3, "hooksLength should be 3 when hooks are set");
+        for (uint256 i = 0; i < retrievedHooks.length; i++) {
+            assertEq(address(retrievedHooks[i]), address(hooks[i]), "retrieved hook should match set hook");
+        }
+
+        vm.stopPrank();
     }
 
     function test_vault_view() public view {

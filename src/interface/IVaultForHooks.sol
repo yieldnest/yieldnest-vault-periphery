@@ -11,4 +11,5 @@ interface IVaultForHooks {
     function convertToAssets(uint256 shares) external view returns (uint256);
     function totalSupply() external view returns (uint256);
     function totalAssets() external view returns (uint256);
+    function alwaysComputeTotalAssets() external view returns (bool);
 }

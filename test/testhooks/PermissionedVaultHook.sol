@@ -30,6 +30,10 @@ contract PermissionedVaultHook is IHooks {
         }
     }
 
+    function name() external pure returns (string memory) {
+        return "PermissionedVaultHook";
+    }
+
     function addToWhitelist(address user) external onlyOwner {
         whitelist[user] = true;
     }

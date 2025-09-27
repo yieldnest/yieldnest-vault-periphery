@@ -22,6 +22,10 @@ contract HooksMock is IHooks {
         config = _config;
     }
 
+    function name() external pure override returns (string memory) {
+        return "HooksMock";
+    }
+
     function getConfig() external view override returns (Config memory) {
         return config;
     }

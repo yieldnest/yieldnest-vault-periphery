@@ -12,6 +12,7 @@ contract VaultMock is IVaultForHooks {
     uint256 public feeOnTotal;
     uint256 public totalSupply_;
     uint256 public totalAssets_;
+    bool public alwaysComputeTotalAssets_;
 
     constructor(address _asset) {
         asset_ = _asset;
@@ -59,5 +60,13 @@ contract VaultMock is IVaultForHooks {
 
     function totalAssets() external view override returns (uint256) {
         return totalAssets_;
+    }
+
+    function setAlwaysComputeTotalAssets(bool _alwaysComputeTotalAssets) external {
+        alwaysComputeTotalAssets_ = _alwaysComputeTotalAssets;
+    }
+
+    function alwaysComputeTotalAssets() external view override returns (bool) {
+        return alwaysComputeTotalAssets_;
     }
 }

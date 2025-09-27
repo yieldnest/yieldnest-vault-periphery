@@ -80,6 +80,10 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         _grantRole(HOOK_MANAGER_ROLE, hookManager);
     }
 
+    function name() external pure override returns (string memory) {
+        return "MetaHooks";
+    }
+
     /// @notice Sets the array of hooks to be executed by this MetaHooks contract
     /// @dev This function replaces all existing hooks with the provided array. Clears existing hook data.
     /// @param hooks_ Array of hook contracts to be set. Each hook must implement the IHooks interface.
@@ -389,5 +393,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     /// @return The total amount of assets
     function totalAssets() external view override returns (uint256) {
         return VAULT.totalAssets();
+    }
+
+    /// @notice Returns whether the vault always computes total assets
+    /// @dev This function acts as a proxy to the vault's alwaysComputeTotalAssets function
+    /// @return True if the vault always computes total assets, false otherwise
+    function alwaysComputeTotalAssets() external view override returns (bool) {
+        return VAULT.alwaysComputeTotalAssets();
     }
 }

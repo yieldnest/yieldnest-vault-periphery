@@ -61,6 +61,10 @@ contract ProcessAccountingGuardHook is IHooks {
         expectedPerformanceFee = _expectedPerformanceFee;
     }
 
+    function name() external pure returns (string memory) {
+        return "ProcessAccountingGuardHook";
+    }
+
     /**
      * @notice Set the maximum decrease ratio
      * @param _maxDecreaseRatio The maximum decrease ratio

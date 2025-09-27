@@ -27,6 +27,10 @@ contract ProcessAccountingGuardHook is IHooks {
     error TotalSupplyIncreasedForLoss();
     error TotalSupplyIncreasedTooMuch(uint256 totalSupplyBefore, uint256 totalSupplyAfter, uint256 maxShares);
 
+    event MaxDecreaseRatioSet(uint256 oldRatio, uint256 newRatio);
+    event MaxIncreaseRatioSet(uint256 oldRatio, uint256 newRatio);
+    event ExpectedPerformanceFeeSet(uint256 oldFee, uint256 newFee);
+
     uint256 public constant RATIO_DENOMINATOR = 1e18;
     uint256 public constant FEE_DENOMINATOR = 1e18;
 
@@ -70,7 +74,9 @@ contract ProcessAccountingGuardHook is IHooks {
      * @param _maxDecreaseRatio The maximum decrease ratio
      */
     function setMaxDecreaseRatio(uint256 _maxDecreaseRatio) external onlyOwner {
+        uint256 old = maxDecreaseRatio;
         maxDecreaseRatio = _maxDecreaseRatio;
+        emit MaxDecreaseRatioSet(old, _maxDecreaseRatio);
     }
 
     /**
@@ -78,7 +84,9 @@ contract ProcessAccountingGuardHook is IHooks {
      * @param _maxIncreaseRatio The maximum increase ratio
      */
     function setMaxIncreaseRatio(uint256 _maxIncreaseRatio) external onlyOwner {
+        uint256 old = maxIncreaseRatio;
         maxIncreaseRatio = _maxIncreaseRatio;
+        emit MaxIncreaseRatioSet(old, _maxIncreaseRatio);
     }
 
     /**
@@ -86,7 +94,9 @@ contract ProcessAccountingGuardHook is IHooks {
      * @param _expectedPerformanceFee The expected performance fee
      */
     function setExpectedPerformanceFee(uint256 _expectedPerformanceFee) external onlyOwner {
+        uint256 old = expectedPerformanceFee;
         expectedPerformanceFee = _expectedPerformanceFee;
+        emit ExpectedPerformanceFeeSet(old, _expectedPerformanceFee);
     }
 
     function getConfig() external pure override returns (Config memory) {

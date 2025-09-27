@@ -106,13 +106,25 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         // Clear the hooks array before setting new hooks
         delete hooks;
 
-        ConfigBitmap memory newConfigBitmap;
-
         for (uint256 i = 0; i < hooks_.length; i++) {
             hooks.push(hooks_[i]);
             hookData[hooks_[i]] = HookData({index: uint8(i), active: true});
+        }
 
-            IHooks.Config memory config = hooks_[i].getConfig();
+        _syncConfigBitmap();
+    }
+
+    function syncConfigBitmap() external onlyRole(HOOK_MANAGER_ROLE) {
+        _syncConfigBitmap();
+    }
+
+    function _syncConfigBitmap() internal {
+        ConfigBitmap memory newConfigBitmap;
+
+        IHooks[] memory _hooks = hooks;
+
+        for (uint256 i = 0; i < _hooks.length; i++) {
+            IHooks.Config memory config = _hooks[i].getConfig();
             if (config.beforeDeposit) newConfigBitmap.beforeDeposit = setHook(i, newConfigBitmap.beforeDeposit);
             if (config.afterDeposit) newConfigBitmap.afterDeposit = setHook(i, newConfigBitmap.afterDeposit);
             if (config.beforeMint) newConfigBitmap.beforeMint = setHook(i, newConfigBitmap.beforeMint);

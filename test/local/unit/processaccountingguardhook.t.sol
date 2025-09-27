@@ -266,4 +266,28 @@ contract ProcessAccountingGuardHookTest is Test {
         processAccountingGuardHook.setExpectedPerformanceFee(newExpectedPerformanceFee);
         vm.stopPrank();
     }
+
+    function test_alwaysComputeTotalAssets_affects_totalBaseAssets() public {
+        // Set a fake totalAssets in the vaultMock contract storage
+        uint256 fakeTotalAssets = 12345 ether;
+        VaultMock(vaultMock).setTotalAssets(fakeTotalAssets);
+
+        // Set alwaysComputeTotalAssets to true
+        VaultMock(vaultMock).setAlwaysComputeTotalAssets(true);
+
+        // Try to call afterProcessAccounting and expect revert due to alwaysComputeTotalAssets = true
+        IHooks.AfterProcessAccountingParams memory params = IHooks.AfterProcessAccountingParams({
+            totalAssetsBeforeAccounting: 1e18,
+            totalAssetsAfterAccounting: 2e18,
+            totalSupplyBeforeAccounting: 1e18,
+            totalSupplyAfterAccounting: 2e18,
+            totalBaseAssetsBeforeAccounting: 1e18,
+            totalBaseAssetsAfterAccounting: 2e18
+        });
+
+        vm.startPrank(vaultMock);
+        vm.expectRevert(ProcessAccountingGuardHook.AlwaysComputeTotalAssetsIsEnabled.selector);
+        processAccountingGuardHook.afterProcessAccounting(params);
+        vm.stopPrank();
+    }
 }

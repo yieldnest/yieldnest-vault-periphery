@@ -26,6 +26,7 @@ contract ProcessAccountingGuardHook is IHooks {
     error TotalSupplyDecreased();
     error TotalSupplyIncreasedForLoss();
     error TotalSupplyIncreasedTooMuch(uint256 totalSupplyBefore, uint256 totalSupplyAfter, uint256 maxShares);
+    error AlwaysComputeTotalAssetsIsEnabled();
 
     event MaxDecreaseRatioSet(uint256 oldRatio, uint256 newRatio);
     event MaxIncreaseRatioSet(uint256 oldRatio, uint256 newRatio);
@@ -122,6 +123,11 @@ contract ProcessAccountingGuardHook is IHooks {
      * @notice Check if the total assets decreased too much or increased too much
      */
     function afterProcessAccounting(AfterProcessAccountingParams memory params) external view override onlyVault {
+
+        if (VAULT.alwaysComputeTotalAssets()) {
+            revert AlwaysComputeTotalAssetsIsEnabled();
+        }
+        
         if (params.totalAssetsBeforeAccounting == 0) return; // Skip check if starting from zero
 
         checkTotalAssetsChange(params);

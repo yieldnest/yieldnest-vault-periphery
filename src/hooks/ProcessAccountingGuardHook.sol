@@ -36,7 +36,7 @@ contract ProcessAccountingGuardHook is IHooks {
     uint256 public constant FEE_DENOMINATOR = 1e18;
 
     IVault public immutable VAULT;
-    address public owner;
+    address public immutable owner;
     uint256 public maxDecreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
     uint256 public maxIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
 
@@ -123,11 +123,10 @@ contract ProcessAccountingGuardHook is IHooks {
      * @notice Check if the total assets decreased too much or increased too much
      */
     function afterProcessAccounting(AfterProcessAccountingParams memory params) external view override onlyVault {
-
         if (VAULT.alwaysComputeTotalAssets()) {
             revert AlwaysComputeTotalAssetsIsEnabled();
         }
-        
+
         if (params.totalAssetsBeforeAccounting == 0) return; // Skip check if starting from zero
 
         checkTotalAssetsChange(params);

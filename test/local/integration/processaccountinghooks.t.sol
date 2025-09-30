@@ -379,7 +379,11 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         // Deploy ShareInflationFeeHooks and set as the only hook in MetaHooks
         // (Assume ShareInflationFeeHooks is imported and available)
         ShareInflationFeeHooks shareInflationFeeHook = new ShareInflationFeeHooks(
-            address(vault), owner, feeHooks.performanceFee(), feeHooks.performanceFeeRecipient(), feeHooks.getConfig()
+            address(metaHooks),
+            owner,
+            feeHooks.performanceFee(),
+            feeHooks.performanceFeeRecipient(),
+            feeHooks.getConfig()
         );
 
         // Get the current hooks array from metaHooks
@@ -429,19 +433,16 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
-        uint256 totalSupplyBefore = vault.totalSupply();
-
-        // Process accounting should revert with HookCallFailed and error encoded for TotalSupplyIncreasedTooMuch
-        vm.startPrank(PROCESSOR);
-        bytes4 expectedSelector = bytes4(keccak256("TotalSupplyIncreasedTooMuch(uint256,uint256,uint256)"));
-        vm.expectRevert(
-            abi.encodeWithSelector(HooksLib.HookCallFailed.selector, address(shareInflationFeeHook), expectedSelector)
+        bytes memory revertData = abi.encodeWithSelector(
+            HooksLib.HookCallFailed.selector,
+            abi.encodeWithSelector(
+                ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
+                100000000000000000000, // totalSupplyBefore
+                100019982016185433110, // totalSupplyAfter
+                9992006195423120 // maxShares
+            )
         );
+        vm.expectRevert(revertData);
         vault.processAccounting();
-        vm.stopPrank();
-
-        uint256 totalSupplyAfter = vault.totalSupply();
-        assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
-        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
     }
 }

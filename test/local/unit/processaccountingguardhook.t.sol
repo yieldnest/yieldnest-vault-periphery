@@ -37,14 +37,14 @@ contract ProcessAccountingGuardHookTest is Test {
 
         vm.startPrank(vaultMock);
 
-        if (increaseRatio > processAccountingGuardHook.maxIncreaseRatio()) {
+        if (increaseRatio > processAccountingGuardHook.maxTotalAssetsIncreaseRatio()) {
             // Should revert if increase ratio exceeds maximum
             vm.expectRevert(
                 abi.encodeWithSelector(
                     ProcessAccountingGuardHook.TotalAssetsIncreasedTooMuch.selector,
                     totalAssetsBeforeAccounting,
                     totalAssetsAfterAccounting,
-                    processAccountingGuardHook.maxIncreaseRatio()
+                    processAccountingGuardHook.maxTotalAssetsIncreaseRatio()
                 )
             );
         }
@@ -78,14 +78,14 @@ contract ProcessAccountingGuardHookTest is Test {
 
         vm.startPrank(vaultMock);
 
-        if (decreaseRatio > processAccountingGuardHook.maxDecreaseRatio()) {
+        if (decreaseRatio > processAccountingGuardHook.maxTotalAssetsDecreaseRatio()) {
             // Should revert if decrease ratio exceeds maximum
             vm.expectRevert(
                 abi.encodeWithSelector(
                     ProcessAccountingGuardHook.TotalAssetsDecreasedTooMuch.selector,
                     totalAssetsBeforeAccounting,
                     totalAssetsAfterAccounting,
-                    processAccountingGuardHook.maxDecreaseRatio()
+                    processAccountingGuardHook.maxTotalAssetsDecreaseRatio()
                 )
             );
         }
@@ -167,7 +167,7 @@ contract ProcessAccountingGuardHookTest is Test {
         uint256 totalSupplyAfterAccounting = 1.05 ether;
 
         vm.startPrank(processAccountingGuardHook.owner());
-        processAccountingGuardHook.setMaxIncreaseRatio(1 ether);
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(1 ether);
         processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
         vm.stopPrank();
 
@@ -207,46 +207,46 @@ contract ProcessAccountingGuardHookTest is Test {
         processAccountingGuardHook.setConfig(config);
     }
 
-    function test_setMaxDecreaseRatio_success() public {
-        uint256 newMaxDecreaseRatio = 0.2e18; // 20%
+    function test_setMaxTotalAssetsDecreaseRatio_success() public {
+        uint256 newMaxTotalAssetsDecreaseRatio = 0.2e18; // 20%
 
         vm.startPrank(processAccountingGuardHook.owner());
-        processAccountingGuardHook.setMaxDecreaseRatio(newMaxDecreaseRatio);
+        processAccountingGuardHook.setMaxTotalAssetsDecreaseRatio(newMaxTotalAssetsDecreaseRatio);
         vm.stopPrank();
 
-        assertEq(processAccountingGuardHook.maxDecreaseRatio(), newMaxDecreaseRatio);
+        assertEq(processAccountingGuardHook.maxTotalAssetsDecreaseRatio(), newMaxTotalAssetsDecreaseRatio);
     }
 
-    function test_setMaxDecreaseRatio_onlyOwner() public {
-        uint256 newMaxDecreaseRatio = 0.2e18; // 20%
+    function test_setMaxTotalAssetsDecreaseRatio_onlyOwner() public {
+        uint256 newMaxTotalAssetsDecreaseRatio = 0.2e18; // 20%
 
         address wrongCaller = address(0x123323);
-        // Test that non-owner cannot call setMaxDecreaseRatio
+        // Test that non-owner cannot call setMaxTotalAssetsDecreaseRatio
         vm.startPrank(wrongCaller);
         vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
-        processAccountingGuardHook.setMaxDecreaseRatio(newMaxDecreaseRatio);
+        processAccountingGuardHook.setMaxTotalAssetsDecreaseRatio(newMaxTotalAssetsDecreaseRatio);
         vm.stopPrank();
     }
 
-    function test_setMaxIncreaseRatio_success() public {
-        uint256 newMaxIncreaseRatio = 0.3e18; // 30%
+    function test_setMaxTotalAssetsIncreaseRatio_success() public {
+        uint256 newMaxTotalAssetsIncreaseRatio = 0.3e18; // 30%
 
         vm.startPrank(processAccountingGuardHook.owner());
-        processAccountingGuardHook.setMaxIncreaseRatio(newMaxIncreaseRatio);
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(newMaxTotalAssetsIncreaseRatio);
         vm.stopPrank();
 
-        assertEq(processAccountingGuardHook.maxIncreaseRatio(), newMaxIncreaseRatio);
+        assertEq(processAccountingGuardHook.maxTotalAssetsIncreaseRatio(), newMaxTotalAssetsIncreaseRatio);
     }
 
-    function test_setMaxIncreaseRatio_onlyOwner() public {
-        uint256 newMaxIncreaseRatio = 0.3e18; // 30%
+    function test_setMaxTotalAssetsIncreaseRatio_onlyOwner() public {
+        uint256 newMaxTotalAssetsIncreaseRatio = 0.3e18; // 30%
 
         address wrongCaller = address(0x123323);
 
-        // Test that non-owner cannot call setMaxIncreaseRatio
+        // Test that non-owner cannot call setMaxTotalAssetsIncreaseRatio
         vm.startPrank(wrongCaller);
         vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.OnlyOwner.selector));
-        processAccountingGuardHook.setMaxIncreaseRatio(newMaxIncreaseRatio);
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(newMaxTotalAssetsIncreaseRatio);
         vm.stopPrank();
     }
 

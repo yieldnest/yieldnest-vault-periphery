@@ -101,7 +101,7 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         ProcessorUtils.allocateToBuffer(vault, bufferAmount, PROCESSOR);
 
         vm.startPrank(processAccountingGuardHook.owner());
-        processAccountingGuardHook.setMaxIncreaseRatio(100e18); // 10000% increase allowed
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(100e18); // 10000% increase allowed
         vm.stopPrank();
 
         {
@@ -219,7 +219,7 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         ProcessorUtils.allocateToBuffer(vault, bufferAmount, PROCESSOR);
 
         vm.startPrank(processAccountingGuardHook.owner());
-        processAccountingGuardHook.setMaxIncreaseRatio(100e18); // 10000% increase allowed
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(100e18); // 10000% increase allowed
         vm.stopPrank();
 
         {

@@ -17,8 +17,12 @@ import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 contract ProcessAccountingGuardHook is IHooks {
     using Math for uint256;
 
-    error TotalAssetsDecreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxDecreaseRatio);
-    error TotalAssetsIncreasedTooMuch(uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxIncreaseRatio);
+    error TotalAssetsDecreasedTooMuch(
+        uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxTotalAssetsDecreaseRatio
+    );
+    error TotalAssetsIncreasedTooMuch(
+        uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxTotalAssetsIncreaseRatio
+    );
     error OnlyOwner();
     error NotSupported();
     error OnlyVault();
@@ -27,8 +31,8 @@ contract ProcessAccountingGuardHook is IHooks {
     error TotalSupplyIncreasedTooMuch(uint256 totalSupplyBefore, uint256 totalSupplyAfter, uint256 maxShares);
     error AlwaysComputeTotalAssetsIsEnabled();
 
-    event MaxDecreaseRatioSet(uint256 oldRatio, uint256 newRatio);
-    event MaxIncreaseRatioSet(uint256 oldRatio, uint256 newRatio);
+    event MaxTotalAssetsDecreaseRatioSet(uint256 oldRatio, uint256 newRatio);
+    event MaxTotalAssetsIncreaseRatioSet(uint256 oldRatio, uint256 newRatio);
     event ExpectedPerformanceFeeSet(uint256 oldFee, uint256 newFee);
 
     uint256 public constant RATIO_DENOMINATOR = 1e18;
@@ -36,8 +40,8 @@ contract ProcessAccountingGuardHook is IHooks {
 
     IVault public immutable VAULT;
     address public immutable owner;
-    uint256 public maxDecreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
-    uint256 public maxIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
+    uint256 public maxTotalAssetsDecreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
+    uint256 public maxTotalAssetsIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
 
     uint256 public expectedPerformanceFee;
 
@@ -54,14 +58,14 @@ contract ProcessAccountingGuardHook is IHooks {
     constructor(
         address _vault,
         address _owner,
-        uint256 _maxDecreaseRatio,
-        uint256 _maxIncreaseRatio,
+        uint256 _maxTotalAssetsDecreaseRatio,
+        uint256 _maxTotalAssetsIncreaseRatio,
         uint256 _expectedPerformanceFee
     ) {
         VAULT = IVault(_vault);
         owner = _owner;
-        maxDecreaseRatio = _maxDecreaseRatio;
-        maxIncreaseRatio = _maxIncreaseRatio;
+        maxTotalAssetsDecreaseRatio = _maxTotalAssetsDecreaseRatio;
+        maxTotalAssetsIncreaseRatio = _maxTotalAssetsIncreaseRatio;
         expectedPerformanceFee = _expectedPerformanceFee;
     }
 
@@ -70,23 +74,23 @@ contract ProcessAccountingGuardHook is IHooks {
     }
 
     /**
-     * @notice Set the maximum decrease ratio
-     * @param _maxDecreaseRatio The maximum decrease ratio
+     * @notice Set the maximum totalAssets decrease ratio
+     * @param _maxTotalAssetsDecreaseRatio The maximum totalAssets decrease ratio
      */
-    function setMaxDecreaseRatio(uint256 _maxDecreaseRatio) external onlyOwner {
-        uint256 old = maxDecreaseRatio;
-        maxDecreaseRatio = _maxDecreaseRatio;
-        emit MaxDecreaseRatioSet(old, _maxDecreaseRatio);
+    function setMaxTotalAssetsDecreaseRatio(uint256 _maxTotalAssetsDecreaseRatio) external onlyOwner {
+        uint256 old = maxTotalAssetsDecreaseRatio;
+        maxTotalAssetsDecreaseRatio = _maxTotalAssetsDecreaseRatio;
+        emit MaxTotalAssetsDecreaseRatioSet(old, _maxTotalAssetsDecreaseRatio);
     }
 
     /**
-     * @notice Set the maximum increase ratio
-     * @param _maxIncreaseRatio The maximum increase ratio
+     * @notice Set the maximum totalAssets increase ratio
+     * @param _maxTotalAssetsIncreaseRatio The maximum totalAssets increase ratio
      */
-    function setMaxIncreaseRatio(uint256 _maxIncreaseRatio) external onlyOwner {
-        uint256 old = maxIncreaseRatio;
-        maxIncreaseRatio = _maxIncreaseRatio;
-        emit MaxIncreaseRatioSet(old, _maxIncreaseRatio);
+    function setMaxTotalAssetsIncreaseRatio(uint256 _maxTotalAssetsIncreaseRatio) external onlyOwner {
+        uint256 old = maxTotalAssetsIncreaseRatio;
+        maxTotalAssetsIncreaseRatio = _maxTotalAssetsIncreaseRatio;
+        emit MaxTotalAssetsIncreaseRatioSet(old, _maxTotalAssetsIncreaseRatio);
     }
 
     /**
@@ -137,18 +141,18 @@ contract ProcessAccountingGuardHook is IHooks {
             // Check for excessive decrease
             uint256 decrease = params.totalAssetsBeforeAccounting - params.totalAssetsAfterAccounting;
             uint256 decreaseRatio = (decrease * RATIO_DENOMINATOR) / params.totalAssetsBeforeAccounting;
-            if (decreaseRatio > maxDecreaseRatio) {
+            if (decreaseRatio > maxTotalAssetsDecreaseRatio) {
                 revert TotalAssetsDecreasedTooMuch(
-                    params.totalAssetsBeforeAccounting, params.totalAssetsAfterAccounting, maxDecreaseRatio
+                    params.totalAssetsBeforeAccounting, params.totalAssetsAfterAccounting, maxTotalAssetsDecreaseRatio
                 );
             }
         } else if (params.totalAssetsAfterAccounting > params.totalAssetsBeforeAccounting) {
             // Check for excessive increase
             uint256 increase = params.totalAssetsAfterAccounting - params.totalAssetsBeforeAccounting;
             uint256 increaseRatio = (increase * RATIO_DENOMINATOR) / params.totalAssetsBeforeAccounting;
-            if (increaseRatio > maxIncreaseRatio) {
+            if (increaseRatio > maxTotalAssetsIncreaseRatio) {
                 revert TotalAssetsIncreasedTooMuch(
-                    params.totalAssetsBeforeAccounting, params.totalAssetsAfterAccounting, maxIncreaseRatio
+                    params.totalAssetsBeforeAccounting, params.totalAssetsAfterAccounting, maxTotalAssetsIncreaseRatio
                 );
             }
         }

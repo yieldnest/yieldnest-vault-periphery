@@ -106,7 +106,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         // Deposit as whitelisted user
 
         vm.startPrank(owner);
-        processAccountingGuardHook.setMaxIncreaseRatio(1 ether);
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(1 ether);
         processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
         vm.stopPrank();
 
@@ -199,7 +199,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.startPrank(owner);
         feeHooks.setPerformanceFee(performanceFee);
         processAccountingGuardHook.setExpectedPerformanceFee(performanceFee);
-        processAccountingGuardHook.setMaxIncreaseRatio(0.1 ether);
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(0.1 ether);
         vm.stopPrank();
         uint256 expectedTotalAssetsAndShares = 0;
         // Deposit as whitelisted user
@@ -298,7 +298,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
         uint256 totalAssetsAfter = totalAssetsBefore + donationAmount;
-        uint256 maxIncreaseRatio = processAccountingGuardHook.maxIncreaseRatio();
+        uint256 maxIncreaseRatio = processAccountingGuardHook.maxTotalAssetsIncreaseRatio();
 
         // Process accounting should revert due to exceeding maxIncreaseRatio
         // The donation increased assets significantly which should be above the maxIncreaseRatio limit
@@ -350,7 +350,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
 
         uint256 totalAssetsAfter = vault.computeTotalAssets();
-        uint256 maxDecreaseRatio = processAccountingGuardHook.maxDecreaseRatio();
+        uint256 maxDecreaseRatio = processAccountingGuardHook.maxTotalAssetsDecreaseRatio();
 
         // Process accounting should revert due to exceeding maxDecreaseRatio
         // The slashing decreased assets significantly which should be above the maxDecreaseRatio limit

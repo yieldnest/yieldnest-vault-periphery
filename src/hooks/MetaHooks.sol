@@ -9,7 +9,7 @@ import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
  * @title MetaHooks
  * @notice MetaHooks is a contract that manages a set of hooks for a vault.
  * @dev It is used to manage the hooks for a vault and to call the hooks in the order set by the setHooks call.
- * @dev Important: Order in which hoos run is of utmost importance. Eg. if a hook verifies the effect of 
+ * @dev Important: Order in which hoos run is of utmost importance. Eg. if a hook verifies the effect of
  * @dev afterProcessAccounting minting fee shares as performed by another hook, it needs to be set *after*
  * @dev the other hook in order to make the check useful.
  * @dev It supports the IHooks interface, in order to be used as a hook for the vault.

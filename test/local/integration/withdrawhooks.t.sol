@@ -9,7 +9,7 @@ import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 import {BaseIntegrationTest} from "./BaseIntegrationTest.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
-import {HooksLib, HookCallFailed} from "lib/yieldnest-vault/src/library/HooksLib.sol";
+import {HooksLib} from "lib/yieldnest-vault/src/library/HooksLib.sol";
 import {ProcessorUtils} from "lib/yieldnest-vault/test/utils/ProcessorUtils.sol";
 import {FeeMath} from "lib/yieldnest-vault/src/module/FeeMath.sol";
 
@@ -74,7 +74,7 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vm.startPrank(notWhitelisted);
         bytes memory revertData =
             abi.encodeWithSelector(PermissionedVaultHook.UserNotWhitelisted.selector, notWhitelisted);
-        vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+        vm.expectRevert(abi.encodeWithSelector(HooksLib.HookCallFailed.selector, revertData));
         vault.withdraw(25 ether, notWhitelisted, notWhitelisted);
         vm.stopPrank();
     }
@@ -191,7 +191,7 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
         vm.startPrank(notWhitelisted);
         bytes memory revertData =
             abi.encodeWithSelector(PermissionedVaultHook.UserNotWhitelisted.selector, notWhitelisted);
-        vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+        vm.expectRevert(abi.encodeWithSelector(HooksLib.HookCallFailed.selector, revertData));
         vault.redeem(25 ether, notWhitelisted, notWhitelisted);
         vm.stopPrank();
     }

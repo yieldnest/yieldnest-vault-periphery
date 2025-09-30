@@ -74,5 +74,7 @@ contract HooksMock is IHooks {
         return IVault(address(0));
     }
 
-    function setConfig(Config memory) external pure {}
+    function setConfig(Config memory _config) external {
+        config = _config;
+    }
 }

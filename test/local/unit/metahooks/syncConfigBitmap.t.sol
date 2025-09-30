@@ -118,4 +118,17 @@ contract SyncConfigBitmapMetaHooksTest is Test {
         }
         assertEq(configValue, expected, "configValue should match OR of all hooks");
     }
+
+    function test_syncConfigBitmap_revertsForNonOwner() public {
+        address nonOwner = address(0xBEEF);
+
+        vm.startPrank(nonOwner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, nonOwner, metaHooks.HOOK_MANAGER_ROLE()
+            )
+        );
+        metaHooks.syncConfigBitmap();
+        vm.stopPrank();
+    }
 }

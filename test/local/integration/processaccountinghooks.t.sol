@@ -17,6 +17,7 @@ import {MockProvider} from "lib/yieldnest-vault/test/unit/mocks/MockProvider.sol
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {Math} from "lib/yieldnest-vault/src/Common.sol";
+import {ShareInflationFeeHooks} from "./mocks/ShareInflationFeeHooks.sol";
 // Minimal mock for IHooks
 
 contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
@@ -369,5 +370,78 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         }
         vault.processAccounting();
         vm.stopPrank();
+    }
+
+    function test_deposit_and_processAccounting_with_excessive_mintShares_reverts() public {
+        // Use ShareInflationFeeHooks instead of MetaHooks for this test
+        // Copy the configuration from MetaHooks and set it for ShareInflationFeeHooks
+
+        // Deploy ShareInflationFeeHooks and set as the only hook in MetaHooks
+        // (Assume ShareInflationFeeHooks is imported and available)
+        ShareInflationFeeHooks shareInflationFeeHook = new ShareInflationFeeHooks(
+            address(vault), owner, feeHooks.performanceFee(), feeHooks.performanceFeeRecipient(), feeHooks.getConfig()
+        );
+
+        // Get the current hooks array from metaHooks
+        IHooks[] memory hooksArr = new IHooks[](metaHooks.hooksLength());
+        {
+            for (uint256 i = 0; i < hooksArr.length; i++) {
+                hooksArr[i] = metaHooks.hooks(i);
+            }
+            // Find the index of the FeeHooks in the array by matching name()
+            uint256 feeHooksIndex = type(uint256).max;
+            for (uint256 i = 0; i < hooksArr.length; i++) {
+                try hooksArr[i].name() returns (string memory hookName) {
+                    if (keccak256(bytes(hookName)) == keccak256(bytes("PerformanceFeeHooks"))) {
+                        feeHooksIndex = i;
+                        break;
+                    }
+                } catch {}
+            }
+            require(feeHooksIndex != type(uint256).max, "FeeHooks not found in hooks array");
+            // Replace FeeHooks with ShareInflationFeeHooks
+            hooksArr[feeHooksIndex] = IHooks(address(shareInflationFeeHook));
+        }
+
+        // Set the hooks in MetaHooks to only ShareInflationFeeHooks
+        vm.startPrank(HOOK_MANAGER);
+        metaHooks.setHooks(hooksArr);
+        vm.stopPrank();
+
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        uint256 totalSupplyBefore = vault.totalSupply();
+
+        // Process accounting should revert with HookCallFailed and error encoded for TotalSupplyIncreasedTooMuch
+        vm.startPrank(PROCESSOR);
+        bytes4 expectedSelector = bytes4(keccak256("TotalSupplyIncreasedTooMuch(uint256,uint256,uint256)"));
+        vm.expectRevert(
+            abi.encodeWithSelector(HooksLib.HookCallFailed.selector, address(shareInflationFeeHook), expectedSelector)
+        );
+        vault.processAccounting();
+        vm.stopPrank();
+
+        uint256 totalSupplyAfter = vault.totalSupply();
+        assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
+        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
     }
 }

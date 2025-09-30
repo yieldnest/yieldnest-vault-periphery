@@ -20,6 +20,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     error TooManyHooks();
     error IndexOutOfBounds();
 
+    event ConfigBitmapUpdated(ConfigBitmap configBitmap, ConfigBitmap newConfigBitmap);
+    event SharesMinted(address to, uint256 shares, address caller);
+
     struct HookData {
         uint8 index;
         bool active;
@@ -114,6 +117,11 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         _syncConfigBitmap();
     }
 
+    /**
+     * @notice Syncs the config bitmap for the hooks
+     * @dev This function is used to sync the config bitmap for the hooks, based on the config of each hook
+     * @dev This function is called when the hooks are set
+     */
     function syncConfigBitmap() external onlyRole(HOOK_MANAGER_ROLE) {
         _syncConfigBitmap();
     }
@@ -140,6 +148,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
                 newConfigBitmap.afterProcessAccounting = setHook(i, newConfigBitmap.afterProcessAccounting);
             }
         }
+
+        emit ConfigBitmapUpdated(configBitmap, newConfigBitmap);
 
         configBitmap = newConfigBitmap;
     }
@@ -341,6 +351,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     /// @param shares The number of shares to mint
     function mintShares(address to, uint256 shares) external override onlyHook {
         VAULT.mintShares(to, shares);
+        emit SharesMinted(to, shares, msg.sender);
     }
     /// @notice Converts a given amount of assets to the equivalent amount of shares
     /// @dev This function acts as a proxy to the vault's convertToShares function

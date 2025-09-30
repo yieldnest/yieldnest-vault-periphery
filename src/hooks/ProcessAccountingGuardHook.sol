@@ -22,7 +22,6 @@ contract ProcessAccountingGuardHook is IHooks {
     error OnlyOwner();
     error NotSupported();
     error OnlyVault();
-    error ConvertToAssetsChangedDuringDeposit(uint256 valueBefore, uint256 valueAfter);
     error TotalSupplyDecreased();
     error TotalSupplyIncreasedForLoss();
     error TotalSupplyIncreasedTooMuch(uint256 totalSupplyBefore, uint256 totalSupplyAfter, uint256 maxShares);

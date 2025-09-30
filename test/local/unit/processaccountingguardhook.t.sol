@@ -18,7 +18,8 @@ contract ProcessAccountingGuardHookTest is Test {
         VaultMock vaultMockContract = new VaultMock(mockAsset);
         bytes memory vaultMockBytecode = address(vaultMockContract).code;
         vm.etch(vaultMock, vaultMockBytecode);
-        processAccountingGuardHook = new ProcessAccountingGuardHook(vaultMock, owner, 0.001 ether, 0.002 ether, 0);
+        processAccountingGuardHook =
+            new ProcessAccountingGuardHook(vaultMock, owner, 0.001 ether, 0.002 ether, 0.0015 ether, 0.001 ether);
     }
 
     function testFuzz_afterProcessAccounting_ratioIncrease(

@@ -42,6 +42,7 @@ contract ProcessAccountingGuardHook is IHooks {
     address public immutable owner;
     uint256 public maxTotalAssetsDecreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
     uint256 public maxTotalAssetsIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
+    uint256 public maxTotalSupplyIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
 
     uint256 public expectedPerformanceFee;
 
@@ -60,12 +61,15 @@ contract ProcessAccountingGuardHook is IHooks {
         address _owner,
         uint256 _maxTotalAssetsDecreaseRatio,
         uint256 _maxTotalAssetsIncreaseRatio,
+        uint256 _maxTotalSupplyIncreaseRatio,
         uint256 _expectedPerformanceFee
     ) {
         VAULT = IVault(_vault);
         owner = _owner;
         maxTotalAssetsDecreaseRatio = _maxTotalAssetsDecreaseRatio;
         maxTotalAssetsIncreaseRatio = _maxTotalAssetsIncreaseRatio;
+        maxTotalSupplyIncreaseRatio = _maxTotalSupplyIncreaseRatio;
+
         expectedPerformanceFee = _expectedPerformanceFee;
     }
 
@@ -168,6 +172,8 @@ contract ProcessAccountingGuardHook is IHooks {
 
         uint256 totalSupplyIncrease = totalSupplyAfterAccounting - params.totalSupplyBeforeAccounting;
 
+        checkTotalSupplyIncreaseRatio(params.totalSupplyBeforeAccounting, totalSupplyAfterAccounting);
+
         if (totalSupplyIncrease > 0) {
             if (params.totalBaseAssetsAfterAccounting <= params.totalBaseAssetsBeforeAccounting) {
                 // no shares should be minted for loss
@@ -191,6 +197,22 @@ contract ProcessAccountingGuardHook is IHooks {
                     params.totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares
                 );
             }
+        }
+    }
+
+    function checkTotalSupplyIncreaseRatio(uint256 totalSupplyBeforeAccounting, uint256 totalSupplyAfterAccounting)
+        internal
+        view
+    {
+        uint256 totalSupplyIncrease = totalSupplyAfterAccounting - totalSupplyBeforeAccounting;
+        uint256 _maxTotalSupplyIncreaseRatio = maxTotalSupplyIncreaseRatio;
+        uint256 totalSupplyIncreaseRatio = (totalSupplyIncrease * RATIO_DENOMINATOR) / totalSupplyBeforeAccounting;
+
+        if (totalSupplyIncreaseRatio > _maxTotalSupplyIncreaseRatio) {
+            // Calculate maxShares based on the allowed ratio
+            uint256 maxShares = (totalSupplyBeforeAccounting * (RATIO_DENOMINATOR + _maxTotalSupplyIncreaseRatio))
+                / RATIO_DENOMINATOR - totalSupplyBeforeAccounting;
+            revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares);
         }
     }
 

@@ -8,7 +8,10 @@ import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 /**
  * @title MetaHooks
  * @notice MetaHooks is a contract that manages a set of hooks for a vault.
- * @dev It is used to manage the hooks for a vault and to call the hooks in the correct order.
+ * @dev It is used to manage the hooks for a vault and to call the hooks in the order set by the setHooks call.
+ * @dev Important: Order in which hoos run is of utmost importance. Eg. if a hook verifies the effect of 
+ * @dev afterProcessAccounting minting fee shares as performed by another hook, it needs to be set *after*
+ * @dev the other hook in order to make the check useful.
  * @dev It supports the IHooks interface, in order to be used as a hook for the vault.
  */
 contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
@@ -89,9 +92,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         return "MetaHooks";
     }
 
-    /// @notice Sets the array of hooks to be executed by this MetaHooks contract
-    /// @dev This function replaces all existing hooks with the provided array. Clears existing hook data.
-    /// @param hooks_ Array of hook contracts to be set. Each hook must implement the IHooks interface.
+    /**
+     * @notice Sets the array of hooks to be executed by this MetaHooks contract
+     * @dev This function replaces all existing hooks with the provided array. Clears existing hook data.
+     * @dev Hooks are called IN THE ORDER they are added to the array.
+     * @param hooks_ Array of hook contracts to be set. Each hook must implement the IHooks interface.
+     */
     function setHooks(IHooks[] memory hooks_) external onlyRole(HOOK_MANAGER_ROLE) {
         // Check if the array is empty
         if (hooks_.length == 0) revert EmptyHooksArray();
@@ -122,8 +128,9 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     }
 
     /**
-     * @notice Syncs the config bitmap for the hooks
+     * @notice Syncs the config bitmap for all the hooks
      * @dev This function is used to sync the config bitmap for the hooks, based on the config of each hook
+     * @dev Must be called if the getConfig() output of any of the hooks changes.
      * @dev This function is called when the hooks are set
      */
     function syncConfigBitmap() external onlyRole(HOOK_MANAGER_ROLE) {

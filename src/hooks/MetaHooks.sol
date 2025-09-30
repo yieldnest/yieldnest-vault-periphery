@@ -22,6 +22,8 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
     event ConfigBitmapUpdated(ConfigBitmap configBitmap, ConfigBitmap newConfigBitmap);
     event SharesMinted(address to, uint256 shares, address caller);
+    event HookAdded(IHooks hook);
+    event HookRemoved(IHooks hook);
 
     struct HookData {
         uint8 index;
@@ -105,6 +107,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         // Clear existing hook data mappings
         for (uint256 i = 0; i < hooks.length; i++) {
             delete hookData[hooks[i]];
+            emit HookRemoved(hooks[i]);
         }
         // Clear the hooks array before setting new hooks
         delete hooks;
@@ -112,6 +115,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         for (uint256 i = 0; i < hooks_.length; i++) {
             hooks.push(hooks_[i]);
             hookData[hooks_[i]] = HookData({index: uint8(i), active: true});
+            emit HookAdded(hooks_[i]);
         }
 
         _syncConfigBitmap();

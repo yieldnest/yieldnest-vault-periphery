@@ -107,6 +107,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
 
         vm.startPrank(owner);
         processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(1 ether);
+        processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(0.1 ether);
         processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
         vm.stopPrank();
 
@@ -200,6 +201,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         feeHooks.setPerformanceFee(performanceFee);
         processAccountingGuardHook.setExpectedPerformanceFee(performanceFee);
         processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(0.1 ether);
+        processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(0.1 ether);
         vm.stopPrank();
         uint256 expectedTotalAssetsAndShares = 0;
         // Deposit as whitelisted user

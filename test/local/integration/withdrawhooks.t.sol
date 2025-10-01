@@ -102,6 +102,9 @@ contract WithdrawHooksIntegrationTest is BaseIntegrationTest {
 
         vm.startPrank(processAccountingGuardHook.owner());
         processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(100e18); // 10000% increase allowed
+
+        // set it really high so it never reverts for this reason
+        processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(100_00_00018); // 10000% increase allowed
         vm.stopPrank();
 
         {

@@ -38,6 +38,13 @@ contract ProcessAccountingGuardHookTest is Test {
 
         vm.startPrank(vaultMock);
 
+        //
+        VaultMock(vaultMock).setTotalAssets(totalAssetsAfterAccounting);
+
+        // supply excess is not tested here therefore make it stay constant.
+        uint256 totalSupplyAfterAccounting = totalAssetsBeforeAccounting;
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+
         if (increaseRatio > processAccountingGuardHook.maxTotalAssetsIncreaseRatio()) {
             // Should revert if increase ratio exceeds maximum
             vm.expectRevert(
@@ -54,10 +61,10 @@ contract ProcessAccountingGuardHookTest is Test {
             IHooks.AfterProcessAccountingParams({
                 totalAssetsBeforeAccounting: totalAssetsBeforeAccounting,
                 totalAssetsAfterAccounting: totalAssetsAfterAccounting,
-                totalSupplyBeforeAccounting: 0,
-                totalSupplyAfterAccounting: 0,
-                totalBaseAssetsBeforeAccounting: 0,
-                totalBaseAssetsAfterAccounting: 0
+                totalSupplyBeforeAccounting: totalAssetsBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyAfterAccounting,
+                totalBaseAssetsBeforeAccounting: totalAssetsBeforeAccounting,
+                totalBaseAssetsAfterAccounting: totalAssetsAfterAccounting
             })
         );
         vm.stopPrank();
@@ -79,6 +86,12 @@ contract ProcessAccountingGuardHookTest is Test {
 
         vm.startPrank(vaultMock);
 
+        VaultMock(vaultMock).setTotalAssets(totalAssetsAfterAccounting);
+
+        // supply excess is not tested here therefore make it stay constant.
+        uint256 totalSupplyAfterAccounting = totalAssetsBeforeAccounting;
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+
         if (decreaseRatio > processAccountingGuardHook.maxTotalAssetsDecreaseRatio()) {
             // Should revert if decrease ratio exceeds maximum
             vm.expectRevert(
@@ -95,10 +108,10 @@ contract ProcessAccountingGuardHookTest is Test {
             IHooks.AfterProcessAccountingParams({
                 totalAssetsBeforeAccounting: totalAssetsBeforeAccounting,
                 totalAssetsAfterAccounting: totalAssetsAfterAccounting,
-                totalSupplyBeforeAccounting: 0,
-                totalSupplyAfterAccounting: 0,
-                totalBaseAssetsBeforeAccounting: 0,
-                totalBaseAssetsAfterAccounting: 0
+                totalSupplyBeforeAccounting: totalAssetsBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyAfterAccounting,
+                totalBaseAssetsBeforeAccounting: totalAssetsBeforeAccounting,
+                totalBaseAssetsAfterAccounting: totalAssetsAfterAccounting
             })
         );
         vm.stopPrank();
@@ -145,6 +158,10 @@ contract ProcessAccountingGuardHookTest is Test {
 
         totalSupplyAfterAccounting = bound(totalSupplyAfterAccounting, totalSupplyBeforeAccounting + 1, 200_000 ether);
 
+        vm.startPrank(owner);
+        processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(100_000_000 ether); // 100 million % so it never reverts for this reason
+        vm.stopPrank();
+
         VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
         vm.startPrank(vaultMock);
 
@@ -169,6 +186,7 @@ contract ProcessAccountingGuardHookTest is Test {
 
         vm.startPrank(processAccountingGuardHook.owner());
         processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(1 ether);
+        processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(1 ether);
         processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
         vm.stopPrank();
 

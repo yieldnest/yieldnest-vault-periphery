@@ -33,6 +33,7 @@ contract ProcessAccountingGuardHook is IHooks {
 
     event MaxTotalAssetsDecreaseRatioSet(uint256 oldRatio, uint256 newRatio);
     event MaxTotalAssetsIncreaseRatioSet(uint256 oldRatio, uint256 newRatio);
+    event MaxTotalSupplyIncreaseRatioSet(uint256 oldRatio, uint256 newRatio);
     event ExpectedPerformanceFeeSet(uint256 oldFee, uint256 newFee);
 
     uint256 public constant RATIO_DENOMINATOR = 1e18;
@@ -95,6 +96,16 @@ contract ProcessAccountingGuardHook is IHooks {
         uint256 old = maxTotalAssetsIncreaseRatio;
         maxTotalAssetsIncreaseRatio = _maxTotalAssetsIncreaseRatio;
         emit MaxTotalAssetsIncreaseRatioSet(old, _maxTotalAssetsIncreaseRatio);
+    }
+
+    /**
+     * @notice Set the maximum totalSupply increase ratio
+     * @param _maxTotalSupplyIncreaseRatio The maximum totalSupply increase ratio
+     */
+    function setMaxTotalSupplyIncreaseRatio(uint256 _maxTotalSupplyIncreaseRatio) external onlyOwner {
+        uint256 old = maxTotalSupplyIncreaseRatio;
+        maxTotalSupplyIncreaseRatio = _maxTotalSupplyIncreaseRatio;
+        emit MaxTotalSupplyIncreaseRatioSet(old, _maxTotalSupplyIncreaseRatio);
     }
 
     /**
@@ -210,8 +221,7 @@ contract ProcessAccountingGuardHook is IHooks {
 
         if (totalSupplyIncreaseRatio > _maxTotalSupplyIncreaseRatio) {
             // Calculate maxShares based on the allowed ratio
-            uint256 maxShares = (totalSupplyBeforeAccounting * (RATIO_DENOMINATOR + _maxTotalSupplyIncreaseRatio))
-                / RATIO_DENOMINATOR - totalSupplyBeforeAccounting;
+            uint256 maxShares = totalSupplyBeforeAccounting * _maxTotalSupplyIncreaseRatio / RATIO_DENOMINATOR;
             revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares);
         }
     }

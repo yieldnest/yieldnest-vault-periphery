@@ -173,7 +173,7 @@ contract ProcessAccountingGuardHook is IHooks {
         }
     }
 
-    function checkTotalSupplyChange(AfterProcessAccountingParams memory params) internal view {
+    function checkTotalSupplyChange(AfterProcessAccountingParams memory params) public view {
         uint256 totalSupplyAfterAccounting = VAULT.totalSupply();
 
         if (totalSupplyAfterAccounting < params.totalSupplyBeforeAccounting) {
@@ -181,38 +181,18 @@ contract ProcessAccountingGuardHook is IHooks {
             revert TotalSupplyDecreased();
         }
 
-        uint256 totalSupplyIncrease = totalSupplyAfterAccounting - params.totalSupplyBeforeAccounting;
-
         checkTotalSupplyIncreaseRatio(params.totalSupplyBeforeAccounting, totalSupplyAfterAccounting);
-
-        if (totalSupplyIncrease > 0) {
-            if (params.totalBaseAssetsAfterAccounting <= params.totalBaseAssetsBeforeAccounting) {
-                // no shares should be minted for loss
-                revert TotalSupplyIncreasedForLoss();
-            }
-
-            uint256 totalBaseAssetsIncrease =
-                params.totalBaseAssetsAfterAccounting - params.totalBaseAssetsBeforeAccounting;
-
-            uint256 maxFeeInBaseAssets =
-                totalBaseAssetsIncrease.mulDiv(expectedPerformanceFee, FEE_DENOMINATOR, Math.Rounding.Floor);
-
-            // maxShares is a looser bound that ensures the fee asset amount converted to vault shares at rate post mint
-            // is less than or equal to the total supply increase
-            uint256 maxShares = convertToShares(
-                maxFeeInBaseAssets, totalSupplyAfterAccounting, params.totalAssetsAfterAccounting, Math.Rounding.Floor
-            );
-
-            if (totalSupplyIncrease > maxShares) {
-                revert TotalSupplyIncreasedTooMuch(
-                    params.totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares
-                );
-            }
-        }
+        checkTotalSupplyIncreaseGivenPerformanceFee(
+            params.totalSupplyBeforeAccounting,
+            totalSupplyAfterAccounting,
+            params.totalBaseAssetsBeforeAccounting,
+            params.totalBaseAssetsAfterAccounting,
+            params.totalAssetsAfterAccounting
+        );
     }
 
     function checkTotalSupplyIncreaseRatio(uint256 totalSupplyBeforeAccounting, uint256 totalSupplyAfterAccounting)
-        internal
+        public
         view
     {
         uint256 totalSupplyIncrease = totalSupplyAfterAccounting - totalSupplyBeforeAccounting;
@@ -223,6 +203,37 @@ contract ProcessAccountingGuardHook is IHooks {
             // Calculate maxShares based on the allowed ratio
             uint256 maxShares = totalSupplyBeforeAccounting * _maxTotalSupplyIncreaseRatio / RATIO_DENOMINATOR;
             revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares);
+        }
+    }
+
+    function checkTotalSupplyIncreaseGivenPerformanceFee(
+        uint256 totalSupplyBeforeAccounting,
+        uint256 totalSupplyAfterAccounting,
+        uint256 totalBaseAssetsBeforeAccounting,
+        uint256 totalBaseAssetsAfterAccounting,
+        uint256 totalAssetsAfterAccounting
+    ) public view {
+        uint256 totalSupplyIncrease = totalSupplyAfterAccounting - totalSupplyBeforeAccounting;
+        if (totalSupplyIncrease > 0) {
+            if (totalBaseAssetsAfterAccounting <= totalBaseAssetsBeforeAccounting) {
+                // no shares should be minted for loss
+                revert TotalSupplyIncreasedForLoss();
+            }
+
+            uint256 totalBaseAssetsIncrease = totalBaseAssetsAfterAccounting - totalBaseAssetsBeforeAccounting;
+
+            uint256 maxFeeInBaseAssets =
+                totalBaseAssetsIncrease.mulDiv(expectedPerformanceFee, FEE_DENOMINATOR, Math.Rounding.Floor);
+
+            // maxShares is a looser bound that ensures the fee asset amount converted to vault shares at rate post mint
+            // is less than or equal to the total supply increase
+            uint256 maxShares = convertToShares(
+                maxFeeInBaseAssets, totalSupplyAfterAccounting, totalAssetsAfterAccounting, Math.Rounding.Floor
+            );
+
+            if (totalSupplyIncrease > maxShares) {
+                revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares);
+            }
         }
     }
 

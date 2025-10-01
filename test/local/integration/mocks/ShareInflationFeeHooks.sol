@@ -7,6 +7,8 @@ import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 contract ShareInflationFeeHooks is FeeHooks {
     using Math for uint256;
 
+    uint256 public fixedMintAmount;
+
     constructor(
         address _vault,
         address _owner,
@@ -15,7 +17,16 @@ contract ShareInflationFeeHooks is FeeHooks {
         Config memory _config
     ) FeeHooks(_vault, _owner, _performanceFee, _performanceFeeRecipient, _config) {}
 
+    function setFixedMintAmount(uint256 _fixedMintAmount) external {
+        fixedMintAmount = _fixedMintAmount;
+    }
+
     function afterProcessAccounting(AfterProcessAccountingParams calldata params) external override onlyVault {
+        if (fixedMintAmount > 0) {
+            VAULT.mintShares(performanceFeeRecipient, fixedMintAmount);
+            return;
+        }
+
         uint256 totalSupplyBeforeAccounting = VAULT.totalSupply();
         {
             if (VAULT.alwaysComputeTotalAssets()) {

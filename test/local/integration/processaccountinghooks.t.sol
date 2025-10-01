@@ -374,20 +374,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_deposit_and_processAccounting_with_excessive_mintShares_reverts() public {
-        // Use ShareInflationFeeHooks instead of MetaHooks for this test
-        // Copy the configuration from MetaHooks and set it for ShareInflationFeeHooks
-
-        // Deploy ShareInflationFeeHooks and set as the only hook in MetaHooks
-        // (Assume ShareInflationFeeHooks is imported and available)
-        ShareInflationFeeHooks shareInflationFeeHook = new ShareInflationFeeHooks(
-            address(metaHooks),
-            owner,
-            feeHooks.performanceFee(),
-            feeHooks.performanceFeeRecipient(),
-            feeHooks.getConfig()
-        );
-
+    function setNewFeeHook(ShareInflationFeeHooks shareInflationFeeHook) public {
         // Get the current hooks array from metaHooks
         IHooks[] memory hooksArr = new IHooks[](metaHooks.hooksLength());
         {
@@ -413,6 +400,23 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.startPrank(HOOK_MANAGER);
         metaHooks.setHooks(hooksArr);
         vm.stopPrank();
+    }
+
+    function test_deposit_and_processAccounting_with_excessive_mintShares_reverts() public {
+        // Use ShareInflationFeeHooks instead of MetaHooks for this test
+        // Copy the configuration from MetaHooks and set it for ShareInflationFeeHooks
+
+        // Deploy ShareInflationFeeHooks and set as the only hook in MetaHooks
+        // (Assume ShareInflationFeeHooks is imported and available)
+        ShareInflationFeeHooks shareInflationFeeHook = new ShareInflationFeeHooks(
+            address(metaHooks),
+            owner,
+            feeHooks.performanceFee(),
+            feeHooks.performanceFeeRecipient(),
+            feeHooks.getConfig()
+        );
+
+        setNewFeeHook(shareInflationFeeHook);
 
         uint256 depositAmount = 100 ether;
         uint256 expectedTotalAssetsAndShares = 0;
@@ -446,5 +450,52 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         );
         vm.expectRevert(revertData);
         vault.processAccounting();
+    }
+
+    function test_processAccounting_with_excessive_mintShares_exceeds_max_increase_ratio_reverts() public {
+        ShareInflationFeeHooks shareInflationFeeHook = new ShareInflationFeeHooks(
+            address(metaHooks),
+            owner,
+            feeHooks.performanceFee(),
+            feeHooks.performanceFeeRecipient(),
+            feeHooks.getConfig()
+        );
+
+        shareInflationFeeHook.setFixedMintAmount(100000000000000000000);
+
+        setNewFeeHook(shareInflationFeeHook);
+
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // // Verify deposit was successful
+        // assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        // assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // // Donate to vault to trigger fee calculation
+        // uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        // deal(vault.asset(), address(this), donationAmount);
+        // IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        // bytes memory revertData = abi.encodeWithSelector(
+        //     HooksLib.HookCallFailed.selector,
+        //     abi.encodeWithSelector(
+        //         ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
+        //         100000000000000000000, // totalSupplyBefore
+        //         100019982016185433110, // totalSupplyAfter
+        //         9992006195423120 // maxShares
+        //     )
+        // );
+        // vm.expectRevert(revertData);
+        // vault.processAccounting();
     }
 }

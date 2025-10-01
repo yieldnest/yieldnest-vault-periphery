@@ -461,7 +461,9 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
             feeHooks.getConfig()
         );
 
-        shareInflationFeeHook.setFixedMintAmount(100000000000000000000);
+        uint256 fixedMintAmount = 100000000000000000000;
+
+        shareInflationFeeHook.setFixedMintAmount(fixedMintAmount);
 
         setNewFeeHook(shareInflationFeeHook);
 
@@ -477,25 +479,25 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
 
         expectedTotalAssetsAndShares += depositAmount;
 
-        // // Verify deposit was successful
-        // assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
-        // assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
 
-        // // Donate to vault to trigger fee calculation
-        // uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
-        // deal(vault.asset(), address(this), donationAmount);
-        // IERC20(vault.asset()).transfer(address(vault), donationAmount);
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
-        // bytes memory revertData = abi.encodeWithSelector(
-        //     HooksLib.HookCallFailed.selector,
-        //     abi.encodeWithSelector(
-        //         ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
-        //         100000000000000000000, // totalSupplyBefore
-        //         100019982016185433110, // totalSupplyAfter
-        //         9992006195423120 // maxShares
-        //     )
-        // );
-        // vm.expectRevert(revertData);
-        // vault.processAccounting();
+        bytes memory revertData = abi.encodeWithSelector(
+            HooksLib.HookCallFailed.selector,
+            abi.encodeWithSelector(
+                ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
+                100000000000000000000, // totalSupplyBefore
+                200000000000000000000, // totalSupplyAfter
+                150000000000000000 // maxShares
+            )
+        );
+        vm.expectRevert();
+        vault.processAccounting();
     }
 }

@@ -309,4 +309,68 @@ contract ProcessAccountingGuardHookTest is Test {
         processAccountingGuardHook.afterProcessAccounting(params);
         vm.stopPrank();
     }
+
+    function testFuzz_afterProcessAccounting_ratioIncrease_excessShares_reverts(
+        uint256 totalAssetsBeforeAccounting,
+        uint256 totalAssetsAfterAccounting,
+        uint256 totalSupplyAfterAccounting
+    ) public {
+        // Bound inputs to reasonable ranges to avoid overflow and ensure meaningful tests
+        totalAssetsBeforeAccounting = bound(totalAssetsBeforeAccounting, 1e18, 100_000 ether); // 1 to 1e12 tokens
+
+        // Bound totalAssetsAfterAccounting to ensure increase scenario
+        totalAssetsAfterAccounting = bound(totalAssetsAfterAccounting, totalAssetsBeforeAccounting, 200_000 ether);
+
+        totalSupplyAfterAccounting = bound(totalSupplyAfterAccounting, totalAssetsBeforeAccounting, 200_000 ether);
+
+        uint256 totalSupplyBeforeAccounting = totalAssetsBeforeAccounting;
+
+        uint256 increase = totalAssetsAfterAccounting - totalAssetsBeforeAccounting;
+        uint256 increaseRatio =
+            (increase * processAccountingGuardHook.RATIO_DENOMINATOR()) / totalAssetsBeforeAccounting;
+
+        vm.startPrank(vaultMock);
+
+        //
+        VaultMock(vaultMock).setTotalAssets(totalAssetsAfterAccounting);
+
+        VaultMock(vaultMock).setTotalSupply(totalSupplyAfterAccounting);
+
+        uint256 totalSupplyIncreaseRatio = (totalSupplyAfterAccounting - totalSupplyBeforeAccounting)
+            * processAccountingGuardHook.RATIO_DENOMINATOR() / totalSupplyBeforeAccounting;
+
+        if (increaseRatio > processAccountingGuardHook.maxTotalAssetsIncreaseRatio()) {
+            // Should revert if increase ratio exceeds maximum
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    ProcessAccountingGuardHook.TotalAssetsIncreasedTooMuch.selector,
+                    totalAssetsBeforeAccounting,
+                    totalAssetsAfterAccounting,
+                    processAccountingGuardHook.maxTotalAssetsIncreaseRatio()
+                )
+            );
+        } else if (increaseRatio > processAccountingGuardHook.maxTotalSupplyIncreaseRatio()) {
+            // Should revert if increase ratio exceeds maximum
+            vm.expectRevert(
+                abi.encodeWithSelector(
+                    ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
+                    totalAssetsBeforeAccounting,
+                    totalAssetsAfterAccounting,
+                    processAccountingGuardHook.maxTotalSupplyIncreaseRatio()
+                )
+            );
+        }
+
+        processAccountingGuardHook.afterProcessAccounting(
+            IHooks.AfterProcessAccountingParams({
+                totalAssetsBeforeAccounting: totalAssetsBeforeAccounting,
+                totalAssetsAfterAccounting: totalAssetsAfterAccounting,
+                totalSupplyBeforeAccounting: totalSupplyBeforeAccounting,
+                totalSupplyAfterAccounting: totalSupplyAfterAccounting,
+                totalBaseAssetsBeforeAccounting: totalAssetsBeforeAccounting,
+                totalBaseAssetsAfterAccounting: totalAssetsAfterAccounting
+            })
+        );
+        vm.stopPrank();
+    }
 }

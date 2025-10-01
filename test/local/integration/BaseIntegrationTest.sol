@@ -55,8 +55,8 @@ contract BaseIntegrationTest is Test, Actors {
             owner,
             0.001 ether, // maxDecreaseRatio (0.1%)
             0.002 ether, // maxIncreaseRatio (0.2%)
-            previousFeeHooks.performanceFee(),
-            0.0015 ether // maxTotalSupplyIncreaseRatio (0.15%)
+            0.0015 ether, // maxTotalSupplyIncreaseRatio (0.15%)
+            previousFeeHooks.performanceFee()
         );
 
         // Set up hooks array for MetaHooks

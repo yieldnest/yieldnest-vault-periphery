@@ -9,7 +9,7 @@ import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
 import {BaseIntegrationTest} from "./BaseIntegrationTest.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
-import {HooksLib, HookCallFailed} from "lib/yieldnest-vault/src/library/HooksLib.sol";
+import {HooksLib} from "lib/yieldnest-vault/src/library/HooksLib.sol";
 import {ProcessorUtils} from "lib/yieldnest-vault/test/utils/ProcessorUtils.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
@@ -17,6 +17,7 @@ import {MockProvider} from "lib/yieldnest-vault/test/unit/mocks/MockProvider.sol
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {console} from "lib/forge-std/src/console.sol";
 import {Math} from "lib/yieldnest-vault/src/Common.sol";
+import {ShareInflationFeeHooks} from "./mocks/ShareInflationFeeHooks.sol";
 // Minimal mock for IHooks
 
 contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
@@ -105,7 +106,8 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         // Deposit as whitelisted user
 
         vm.startPrank(owner);
-        processAccountingGuardHook.setMaxIncreaseRatio(1 ether);
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(1 ether);
+        processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(0.1 ether);
         processAccountingGuardHook.setExpectedPerformanceFee(0.1 ether);
         vm.stopPrank();
 
@@ -174,7 +176,6 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         uint256 totalSupplyAfter = vault.totalSupply();
         assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
         uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
-        console.log("Total supply increase:", supplyIncrease);
     }
 
     function convertToShares(uint256 assets, uint256 totalSupply, uint256 totalAssets, Math.Rounding rounding)
@@ -198,7 +199,8 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.startPrank(owner);
         feeHooks.setPerformanceFee(performanceFee);
         processAccountingGuardHook.setExpectedPerformanceFee(performanceFee);
-        processAccountingGuardHook.setMaxIncreaseRatio(0.1 ether);
+        processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(0.1 ether);
+        processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(0.1 ether);
         vm.stopPrank();
         uint256 expectedTotalAssetsAndShares = 0;
         // Deposit as whitelisted user
@@ -297,7 +299,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
         uint256 totalAssetsAfter = totalAssetsBefore + donationAmount;
-        uint256 maxIncreaseRatio = processAccountingGuardHook.maxIncreaseRatio();
+        uint256 maxIncreaseRatio = processAccountingGuardHook.maxTotalAssetsIncreaseRatio();
 
         // Process accounting should revert due to exceeding maxIncreaseRatio
         // The donation increased assets significantly which should be above the maxIncreaseRatio limit
@@ -313,7 +315,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
                 totalAssetsAfter,
                 maxIncreaseRatio
             );
-            vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+            vm.expectRevert(abi.encodeWithSelector(HooksLib.HookCallFailed.selector, revertData));
         }
         vault.processAccounting();
         vm.stopPrank();
@@ -349,7 +351,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
 
         uint256 totalAssetsAfter = vault.computeTotalAssets();
-        uint256 maxDecreaseRatio = processAccountingGuardHook.maxDecreaseRatio();
+        uint256 maxDecreaseRatio = processAccountingGuardHook.maxTotalAssetsDecreaseRatio();
 
         // Process accounting should revert due to exceeding maxDecreaseRatio
         // The slashing decreased assets significantly which should be above the maxDecreaseRatio limit
@@ -365,9 +367,135 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
                 totalAssetsAfter,
                 maxDecreaseRatio
             );
-            vm.expectRevert(abi.encodeWithSelector(HookCallFailed.selector, revertData));
+            vm.expectRevert(abi.encodeWithSelector(HooksLib.HookCallFailed.selector, revertData));
         }
         vault.processAccounting();
         vm.stopPrank();
+    }
+
+    function setNewFeeHook(ShareInflationFeeHooks shareInflationFeeHook) public {
+        // Get the current hooks array from metaHooks
+        IHooks[] memory hooksArr = new IHooks[](metaHooks.hooksLength());
+        {
+            for (uint256 i = 0; i < hooksArr.length; i++) {
+                hooksArr[i] = metaHooks.hooks(i);
+            }
+            // Find the index of the FeeHooks in the array by matching name()
+            uint256 feeHooksIndex = type(uint256).max;
+            for (uint256 i = 0; i < hooksArr.length; i++) {
+                try hooksArr[i].name() returns (string memory hookName) {
+                    if (keccak256(bytes(hookName)) == keccak256(bytes("PerformanceFeeHooks"))) {
+                        feeHooksIndex = i;
+                        break;
+                    }
+                } catch {}
+            }
+            require(feeHooksIndex != type(uint256).max, "FeeHooks not found in hooks array");
+            // Replace FeeHooks with ShareInflationFeeHooks
+            hooksArr[feeHooksIndex] = IHooks(address(shareInflationFeeHook));
+        }
+
+        // Set the hooks in MetaHooks to only ShareInflationFeeHooks
+        vm.startPrank(HOOK_MANAGER);
+        metaHooks.setHooks(hooksArr);
+        vm.stopPrank();
+    }
+
+    function test_deposit_and_processAccounting_with_excessive_mintShares_reverts() public {
+        // Use ShareInflationFeeHooks instead of MetaHooks for this test
+        // Copy the configuration from MetaHooks and set it for ShareInflationFeeHooks
+
+        // Deploy ShareInflationFeeHooks and set as the only hook in MetaHooks
+        // (Assume ShareInflationFeeHooks is imported and available)
+        ShareInflationFeeHooks shareInflationFeeHook = new ShareInflationFeeHooks(
+            address(metaHooks),
+            owner,
+            feeHooks.performanceFee(),
+            feeHooks.performanceFeeRecipient(),
+            feeHooks.getConfig()
+        );
+
+        setNewFeeHook(shareInflationFeeHook);
+
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        bytes memory revertData = abi.encodeWithSelector(
+            HooksLib.HookCallFailed.selector,
+            abi.encodeWithSelector(
+                ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
+                100000000000000000000, // totalSupplyBefore
+                100019982016185433110 // totalSupplyAfter
+            )
+        );
+        vm.expectRevert(revertData);
+        vault.processAccounting();
+    }
+
+    function test_processAccounting_with_excessive_mintShares_exceeds_max_increase_ratio_reverts() public {
+        ShareInflationFeeHooks shareInflationFeeHook = new ShareInflationFeeHooks(
+            address(metaHooks),
+            owner,
+            feeHooks.performanceFee(),
+            feeHooks.performanceFeeRecipient(),
+            feeHooks.getConfig()
+        );
+
+        uint256 fixedMintAmount = 100000000000000000000;
+
+        shareInflationFeeHook.setFixedMintAmount(fixedMintAmount);
+
+        setNewFeeHook(shareInflationFeeHook);
+
+        uint256 depositAmount = 100 ether;
+        uint256 expectedTotalAssetsAndShares = 0;
+        // Deposit as whitelisted user
+
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        expectedTotalAssetsAndShares += depositAmount;
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), expectedTotalAssetsAndShares);
+        assertEq(vault.totalAssets(), expectedTotalAssetsAndShares);
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        bytes memory revertData = abi.encodeWithSelector(
+            HooksLib.HookCallFailed.selector,
+            abi.encodeWithSelector(
+                ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
+                100000000000000000000, // totalSupplyBefore
+                200000000000000000000, // totalSupplyAfter
+                150000000000000000 // maxShares
+            )
+        );
+        vm.expectRevert();
+        vault.processAccounting();
     }
 }

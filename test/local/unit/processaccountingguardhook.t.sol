@@ -321,9 +321,15 @@ contract ProcessAccountingGuardHookTest is Test {
         // Bound totalAssetsAfterAccounting to ensure increase scenario
         totalAssetsAfterAccounting = bound(totalAssetsAfterAccounting, totalAssetsBeforeAccounting, 200_000 ether);
 
-        totalSupplyAfterAccounting = bound(totalSupplyAfterAccounting, totalAssetsBeforeAccounting, 200_000 ether);
-
         uint256 totalSupplyBeforeAccounting = totalAssetsBeforeAccounting;
+        // cap the supply increase to 2x the before supply, so that the excess fee error does not trigger.
+        totalSupplyAfterAccounting =
+            bound(totalSupplyAfterAccounting, totalSupplyBeforeAccounting, totalAssetsAfterAccounting);
+
+        vm.startPrank(processAccountingGuardHook.owner());
+        // set fee to 100% max
+        processAccountingGuardHook.setExpectedPerformanceFee(1 ether);
+        vm.stopPrank();
 
         uint256 increase = totalAssetsAfterAccounting - totalAssetsBeforeAccounting;
         uint256 increaseRatio =
@@ -349,16 +355,21 @@ contract ProcessAccountingGuardHookTest is Test {
                     processAccountingGuardHook.maxTotalAssetsIncreaseRatio()
                 )
             );
-        } else if (increaseRatio > processAccountingGuardHook.maxTotalSupplyIncreaseRatio()) {
+        } else if (totalSupplyIncreaseRatio >= processAccountingGuardHook.maxTotalSupplyIncreaseRatio()) {
             // Should revert if increase ratio exceeds maximum
             vm.expectRevert(
                 abi.encodeWithSelector(
                     ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
-                    totalAssetsBeforeAccounting,
-                    totalAssetsAfterAccounting,
-                    processAccountingGuardHook.maxTotalSupplyIncreaseRatio()
+                    totalSupplyBeforeAccounting,
+                    totalSupplyAfterAccounting
                 )
             );
+        } else if (
+            totalAssetsBeforeAccounting == totalAssetsAfterAccounting
+                && totalSupplyBeforeAccounting < totalSupplyAfterAccounting
+        ) {
+            // Should revert if total assets and supply increase but total supply increase is greater than total assets increase
+            vm.expectRevert(abi.encodeWithSelector(ProcessAccountingGuardHook.TotalSupplyIncreasedForLoss.selector));
         }
 
         processAccountingGuardHook.afterProcessAccounting(

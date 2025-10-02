@@ -176,7 +176,6 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         uint256 totalSupplyAfter = vault.totalSupply();
         assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
         uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
-        console.log("Total supply increase:", supplyIncrease);
     }
 
     function convertToShares(uint256 assets, uint256 totalSupply, uint256 totalAssets, Math.Rounding rounding)
@@ -444,8 +443,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
             abi.encodeWithSelector(
                 ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
                 100000000000000000000, // totalSupplyBefore
-                100019982016185433110, // totalSupplyAfter
-                9992006195423120 // maxShares
+                100019982016185433110 // totalSupplyAfter
             )
         );
         vm.expectRevert(revertData);

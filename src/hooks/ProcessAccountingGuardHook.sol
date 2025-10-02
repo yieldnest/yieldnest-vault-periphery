@@ -28,7 +28,7 @@ contract ProcessAccountingGuardHook is IHooks {
     error OnlyVault();
     error TotalSupplyDecreased();
     error TotalSupplyIncreasedForLoss();
-    error TotalSupplyIncreasedTooMuch(uint256 totalSupplyBefore, uint256 totalSupplyAfter, uint256 maxShares);
+    error TotalSupplyIncreasedTooMuch(uint256 totalSupplyBefore, uint256 totalSupplyAfter);
     error AlwaysComputeTotalAssetsIsEnabled();
 
     event MaxTotalAssetsDecreaseRatioSet(uint256 oldRatio, uint256 newRatio);
@@ -165,6 +165,7 @@ contract ProcessAccountingGuardHook is IHooks {
             // Check for excessive increase
             uint256 increase = params.totalAssetsAfterAccounting - params.totalAssetsBeforeAccounting;
             uint256 increaseRatio = (increase * RATIO_DENOMINATOR) / params.totalAssetsBeforeAccounting;
+
             if (increaseRatio > maxTotalAssetsIncreaseRatio) {
                 revert TotalAssetsIncreasedTooMuch(
                     params.totalAssetsBeforeAccounting, params.totalAssetsAfterAccounting, maxTotalAssetsIncreaseRatio
@@ -200,9 +201,7 @@ contract ProcessAccountingGuardHook is IHooks {
         uint256 totalSupplyIncreaseRatio = (totalSupplyIncrease * RATIO_DENOMINATOR) / totalSupplyBeforeAccounting;
 
         if (totalSupplyIncreaseRatio > _maxTotalSupplyIncreaseRatio) {
-            // Calculate maxShares based on the allowed ratio
-            uint256 maxShares = totalSupplyBeforeAccounting * _maxTotalSupplyIncreaseRatio / RATIO_DENOMINATOR;
-            revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares);
+            revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting);
         }
     }
 
@@ -232,7 +231,7 @@ contract ProcessAccountingGuardHook is IHooks {
             );
 
             if (totalSupplyIncrease > maxShares) {
-                revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting, maxShares);
+                revert TotalSupplyIncreasedTooMuch(totalSupplyBeforeAccounting, totalSupplyAfterAccounting);
             }
         }
     }

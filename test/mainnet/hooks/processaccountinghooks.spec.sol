@@ -75,10 +75,15 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         uint256 totalSupplyBefore = vault.totalSupply();
         uint256 totalAssetsBefore = vault.totalAssets();
 
+        // Assert that convertToAssets increased after processAccounting
+        uint256 assetsPerShareBefore = vault.convertToAssets(1 ether);
+
         // Process accounting should succeed (within allowed ratio bounds)
         vm.startPrank(PROCESSOR);
         vault.processAccounting();
         vm.stopPrank();
+
+        assertGt(vault.convertToAssets(1 ether), assetsPerShareBefore, "convertToAssets should increase after processAccounting");
 
         uint256 totalSupplyAfter = vault.totalSupply();
         uint256 totalAssetsAfter = vault.totalAssets();

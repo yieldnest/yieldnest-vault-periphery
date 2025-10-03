@@ -28,6 +28,11 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
     event HookAdded(IHooks hook);
     event HookRemoved(IHooks hook);
 
+    /**
+     * @notice The data of a hook
+     * @dev The index of the hook in the hooks array;
+     * @dev The active boolean is used to check if the hook is registered, when calling the onlyHook modifier
+     */
     struct HookData {
         uint8 index;
         bool active;
@@ -46,12 +51,17 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         uint16 afterProcessAccounting;
     }
 
+    /**
+     * @notice The vault that the MetaHooks contract is attached to
+     */
     IVault public immutable override VAULT;
+
     /**
      * @notice The array of hooks that are active for this MetaHooks contract
      * @dev The array is used to call the hooks in the correct order
      */
     IHooks[] public hooks;
+
     /**
      * @notice The mapping of the hooks that are active for each operation
      * @dev The mapping is used to store the index and active status of the hooks
@@ -59,6 +69,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
      * @dev The active status is used to check if the hook is active for the operation
      */
     mapping(IHooks => HookData) public hookData;
+
     /**
      * @notice The bitmap of the hooks that are active for each operation
      * @dev The bitmap is a uint16 where each bit represents a hook
@@ -81,6 +92,12 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         _;
     }
 
+    /**
+     * @notice Constructor for the MetaHooks contract
+     * @param vault_ The address of the vault to be managed by the MetaHooks contract
+     * @param defaultAdmin The address of the default admin
+     * @param hookManager The address of the hook manager
+     */
     constructor(address vault_, address defaultAdmin, address hookManager) {
         if (vault_ == address(0)) revert ZeroVaultAddress();
         VAULT = IVault(vault_);
@@ -88,6 +105,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         _grantRole(HOOK_MANAGER_ROLE, hookManager);
     }
 
+    /// @inheritdoc IHooks
     function name() external pure override returns (string memory) {
         return "MetaHooks";
     }
@@ -110,14 +128,17 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
                 if (hooks_[i] == hooks_[j]) revert DuplicateInInput(hooks_[i]);
             }
         }
+
         // Clear existing hook data mappings
         for (uint256 i = 0; i < hooks.length; i++) {
             delete hookData[hooks[i]];
             emit HookRemoved(hooks[i]);
         }
+
         // Clear the hooks array before setting new hooks
         delete hooks;
 
+        // add the hooks to the hookData array
         for (uint256 i = 0; i < hooks_.length; i++) {
             hooks.push(hooks_[i]);
             hookData[hooks_[i]] = HookData({index: uint8(i), active: true});
@@ -144,17 +165,28 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
 
         for (uint256 i = 0; i < _hooks.length; i++) {
             IHooks.Config memory config = _hooks[i].getConfig();
+
+            // encode the config of hook at index i into the bitmap of each Hook Type flag
             if (config.beforeDeposit) newConfigBitmap.beforeDeposit = setHook(i, newConfigBitmap.beforeDeposit);
+
             if (config.afterDeposit) newConfigBitmap.afterDeposit = setHook(i, newConfigBitmap.afterDeposit);
+
             if (config.beforeMint) newConfigBitmap.beforeMint = setHook(i, newConfigBitmap.beforeMint);
+
             if (config.afterMint) newConfigBitmap.afterMint = setHook(i, newConfigBitmap.afterMint);
+
             if (config.beforeRedeem) newConfigBitmap.beforeRedeem = setHook(i, newConfigBitmap.beforeRedeem);
+
             if (config.afterRedeem) newConfigBitmap.afterRedeem = setHook(i, newConfigBitmap.afterRedeem);
+
             if (config.beforeWithdraw) newConfigBitmap.beforeWithdraw = setHook(i, newConfigBitmap.beforeWithdraw);
+
             if (config.afterWithdraw) newConfigBitmap.afterWithdraw = setHook(i, newConfigBitmap.afterWithdraw);
+
             if (config.beforeProcessAccounting) {
                 newConfigBitmap.beforeProcessAccounting = setHook(i, newConfigBitmap.beforeProcessAccounting);
             }
+
             if (config.afterProcessAccounting) {
                 newConfigBitmap.afterProcessAccounting = setHook(i, newConfigBitmap.afterProcessAccounting);
             }
@@ -214,10 +246,18 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         return bitmap | uint16(1 << index);
     }
 
+    /**
+     * @notice Returns the hooks array
+     * @return The hooks array
+     */
     function getHooks() public view returns (IHooks[] memory) {
         return hooks;
     }
 
+    /**
+     * @notice Returns the length of the hooks array
+     * @return The length of the hooks array
+     */
     function hooksLength() public view returns (uint256) {
         return hooks.length;
     }

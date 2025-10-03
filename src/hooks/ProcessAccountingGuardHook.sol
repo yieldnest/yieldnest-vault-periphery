@@ -151,6 +151,12 @@ contract ProcessAccountingGuardHook is IHooks {
         checkTotalSupplyChange(params);
     }
 
+    /**
+     * @notice Check if the total assets changed too much to the downside or upside
+     * @dev This check protects against anomalous rate changes for the vault.
+     * @dev Prevents processAccounting from running if totalAssets change falls outside bounds.
+     * @param params The parameters for the afterProcessAccounting function
+     */
     function checkTotalAssetsChange(AfterProcessAccountingParams memory params) public view {
         if (params.totalAssetsAfterAccounting < params.totalAssetsBeforeAccounting) {
             // Check for excessive decrease
@@ -174,6 +180,12 @@ contract ProcessAccountingGuardHook is IHooks {
         }
     }
 
+    /**
+     * @notice Check if the total supply changed too much to the upside (decrease not permitted.)
+     * @dev This check protects against anomalous supply changes for the vault.
+     * @dev Prevents processAccounting from running if totalSupply change falls outside bounds.
+     * @param params The parameters for the afterProcessAccounting function
+     */
     function checkTotalSupplyChange(AfterProcessAccountingParams memory params) public view {
         uint256 totalSupplyAfterAccounting = VAULT.totalSupply();
 
@@ -192,6 +204,13 @@ contract ProcessAccountingGuardHook is IHooks {
         );
     }
 
+    /**
+     * @notice Check if the total supply increased too much with respect to a max ratio change
+     * @dev This check protects against anomalous supply changes for the vault.
+     * @dev Prevents processAccounting from running if totalSupply increase falls outside bounds.
+     * @param totalSupplyBeforeAccounting The total supply before accounting
+     * @param totalSupplyAfterAccounting The total supply after accounting
+     */
     function checkTotalSupplyIncreaseRatio(uint256 totalSupplyBeforeAccounting, uint256 totalSupplyAfterAccounting)
         public
         view
@@ -205,6 +224,13 @@ contract ProcessAccountingGuardHook is IHooks {
         }
     }
 
+    /**
+     * @notice Check if the total supply increased too much with respect to the expected performance fee
+     * @dev This check protects against anomalous supply changes for the vault.
+     * @dev Prevents processAccounting from running if totalSupply increases more than what the fee predicts.
+     * @param totalSupplyBeforeAccounting The total supply before accounting
+     * @param totalSupplyAfterAccounting The total supply after accounting
+     */
     function checkTotalSupplyIncreaseGivenPerformanceFee(
         uint256 totalSupplyBeforeAccounting,
         uint256 totalSupplyAfterAccounting,

@@ -78,6 +78,9 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         // Assert that convertToAssets increased after processAccounting
         uint256 assetsPerShareBefore = vault.convertToAssets(1 ether);
 
+
+        uint256 feeReceiverBalanceBefore = vault.balanceOf(feeReceiver);
+
         // Process accounting should succeed (within allowed ratio bounds)
         vm.startPrank(PROCESSOR);
         vault.processAccounting();
@@ -97,6 +100,8 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
 
         // Allow for rounding error of 1 wei
         assertApproxEqAbs(supplyIncrease, expectedSupplyIncrease, 1, "Supply increase should match assets increase minus fee");  
+
+        assertEq(vault.balanceOf(feeReceiver) - feeReceiverBalanceBefore, supplyIncrease, "Fee receiver balance should equal supply increase");
     }
 
     function test_deposit_donate_and_processAccounting_revert(uint256 depositAmount, uint256 donationAmount) public {

@@ -91,8 +91,78 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         uint256 expectedSupplyIncrease = vault.convertToShares(assetsIncrease  * feeHooks.performanceFee() / 1 ether);
 
         // Allow for rounding error of 1 wei
-        assertApproxEqAbs(supplyIncrease, expectedSupplyIncrease, 1, "Supply increase should match assets increase minus fee");
+        assertApproxEqAbs(supplyIncrease, expectedSupplyIncrease, 1, "Supply increase should match assets increase minus fee");  
+    }
 
-        
+    function test_deposit_donate_and_processAccounting_revert(uint256 depositAmount, uint256 donationAmount) public {
+        // Bound inputs
+        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
+        donationAmount = bound(donationAmount, 1, depositAmount * 10); // Cap donation to 10x the deposit amount
+
+        // Deposit as whitelisted user
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        uint256 shares =vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), shares, "Depositor balance should match deposit shares");
+        uint256 totalAssetsBefore = vault.totalAssets();
+
+        // Donate a large amount to trigger the increase ratio guard
+        // This will cause totalAssets to increase significantly without corresponding shares
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        uint256 totalAssetsAfter = totalAssetsBefore + donationAmount;
+        uint256 maxIncreaseRatio = processAccountingGuardHook.maxTotalAssetsIncreaseRatio();
+
+        // Process accounting should revert due to exceeding maxIncreaseRatio
+        // The donation increased assets significantly which should be above the maxIncreaseRatio limit
+        vm.startPrank(PROCESSOR);
+        // Calculate the actual increase ratio
+        uint256 actualIncreaseRatio = ((totalAssetsAfter - totalAssetsBefore) * 1e18) / totalAssetsBefore;
+
+        // Only expect revert if the increase ratio exceeds the maximum allowed
+        if (actualIncreaseRatio > maxIncreaseRatio) {
+            bytes memory revertData = abi.encodeWithSelector(
+                ProcessAccountingGuardHook.TotalAssetsIncreasedTooMuch.selector,
+                totalAssetsBefore,
+                totalAssetsAfter,
+                maxIncreaseRatio
+            );
+            vm.expectRevert(abi.encodeWithSelector(HooksLib.HookCallFailed.selector, revertData));
+        }
+        vault.processAccounting();
+        vm.stopPrank();
+    }
+
+    function test_deposit_donate_and_processAccounting_when_fee_doubles_reverts() public {
+        // Bound inputs
+        uint256 depositAmount = 100 ether;
+        uint256 donationAmount = 0.001 ether; // low amount
+
+        // Deposit as whitelisted user
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        // Donate a large amount to trigger the increase ratio guard
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        // Double the performance fee in feeHooks
+        vm.startPrank(owner);
+        uint256 oldFee = feeHooks.performanceFee();
+        uint256 newFee = oldFee  + oldFee / 10;
+        feeHooks.setPerformanceFee(newFee);
+        vm.stopPrank();
+
+        vm.startPrank(PROCESSOR);
+        vm.expectRevert();
+        vault.processAccounting();
+        vm.stopPrank();
     }
 }

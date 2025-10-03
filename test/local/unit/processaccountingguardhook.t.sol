@@ -286,7 +286,7 @@ contract ProcessAccountingGuardHookTest is Test {
         vm.stopPrank();
     }
 
-    function test_alwaysComputeTotalAssets_affects_totalBaseAssets() public {
+    function test_alwaysComputeTotalAssets_true_reverts() public {
         // Set a fake totalAssets in the vaultMock contract storage
         uint256 fakeTotalAssets = 12345 ether;
         VaultMock(vaultMock).setTotalAssets(fakeTotalAssets);

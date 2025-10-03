@@ -54,4 +54,45 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
             prevFeeReceiverBalance = currentFeeReceiverBalance;
         }
     }
+
+    function test_deposit_and_processAccounting_with_fees_success() public {
+        uint256 depositAmount = 100 ether;
+        // Deposit as whitelisted user
+        deal(vault.asset(), depositor, depositAmount);
+        vm.startPrank(depositor);
+        IERC20(vault.asset()).approve(address(vault), depositAmount);
+        uint256 shares = vault.deposit(depositAmount, depositor);
+        vm.stopPrank();
+
+        // Verify deposit was successful
+        assertEq(vault.balanceOf(depositor), shares);
+
+        // Donate to vault to trigger fee calculation
+        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        deal(vault.asset(), address(this), donationAmount);
+        IERC20(vault.asset()).transfer(address(vault), donationAmount);
+
+        uint256 totalSupplyBefore = vault.totalSupply();
+        uint256 totalAssetsBefore = vault.totalAssets();
+
+        // Process accounting should succeed (within allowed ratio bounds)
+        vm.startPrank(PROCESSOR);
+        vault.processAccounting();
+        vm.stopPrank();
+
+        uint256 totalSupplyAfter = vault.totalSupply();
+        uint256 totalAssetsAfter = vault.totalAssets();
+
+        assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
+        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
+        uint256 assetsIncrease = totalAssetsAfter - totalAssetsBefore;
+
+        // Calculate expected supply increase after performance fee (0.1%)
+        uint256 expectedSupplyIncrease = vault.convertToShares(assetsIncrease  * feeHooks.performanceFee() / 1 ether);
+
+        // Allow for rounding error of 1 wei
+        assertApproxEqAbs(supplyIncrease, expectedSupplyIncrease, 1, "Supply increase should match assets increase minus fee");
+
+        
+    }
 }

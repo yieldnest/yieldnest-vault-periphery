@@ -151,7 +151,7 @@ contract ProcessAccountingGuardHook is IHooks {
         checkTotalSupplyChange(params);
     }
 
-    function checkTotalAssetsChange(AfterProcessAccountingParams memory params) internal view {
+    function checkTotalAssetsChange(AfterProcessAccountingParams memory params) public view {
         if (params.totalAssetsAfterAccounting < params.totalAssetsBeforeAccounting) {
             // Check for excessive decrease
             uint256 decrease = params.totalAssetsBeforeAccounting - params.totalAssetsAfterAccounting;

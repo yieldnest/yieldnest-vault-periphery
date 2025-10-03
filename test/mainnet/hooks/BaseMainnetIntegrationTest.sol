@@ -76,6 +76,8 @@ contract BaseMainnetIntegrationTest is Test, Actors {
             performanceFee
         );
 
+        vault.processAccounting();
+
         // Set up hooks array for MetaHooks
         IHooks[] memory hooks = new IHooks[](3);
         hooks[0] = IHooks(address(permissionedVaultHook));

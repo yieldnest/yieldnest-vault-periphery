@@ -29,6 +29,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
     function test_deposit_and_processAccounting_multiple_times_success() public {
         uint256 depositAmount = 100 ether;
         uint256 expectedTotalShares = 0;
+        uint256 prevFeeReceiverBalance = vault.balanceOf(feeReceiver);
         for (uint256 i = 0; i < 5; i++) {
             // Deposit as whitelisted user
             deal(vault.asset(), depositor, depositAmount);
@@ -46,6 +47,11 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
             vm.startPrank(PROCESSOR);
             vault.processAccounting();
             vm.stopPrank();
+
+            // Assert performance fee recipient balance does not increase
+            uint256 currentFeeReceiverBalance = vault.balanceOf(feeReceiver);
+            assertEq(currentFeeReceiverBalance, prevFeeReceiverBalance, "Fee receiver balance should not increase");
+            prevFeeReceiverBalance = currentFeeReceiverBalance;
         }
     }
 }

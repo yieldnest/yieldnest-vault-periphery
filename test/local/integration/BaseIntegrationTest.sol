@@ -13,7 +13,7 @@ import {MetaHooks} from "src/hooks/MetaHooks.sol";
 import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
-import {FeeHooks} from "lib/yieldnest-vault/src/module/FeeHooks.sol";
+import {FeeHooks} from "lib/yieldnest-vault/src/hooks/FeeHooks.sol";
 
 contract BaseIntegrationTest is Test, Actors {
     Vault public vault;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {FeeHooks} from "lib/yieldnest-vault/src/module/FeeHooks.sol";
+import {FeeHooks} from "lib/yieldnest-vault/src/hooks/FeeHooks.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 contract ShareInflationFeeHooks is FeeHooks {

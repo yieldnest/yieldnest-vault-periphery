@@ -197,7 +197,7 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         configBitmap = newConfigBitmap;
     }
 
-    // CONFIG ///
+    /// CONFIG ///
 
     /// @inheritdoc IHooks
     function setConfig(Config memory) public pure override {
@@ -394,84 +394,104 @@ contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
         }
     }
 
-    // VAULT FUNCTIONS
+    /// VAULT FUNCTIONS ///
 
-    /// @notice Allows authorized hooks to mint shares directly to a specified address
-    /// @dev This function acts as a proxy to the vault's mintShares function, restricted to registered hooks
-    /// @param to The address that will receive the newly minted shares
-    /// @param shares The number of shares to mint
+    /**
+     * @notice Allows authorized hooks to mint shares directly to a specified address
+     * @dev This function acts as a proxy to the vault's mintShares function, restricted to registered hooks
+     * @param to The address that will receive the newly minted shares
+     * @param shares The number of shares to mint
+     */
     function mintShares(address to, uint256 shares) external override onlyHook {
         VAULT.mintShares(to, shares);
         emit SharesMinted(to, shares, msg.sender);
     }
-    /// @notice Converts a given amount of assets to the equivalent amount of shares
-    /// @dev This function acts as a proxy to the vault's convertToShares function
-    /// @param assets The amount of assets to convert
-    /// @return The equivalent amount of shares
 
+    /**
+     * @notice Converts a given amount of assets to the equivalent amount of shares
+     * @dev This function acts as a proxy to the vault's convertToShares function
+     * @param assets The amount of assets to convert
+     * @return The equivalent amount of shares
+     */
     function convertToShares(uint256 assets) external view override returns (uint256) {
         return VAULT.convertToShares(assets);
     }
 
-    /// @notice Returns the address of the underlying asset
-    /// @dev This function acts as a proxy to the vault's asset function
-    /// @return The address of the underlying asset
+    /**
+     * @notice Returns the address of the underlying asset
+     * @dev This function acts as a proxy to the vault's asset function
+     * @return The address of the underlying asset
+     */
     function asset() external view override returns (address) {
         return VAULT.asset();
     }
 
-    /// @notice Calculates the fee on raw assets
-    /// @dev This function acts as a proxy to the vault's _feeOnRaw function
-    /// @param amount The amount of assets to calculate the fee for
-    /// @param caller The address of the caller
-    /// @return The calculated fee amount
+    /**
+     * @notice Calculates the fee on raw assets
+     * @dev This function acts as a proxy to the vault's _feeOnRaw function
+     * @param amount The amount of assets to calculate the fee for
+     * @param caller The address of the caller
+     * @return The calculated fee amount
+     */
     function _feeOnRaw(uint256 amount, address caller) external view override returns (uint256) {
         return VAULT._feeOnRaw(amount, caller);
     }
 
-    /// @notice Calculates the fee on total shares
-    /// @dev This function acts as a proxy to the vault's _feeOnTotal function
-    /// @param amount The amount of shares to calculate the fee for
-    /// @param caller The address of the caller
-    /// @return The calculated fee amount
+    /**
+     * @notice Calculates the fee on total shares
+     * @dev This function acts as a proxy to the vault's _feeOnTotal function
+     * @param amount The amount of shares to calculate the fee for
+     * @param caller The address of the caller
+     * @return The calculated fee amount
+     */
     function _feeOnTotal(uint256 amount, address caller) external view override returns (uint256) {
         return VAULT._feeOnTotal(amount, caller);
     }
 
-    /// @notice Previews the amount of shares that would be received for depositing a specific asset
-    /// @dev This function acts as a proxy to the vault's previewDepositAsset function
-    /// @param assetAddress The address of the asset to deposit
-    /// @param assets The amount of assets to deposit
-    /// @return The amount of shares that would be received
+    /**
+     * @notice Previews the amount of shares that would be received for depositing a specific asset
+     * @dev This function acts as a proxy to the vault's previewDepositAsset function
+     * @param assetAddress The address of the asset to deposit
+     * @param assets The amount of assets to deposit
+     * @return The amount of shares that would be received
+     */
     function previewDepositAsset(address assetAddress, uint256 assets) external view override returns (uint256) {
         return VAULT.previewDepositAsset(assetAddress, assets);
     }
 
-    /// @notice Converts a given amount of shares to the equivalent amount of assets
-    /// @dev This function acts as a proxy to the vault's convertToAssets function
-    /// @param shares The amount of shares to convert
-    /// @return The equivalent amount of assets
+    /**
+     * @notice Converts a given amount of shares to the equivalent amount of assets
+     * @dev This function acts as a proxy to the vault's convertToAssets function
+     * @param shares The amount of shares to convert
+     * @return The equivalent amount of assets
+     */
     function convertToAssets(uint256 shares) external view override returns (uint256) {
         return VAULT.convertToAssets(shares);
     }
 
-    /// @notice Returns the total supply of shares
-    /// @dev This function acts as a proxy to the vault's totalSupply function
-    /// @return The total supply of shares
+    /**
+     * @notice Returns the total supply of shares
+     * @dev This function acts as a proxy to the vault's totalSupply function
+     * @return The total supply of shares
+     */
     function totalSupply() external view override returns (uint256) {
         return VAULT.totalSupply();
     }
 
-    /// @notice Returns the total amount of assets held by the vault
-    /// @dev This function acts as a proxy to the vault's totalAssets function
-    /// @return The total amount of assets
+    /**
+     * @notice Returns the total amount of assets held by the vault
+     * @dev This function acts as a proxy to the vault's totalAssets function
+     * @return The total amount of assets
+     */
     function totalAssets() external view override returns (uint256) {
         return VAULT.totalAssets();
     }
 
-    /// @notice Returns whether the vault always computes total assets
-    /// @dev This function acts as a proxy to the vault's alwaysComputeTotalAssets function
-    /// @return True if the vault always computes total assets, false otherwise
+    /**
+     * @notice Returns whether the vault always computes total assets
+     * @dev This function acts as a proxy to the vault's alwaysComputeTotalAssets function
+     * @return True if the vault always computes total assets, false otherwise
+     */
     function alwaysComputeTotalAssets() external view override returns (bool) {
         return VAULT.alwaysComputeTotalAssets();
     }

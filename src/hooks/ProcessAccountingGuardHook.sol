@@ -40,9 +40,14 @@ contract ProcessAccountingGuardHook is IHooks {
     uint256 public constant FEE_DENOMINATOR = 1e18;
 
     IVault public immutable VAULT;
+
+    /// @notice The owner controls configuration settings
     address public immutable owner;
+    /// @notice The maximum total assets decrease ratio during processAccounting()
     uint256 public maxTotalAssetsDecreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
+    /// @notice The maximum total assets increase ratio during processAccounting()
     uint256 public maxTotalAssetsIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
+    /// @notice The maximum total supply increase ratio during processAccounting()
     uint256 public maxTotalSupplyIncreaseRatio; // as a ratio with RATIO_DENOMINATOR (1e18 = 100%)
 
     uint256 public expectedPerformanceFee;
@@ -57,6 +62,15 @@ contract ProcessAccountingGuardHook is IHooks {
         _;
     }
 
+    /**
+     * @notice Constructor
+     * @param _vault The address of the vault
+     * @param _owner The address of the owner
+     * @param _maxTotalAssetsDecreaseRatio The maximum total assets decrease ratio
+     * @param _maxTotalAssetsIncreaseRatio The maximum total assets increase ratio
+     * @param _maxTotalSupplyIncreaseRatio The maximum total supply increase ratio
+     * @param _expectedPerformanceFee The expected performance fee
+     */
     constructor(
         address _vault,
         address _owner,
@@ -74,6 +88,7 @@ contract ProcessAccountingGuardHook is IHooks {
         expectedPerformanceFee = _expectedPerformanceFee;
     }
 
+    /// @inheritdoc IHooks
     function name() external pure returns (string memory) {
         return "ProcessAccountingGuardHook";
     }
@@ -133,6 +148,7 @@ contract ProcessAccountingGuardHook is IHooks {
         });
     }
 
+    /// @inheritdoc IHooks
     function setConfig(Config memory) external pure override {
         revert NotSupported();
     }
@@ -262,6 +278,15 @@ contract ProcessAccountingGuardHook is IHooks {
         }
     }
 
+    /**
+     * @notice Internal function to convert assets to shares
+     * @dev This function replicates BaseVault functionality for internal use
+     * @param assets The assets to convert
+     * @param totalSupply The total supply
+     * @param totalAssets The total assets
+     * @param rounding The rounding mode
+     * @return The shares
+     */
     function convertToShares(uint256 assets, uint256 totalSupply, uint256 totalAssets, Math.Rounding rounding)
         internal
         pure
@@ -272,38 +297,47 @@ contract ProcessAccountingGuardHook is IHooks {
 
     /// UNUSED HOOKS ///
 
+    /// @inheritdoc IHooks
     function beforeDeposit(DepositParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function afterDeposit(DepositParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function beforeMint(MintParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function afterMint(MintParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function beforeRedeem(RedeemParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function afterRedeem(RedeemParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function beforeWithdraw(WithdrawParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function afterWithdraw(WithdrawParams memory) external pure override {
         // Not implemented
     }
 
+    /// @inheritdoc IHooks
     function beforeProcessAccounting(BeforeProcessAccountingParams memory) external pure override {
         // Not implemented
     }

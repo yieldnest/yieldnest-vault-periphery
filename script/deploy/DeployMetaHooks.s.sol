@@ -60,9 +60,9 @@ contract DeployMetaHooks is Script {
         processAccountingGuardHook = new ProcessAccountingGuardHook(
             address(metaHooks),
             deployer, // owner is deployer
-            maxDecreaseRatio, // maxDecreaseRatio (0.05%)
-            maxIncreaseRatio, // maxIncreaseRatio (0.2%)
-            maxTotalSupplyIncreaseRatio, // maxTotalSupplyIncreaseRatio (0.05%)
+            maxDecreaseRatio,
+            maxIncreaseRatio,
+            maxTotalSupplyIncreaseRatio,
             performanceFee
         );
 
@@ -75,7 +75,7 @@ contract DeployMetaHooks is Script {
         metaHooks.setHooks(hooks);
 
         // Give ADMIN the roles and renounce from deployer
-        bytes32 DEFAULT_ADMIN_ROLE = 0x00;
+        bytes32 DEFAULT_ADMIN_ROLE = metaHooks.DEFAULT_ADMIN_ROLE();
         bytes32 HOOK_MANAGER_ROLE = metaHooks.HOOK_MANAGER_ROLE();
 
         // Grant roles to ADMIN

@@ -7,27 +7,37 @@ import {FeeHooks, IHooks} from "lib/yieldnest-vault/src/hooks/FeeHooks.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {MainnetActors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
+import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract DeployVault is Script {
+contract DeployMetaHooks is Script {
     uint256 public performanceFee = 0.001 ether;
-    // Univeral fee receiver for all vaults
     address public performanceFeeRecipient = 0xC92Dd1837EBcb0365eB0a8795f9c8E474f8B6183;
 
     uint256 public maxDecreaseRatio = 0.0005 ether; // 0.05%
     uint256 public maxIncreaseRatio = 0.002 ether; // 0.2%
     uint256 public maxTotalSupplyIncreaseRatio = 0.0005 ether; // 0.05%
 
+    address public deployer;
+
+    address public vault;
+    MetaHooks public metaHooks;
+    FeeHooks public feeHooks;
+    ProcessAccountingGuardHook public processAccountingGuardHook;
+    MainnetActors public L1Actors;
+
     function run() public virtual {
-        MainnetActors L1Actors = new MainnetActors();
+        L1Actors = new MainnetActors();
+
+        deployer = msg.sender;
 
         vm.startBroadcast();
 
-        address vault = MC.YNETHX;
+        vault = MC.YNETHX;
 
         // address vault_, address defaultAdmin, address hookManager)
-        MetaHooks metaHooks = new MetaHooks(address(vault), L1Actors.ADMIN(), L1Actors.HOOKS_MANAGER());
+        metaHooks = new MetaHooks(address(vault), L1Actors.ADMIN(), L1Actors.HOOKS_MANAGER());
 
-        FeeHooks feeHooks = new FeeHooks(
+        feeHooks = new FeeHooks(
             address(metaHooks),
             L1Actors.ADMIN(), // owner
             performanceFee, // performanceFee (0.1%)
@@ -46,7 +56,7 @@ contract DeployVault is Script {
             })
         );
 
-        ProcessAccountingGuardHook processAccountingGuardHook = new ProcessAccountingGuardHook(
+        processAccountingGuardHook = new ProcessAccountingGuardHook(
             address(metaHooks),
             L1Actors.ADMIN(),
             maxDecreaseRatio, // maxDecreaseRatio (0.05%)
@@ -58,7 +68,28 @@ contract DeployVault is Script {
         vm.stopBroadcast();
 
         // Store vault implementation in JSON file
-        string memory json = string.concat("{\"Vault\": \"", vm.toString(vault), "\"}");
-        vm.writeFile(string.concat("deployments/vault-", vm.toString(block.chainid), ".json"), json);
+        saveDeployment();
+    }
+
+    function label() public view returns (string memory) {
+        return string.concat("metaHooks-ynETHx-", Strings.toString(block.chainid));
+    }
+
+    function deploymentFilePath() internal view returns (string memory) {
+        return string.concat(vm.projectRoot(), "/deployments/", label(), ".json");
+    }
+
+    function saveDeployment() internal {
+        vm.serializeAddress(label(), "metaHooks", address(metaHooks));
+        vm.serializeAddress(label(), "feeHooks", address(feeHooks));
+        vm.serializeAddress(label(), "processAccountingGuardHook", address(processAccountingGuardHook));
+        vm.serializeAddress(label(), "vault", address(vault));
+        vm.serializeAddress(label(), "admin", L1Actors.ADMIN());
+        vm.serializeAddress(label(), "hooksManager", L1Actors.HOOKS_MANAGER());
+        vm.serializeAddress(label(), "performanceFeeRecipient", performanceFeeRecipient);
+
+        string memory jsonOutput = vm.serializeAddress(label(), "deployer", deployer);
+
+        vm.writeJson(jsonOutput, deploymentFilePath());
     }
 }

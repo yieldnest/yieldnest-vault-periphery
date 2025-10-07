@@ -15,7 +15,7 @@ contract DeployMetaHooks is Script {
 
     uint256 public maxDecreaseRatio = 0.0005 ether; // 0.05%
     uint256 public maxIncreaseRatio = 0.002 ether; // 0.2%
-    uint256 public maxTotalSupplyIncreaseRatio = 0.0005 ether; // 0.05%
+    uint256 public maxTotalSupplyIncreaseRatio = 0.0005 ether; // 0.05%, 25% of maxIncreaseRatio
 
     address public deployer;
 
@@ -34,12 +34,13 @@ contract DeployMetaHooks is Script {
 
         vault = MC.YNETHX;
 
-        // address vault_, address defaultAdmin, address hookManager)
-        metaHooks = new MetaHooks(address(vault), L1Actors.ADMIN(), L1Actors.HOOKS_MANAGER());
+        // Deploy MetaHooks with deployer as the initial owner (defaultAdmin and hookManager)
+        metaHooks = new MetaHooks(address(vault), deployer, deployer);
 
+        // Deploy hooks with ADMIN as the owner (feeHooks does not need deployer as owner)
         feeHooks = new FeeHooks(
             address(metaHooks),
-            L1Actors.ADMIN(), // owner
+            L1Actors.ADMIN(), // owner is ADMIN
             performanceFee, // performanceFee (0.1%)
             performanceFeeRecipient,
             IHooks.Config({
@@ -58,12 +59,32 @@ contract DeployMetaHooks is Script {
 
         processAccountingGuardHook = new ProcessAccountingGuardHook(
             address(metaHooks),
-            L1Actors.ADMIN(),
+            deployer, // owner is deployer
             maxDecreaseRatio, // maxDecreaseRatio (0.05%)
             maxIncreaseRatio, // maxIncreaseRatio (0.2%)
             maxTotalSupplyIncreaseRatio, // maxTotalSupplyIncreaseRatio (0.05%)
             performanceFee
         );
+
+        // Set up hooks array for MetaHooks
+        IHooks[] memory hooks = new IHooks[](2);
+        hooks[0] = IHooks(address(feeHooks));
+        hooks[1] = IHooks(address(processAccountingGuardHook));
+
+        // Set hooks as deployer
+        metaHooks.setHooks(hooks);
+
+        // Give ADMIN the roles and renounce from deployer
+        bytes32 DEFAULT_ADMIN_ROLE = 0x00;
+        bytes32 HOOK_MANAGER_ROLE = metaHooks.HOOK_MANAGER_ROLE();
+
+        // Grant roles to ADMIN
+        metaHooks.grantRole(DEFAULT_ADMIN_ROLE, L1Actors.ADMIN());
+        metaHooks.grantRole(HOOK_MANAGER_ROLE, L1Actors.HOOKS_MANAGER());
+
+        // Renounce roles from deployer
+        metaHooks.renounceRole(DEFAULT_ADMIN_ROLE, deployer);
+        metaHooks.renounceRole(HOOK_MANAGER_ROLE, deployer);
 
         vm.stopBroadcast();
 

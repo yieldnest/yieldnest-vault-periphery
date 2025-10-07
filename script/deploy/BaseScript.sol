@@ -8,20 +8,18 @@ import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.s
 import {IActors} from "lib/yieldnest-vault/script/Actors.sol";
 
 abstract contract BaseScript is Script {
-
-
     address public deployer;
 
     address public vault;
     MetaHooks public metaHooks;
     FeeHooks public feeHooks;
     ProcessAccountingGuardHook public processAccountingGuardHook;
-    IActors public L1Actors;
+    IActors public actors;
     address public performanceFeeRecipient;
 
-    function label() public virtual view returns (string memory);
+    function label() public view virtual returns (string memory);
 
-    function deploymentFilePath() internal virtual view returns (string memory) {
+    function deploymentFilePath() internal view virtual returns (string memory) {
         return string.concat(vm.projectRoot(), "/deployments/", label(), ".json");
     }
 
@@ -30,8 +28,8 @@ abstract contract BaseScript is Script {
         vm.serializeAddress(label(), "feeHooks", address(feeHooks));
         vm.serializeAddress(label(), "processAccountingGuardHook", address(processAccountingGuardHook));
         vm.serializeAddress(label(), "vault", address(vault));
-        vm.serializeAddress(label(), "admin", L1Actors.ADMIN());
-        vm.serializeAddress(label(), "hooksManager", L1Actors.HOOKS_MANAGER());
+        vm.serializeAddress(label(), "admin", actors.ADMIN());
+        vm.serializeAddress(label(), "hooksManager", actors.HOOKS_MANAGER());
         vm.serializeAddress(label(), "performanceFeeRecipient", performanceFeeRecipient);
 
         string memory jsonOutput = vm.serializeAddress(label(), "deployer", deployer);
@@ -49,7 +47,8 @@ abstract contract BaseScript is Script {
         vault = address(vm.parseJsonAddress(jsonInput, ".vault"));
         metaHooks = MetaHooks(address(vm.parseJsonAddress(jsonInput, ".metaHooks")));
         feeHooks = FeeHooks(address(vm.parseJsonAddress(jsonInput, ".feeHooks")));
-        processAccountingGuardHook = ProcessAccountingGuardHook(address(vm.parseJsonAddress(jsonInput, ".processAccountingGuardHook")));
+        processAccountingGuardHook =
+            ProcessAccountingGuardHook(address(vm.parseJsonAddress(jsonInput, ".processAccountingGuardHook")));
         performanceFeeRecipient = address(vm.parseJsonAddress(jsonInput, ".performanceFeeRecipient"));
     }
 }

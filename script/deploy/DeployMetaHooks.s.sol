@@ -18,7 +18,7 @@ contract DeployMetaHooks is BaseScript {
     uint256 public maxTotalSupplyIncreaseRatio = 0.0005 ether; // 0.05%, 25% of maxIncreaseRatio
 
     function run() public virtual {
-        L1Actors = new MainnetActors();
+        actors = new MainnetActors();
 
         performanceFeeRecipient = 0xC92Dd1837EBcb0365eB0a8795f9c8E474f8B6183;
 
@@ -34,7 +34,7 @@ contract DeployMetaHooks is BaseScript {
         // Deploy hooks with ADMIN as the owner (feeHooks does not need deployer as owner)
         feeHooks = new FeeHooks(
             address(metaHooks),
-            L1Actors.ADMIN(), // owner is ADMIN
+            actors.ADMIN(), // owner is ADMIN
             performanceFee, // performanceFee (0.1%)
             performanceFeeRecipient,
             IHooks.Config({
@@ -73,8 +73,8 @@ contract DeployMetaHooks is BaseScript {
         bytes32 HOOK_MANAGER_ROLE = metaHooks.HOOK_MANAGER_ROLE();
 
         // Grant roles to ADMIN
-        metaHooks.grantRole(DEFAULT_ADMIN_ROLE, L1Actors.ADMIN());
-        metaHooks.grantRole(HOOK_MANAGER_ROLE, L1Actors.HOOKS_MANAGER());
+        metaHooks.grantRole(DEFAULT_ADMIN_ROLE, actors.ADMIN());
+        metaHooks.grantRole(HOOK_MANAGER_ROLE, actors.HOOKS_MANAGER());
 
         // Renounce roles from deployer
         metaHooks.renounceRole(DEFAULT_ADMIN_ROLE, deployer);

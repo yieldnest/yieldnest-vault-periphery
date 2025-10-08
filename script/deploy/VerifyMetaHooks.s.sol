@@ -63,6 +63,7 @@ contract VerifyMetaHooks is BaseScript, Test {
             true,
             "MetaHooks: ADMIN should have DEFAULT_ADMIN_ROLE"
         );
+
         assertEq(
             metaHooks.hasRole(metaHooks.HOOK_MANAGER_ROLE(), actors.HOOKS_MANAGER()),
             true,
@@ -88,6 +89,13 @@ contract VerifyMetaHooks is BaseScript, Test {
             address(processAccountingGuardHook),
             "MetaHooks: hooks[1] should be processAccountingGuardHook"
         );
+        for (uint256 i = 0; i < hooks.length; i++) {
+            assertEq(
+                address(IHooks(hooks[i]).VAULT()),
+                address(metaHooks),
+                string(abi.encodePacked("Hook[", vm.toString(i), "]: VAULT address mismatch"))
+            );
+        }
 
         // Config to compare against
         IHooks.Config memory expectedConfig = IHooks.Config({

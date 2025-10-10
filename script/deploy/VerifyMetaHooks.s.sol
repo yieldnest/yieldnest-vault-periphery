@@ -29,7 +29,7 @@ contract VerifyMetaHooks is BaseScript, Test {
     }
 
     function label() public view override returns (string memory) {
-        return string.concat("metaHooks-ynETHx-", Strings.toString(block.chainid));
+        return string.concat("metaHooks-ynBNBx-", Strings.toString(block.chainid));
     }
 
     function compareConfigsWithAsserts(IHooks.Config memory a, IHooks.Config memory b) internal pure {
@@ -130,7 +130,7 @@ contract VerifyMetaHooks is BaseScript, Test {
         assertEq(processAccountingGuardHook.owner(), deployer, "ProcessAccountingGuardHook: owner should be deployer");
 
         // Vault check
-        assertEq(address(vault), address(MC.YNETHX), "Vault: address mismatch");
+        assertEq(address(vault), address(MC.YNBNBX), "Vault: address mismatch");
 
         // L1Actors check
     }

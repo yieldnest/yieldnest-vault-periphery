@@ -26,7 +26,7 @@ contract DeployMetaHooks is BaseScript {
 
         vm.startBroadcast();
 
-        vault = MC.YNETHX;
+        vault = MC.YNBNBX;
 
         // Deploy MetaHooks with deployer as the initial owner (defaultAdmin and hookManager)
         metaHooks = new MetaHooks(address(vault), deployer, deployer);
@@ -87,6 +87,6 @@ contract DeployMetaHooks is BaseScript {
     }
 
     function label() public view override returns (string memory) {
-        return string.concat("metaHooks-ynETHx-", Strings.toString(block.chainid));
+        return string.concat("metaHooks-ynBNBx-", Strings.toString(block.chainid));
     }
 }

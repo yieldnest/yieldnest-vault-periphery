@@ -32,8 +32,16 @@ contract BaseMainnetIntegrationTest is Test, Actors {
 
     function setUp() public virtual {
         
-        vault = Vault(payable(MC.YNETHX));
+        vault = Vault(payable(MC.YNBNBX));
         weth = WETH9(payable(MC.WETH));
+
+        // BNBX needs to function in alwaysComputeTotalAssets = false mode
+        if (vault.alwaysComputeTotalAssets()) {
+
+            vm.startPrank(MC.TIMELOCK);
+            vault.setAlwaysComputeTotalAssets(false);
+            vm.stopPrank();
+        }
 
         vm.startPrank(ADMIN);
         vault.grantRole(vault.HOOKS_MANAGER_ROLE(), HOOKS_MANAGER);

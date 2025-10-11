@@ -14,7 +14,7 @@ import {console} from "lib/forge-std/src/console.sol";
 import {Test} from "lib/forge-std/src/Test.sol";
 
 contract VerifyMetaHooks is BaseScript, Test {
-    uint256 public performanceFee = 0.1 ether;
+    uint256 public performanceFee = 0.1 ether; // 10%
 
     uint256 public maxDecreaseRatio = 0.0005 ether; // 0.05%
     uint256 public maxIncreaseRatio = 0.002 ether; // 0.2%
@@ -145,7 +145,9 @@ contract VerifyMetaHooks is BaseScript, Test {
         assertEq(feeHooks.owner(), actors.ADMIN(), "FeeHooks: owner should be ADMIN");
 
         // ProcessAccountingGuardHook owner check
-        assertEq(processAccountingGuardHook.owner(), deployer, "ProcessAccountingGuardHook: owner should be deployer");
+        assertEq(
+            processAccountingGuardHook.owner(), actors.ADMIN(), "ProcessAccountingGuardHook: owner should be ADMIN"
+        );
 
         // Vault check
         assertEq(address(vault), address(MC.YNETHX), "Vault: address mismatch");

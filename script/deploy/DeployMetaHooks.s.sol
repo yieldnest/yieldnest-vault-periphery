@@ -53,7 +53,7 @@ contract DeployMetaHooks is BaseScript {
 
         processAccountingGuardHook = new ProcessAccountingGuardHook(
             address(metaHooks),
-            actors.ADMIN(), // owner is deployer
+            actors.ADMIN(), // owner is ADMIN
             maxDecreaseRatio,
             maxIncreaseRatio,
             maxTotalSupplyIncreaseRatio,

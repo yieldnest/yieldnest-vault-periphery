@@ -14,7 +14,7 @@ import {console} from "lib/forge-std/src/console.sol";
 import {Test} from "lib/forge-std/src/Test.sol";
 
 contract VerifyMetaHooks is BaseScript, Test {
-    uint256 public performanceFee = 0.001 ether;
+    uint256 public performanceFee = 0.1 ether; // 10%
 
     uint256 public maxDecreaseRatio = 0.0005 ether; // 0.05%
     uint256 public maxIncreaseRatio = 0.002 ether; // 0.2%
@@ -48,13 +48,31 @@ contract VerifyMetaHooks is BaseScript, Test {
     function verify() public virtual {
         assertNotEq(msg.sender, deployer, "msg.sender should not be deployer as this is a verifier script.");
 
-        assertEq(processAccountingGuardHook.expectedPerformanceFee(), performanceFee);
-        assertEq(processAccountingGuardHook.maxTotalAssetsDecreaseRatio(), maxDecreaseRatio);
-        assertEq(processAccountingGuardHook.maxTotalAssetsIncreaseRatio(), maxIncreaseRatio);
-        assertEq(processAccountingGuardHook.maxTotalSupplyIncreaseRatio(), maxTotalSupplyIncreaseRatio);
+        assertEq(
+            processAccountingGuardHook.expectedPerformanceFee(),
+            performanceFee,
+            "processAccountingGuardHook: expectedPerformanceFee mismatch"
+        );
+        assertEq(
+            processAccountingGuardHook.maxTotalAssetsDecreaseRatio(),
+            maxDecreaseRatio,
+            "processAccountingGuardHook: maxTotalAssetsDecreaseRatio mismatch"
+        );
+        assertEq(
+            processAccountingGuardHook.maxTotalAssetsIncreaseRatio(),
+            maxIncreaseRatio,
+            "processAccountingGuardHook: maxTotalAssetsIncreaseRatio mismatch"
+        );
+        assertEq(
+            processAccountingGuardHook.maxTotalSupplyIncreaseRatio(),
+            maxTotalSupplyIncreaseRatio,
+            "processAccountingGuardHook: maxTotalSupplyIncreaseRatio mismatch"
+        );
 
-        assertEq(feeHooks.performanceFee(), performanceFee);
-        assertEq(feeHooks.performanceFeeRecipient(), performanceFeeRecipient);
+        assertEq(feeHooks.performanceFee(), performanceFee, "feeHooks: performanceFee mismatch");
+        assertEq(
+            feeHooks.performanceFeeRecipient(), performanceFeeRecipient, "feeHooks: performanceFeeRecipient mismatch"
+        );
 
         // MetaHooks checks
         assertEq(address(metaHooks.VAULT()), address(vault), "MetaHooks: vault address mismatch");
@@ -127,7 +145,9 @@ contract VerifyMetaHooks is BaseScript, Test {
         assertEq(feeHooks.owner(), actors.ADMIN(), "FeeHooks: owner should be ADMIN");
 
         // ProcessAccountingGuardHook owner check
-        assertEq(processAccountingGuardHook.owner(), deployer, "ProcessAccountingGuardHook: owner should be deployer");
+        assertEq(
+            processAccountingGuardHook.owner(), actors.ADMIN(), "ProcessAccountingGuardHook: owner should be ADMIN"
+        );
 
         // Vault check
         assertEq(address(vault), address(MC.YNETHX), "Vault: address mismatch");

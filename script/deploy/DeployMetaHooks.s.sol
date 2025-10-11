@@ -11,7 +11,7 @@ import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {BaseScript} from "script/deploy/BaseScript.sol";
 
 contract DeployMetaHooks is BaseScript {
-    uint256 public performanceFee = 0.001 ether;
+    uint256 public performanceFee = 0.1 ether; // 10%
 
     uint256 public maxDecreaseRatio = 0.0005 ether; // 0.05%
     uint256 public maxIncreaseRatio = 0.002 ether; // 0.2%
@@ -53,7 +53,7 @@ contract DeployMetaHooks is BaseScript {
 
         processAccountingGuardHook = new ProcessAccountingGuardHook(
             address(metaHooks),
-            deployer, // owner is deployer
+            actors.ADMIN(), // owner is ADMIN
             maxDecreaseRatio,
             maxIncreaseRatio,
             maxTotalSupplyIncreaseRatio,

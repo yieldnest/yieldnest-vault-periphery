@@ -11,22 +11,28 @@ import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {BaseScript} from "script/deploy/BaseScript.sol";
 
 contract DeployMetaHooks is BaseScript {
+    // Updated for YNUSDx
+
+    // Set correct performance fee for YNUSDx (assume 10%)
     uint256 public performanceFee = 0.1 ether; // 10%
 
-    uint256 public maxDecreaseRatio = 0.0005 ether; // 0.05%
-    uint256 public maxIncreaseRatio = 0.002 ether; // 0.2%
-    uint256 public maxTotalSupplyIncreaseRatio = 0.0005 ether; // 0.05%, 25% of maxIncreaseRatio
+    // Set appropriate risk ratios for YNUSDx
+    uint256 public maxDecreaseRatio = 0.001 ether; // 0.1%
+    uint256 public maxIncreaseRatio = 0.005 ether; // 0.5%
+    uint256 public maxTotalSupplyIncreaseRatio = 0.001 ether; // 0.1%, 20% of maxIncreaseRatio
 
     function run() public virtual {
         actors = new MainnetActors();
 
+        // Performance fee recipient for YNUSDx (update if needed)
         performanceFeeRecipient = 0xC92Dd1837EBcb0365eB0a8795f9c8E474f8B6183;
 
         deployer = msg.sender;
 
         vm.startBroadcast();
 
-        vault = MC.YNETHX;
+        // Use correct vault for YNUSDx
+        vault = MC.YNUSDx;
 
         // Deploy MetaHooks with deployer as the initial owner (defaultAdmin and hookManager)
         metaHooks = new MetaHooks(address(vault), deployer, deployer);
@@ -87,6 +93,6 @@ contract DeployMetaHooks is BaseScript {
     }
 
     function label() public view override returns (string memory) {
-        return string.concat("metaHooks-ynETHx-", Strings.toString(block.chainid));
+        return string.concat("metaHooks-ynUSDx-", Strings.toString(block.chainid));
     }
 }

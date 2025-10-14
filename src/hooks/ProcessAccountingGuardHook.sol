@@ -252,7 +252,7 @@ contract ProcessAccountingGuardHook is IHooks {
         uint256 totalSupplyAfterAccounting,
         uint256 totalBaseAssetsBeforeAccounting,
         uint256 totalBaseAssetsAfterAccounting,
-        uint256 totalAssetsAfterAccounting
+        uint256 /* totalAssetsAfterAccounting */
     ) public view {
         uint256 totalSupplyIncrease = totalSupplyAfterAccounting - totalSupplyBeforeAccounting;
         if (totalSupplyIncrease > 0) {
@@ -269,7 +269,7 @@ contract ProcessAccountingGuardHook is IHooks {
             // maxShares is a looser bound that ensures the fee asset amount converted to vault shares at rate post mint
             // is less than or equal to the total supply increase
             uint256 maxShares = convertToShares(
-                maxFeeInBaseAssets, totalSupplyAfterAccounting, totalAssetsAfterAccounting, Math.Rounding.Floor
+                maxFeeInBaseAssets, totalSupplyAfterAccounting, totalBaseAssetsAfterAccounting, Math.Rounding.Floor
             );
 
             if (totalSupplyIncrease > maxShares) {

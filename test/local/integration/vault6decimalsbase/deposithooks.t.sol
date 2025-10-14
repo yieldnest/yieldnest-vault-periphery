@@ -53,9 +53,9 @@ contract DepositHooksIntegrationTest_base_6decimals is BaseIntegrationTest_base_
     function test_mint_permissionedVaultHook(uint256 shares) public {
         shares = bound(shares, 1000 wei, 100_000e18);
 
-        deal(vault.asset(), depositor, shares / 1e12 + (shares % 1e12 != 0 ? 1 : 0));
+        deal(vault.asset(), depositor, shares / 1e12);
         vm.startPrank(depositor);
-        IERC20(vault.asset()).approve(address(vault), shares / 1e12 + (shares % 1e12 != 0 ? 1 : 0));
+        IERC20(vault.asset()).approve(address(vault), shares / 1e12);
         vault.mint(shares, depositor);
         vm.stopPrank();
 

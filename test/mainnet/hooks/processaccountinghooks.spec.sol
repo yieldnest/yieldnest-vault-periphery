@@ -148,8 +148,8 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
 
     function test_deposit_donate_and_processAccounting_when_fee_doubles_reverts() public {
         // Bound inputs
-        uint256 depositAmount = 100 ether;
-        uint256 donationAmount = 0.001 ether; // low amount
+        uint256 depositAmount = 1_000_000e6;
+        uint256 donationAmount = depositAmount / 10_000; // low amount
 
         // Deposit as whitelisted user
         deal(vault.asset(), depositor, depositAmount);

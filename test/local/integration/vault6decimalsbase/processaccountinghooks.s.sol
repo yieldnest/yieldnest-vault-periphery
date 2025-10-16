@@ -42,6 +42,12 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         vm.stopPrank();
     }
 
+    function test_assertSlashableAsset() public view {
+        assertEq(slashableAsset.decimals(), 6, "Slashable asset should have 6 decimals");
+        assertEq(slashableAsset.totalAssets(), 0, "Slashable asset should have 0 total assets");
+        assertEq(slashableAsset.totalSupply(), 0, "Slashable asset should have 0 total supply");
+    }
+
     function test_deposit_and_processAccounting_multiple_times_success() public {
         uint256 depositAmount = 1_000_000 * 1e6; // 1,000,000 units of an asset with 6 decimals (large USDC amount)
         uint256 expectedTotalShares = 0;
@@ -393,10 +399,11 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
     }
 
     function test_deposit_slash_and_processAccounting_revert(uint256 depositAmount, uint256 slashAmount) public {
-        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
-        slashAmount = bound(slashAmount, 1, depositAmount / 2); // Cap slash to the deposit amount
+        // Use 6 decimal asset units for deposit
+        depositAmount = bound(depositAmount, 1e6, 10_000_000e6); // 1 USDC to 10,000,000 USDC for 6 decimals
+        slashAmount = bound(slashAmount, 1, depositAmount / 2); // Cap slash to half the deposit amount
 
-        // First deposit asset() to get slashableAsset
+        // First deposit asset (asset token: 6 decimals) to get slashableAsset
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(slashableAsset), depositAmount);
@@ -410,10 +417,14 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         vault.depositAsset(address(slashableAsset), slashableAssetBalance, depositor);
         vm.stopPrank();
 
+        // The deposited asset is a 6 decimals ERC4626, but shares in the vault will use 18 decimals.
+        // For correct assertion, vault shares should equal slashableAssetBalance * 1e12 (6 -> 18 decimals).
+        uint256 expectedShares = slashableAssetBalance * 1e12;
+
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            slashableAssetBalance,
+            expectedShares,
             "deposit_slash_and_processAccounting_revert: Depositor balance mismatch after asset deposit"
         );
         uint256 totalAssetsBefore = vault.totalAssets();

@@ -17,7 +17,7 @@ import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 contract ProcessAccountingGuardHook is IHooks {
     using Math for uint256;
 
-    string public constant STRATEGY_VERSION = "0.1.1";
+    string public constant VERSION = "0.1.1";
 
     error TotalAssetsDecreasedTooMuch(
         uint256 totalAssetsBefore, uint256 totalAssetsAfter, uint256 maxTotalAssetsDecreaseRatio

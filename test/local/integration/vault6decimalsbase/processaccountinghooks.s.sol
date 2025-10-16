@@ -561,7 +561,7 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
             feeHooks.getConfig()
         );
 
-        uint256 fixedMintAmount = 10_000_000e12; // 10,000,000 shares (18 decimals)
+        uint256 fixedMintAmount = 10_000_000 ether; // 10,000,000 shares (18 decimals)
 
         shareInflationFeeHook.setFixedMintAmount(fixedMintAmount);
 
@@ -604,8 +604,7 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
             abi.encodeWithSelector(
                 ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
                 10_000_000e18, // totalSupplyBefore (shares, 18 dec)
-                20_000_000e18, // totalSupplyAfter (shares, 18 dec)
-                1_500_000e18 // maxShares allowed to increase (15% of 10_000_000e18)
+                20_000_000e18 // totalSupplyAfter (shares, 18 dec)
             )
         );
         vm.expectRevert(revertData);

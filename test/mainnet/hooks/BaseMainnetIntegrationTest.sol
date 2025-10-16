@@ -32,7 +32,7 @@ contract BaseMainnetIntegrationTest is Test, Actors {
 
     function setUp() public virtual {
         BaseTest baseTest = new BaseTest();
-        (vault, ) = baseTest.deploy();
+        (vault,) = baseTest.deploy();
 
         vm.startPrank(ADMIN);
         vault.grantRole(vault.HOOKS_MANAGER_ROLE(), HOOKS_MANAGER);
@@ -90,6 +90,5 @@ contract BaseMainnetIntegrationTest is Test, Actors {
         vm.startPrank(HOOKS_MANAGER);
         vault.setHooks(address(metaHooks));
         vm.stopPrank();
-
     }
 }

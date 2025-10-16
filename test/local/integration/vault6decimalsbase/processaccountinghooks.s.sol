@@ -440,7 +440,7 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         IERC20(vault.asset()).transfer(address(0xdead), slashAmount);
         vm.stopPrank();
 
-        uint256 totalAssetsAfter = vault.computeTotalAssets();
+        uint256 totalAssetsAfter = vault.computeTotalAssets() / 1e12; // convert to 6 decimals
         uint256 maxDecreaseRatio = processAccountingGuardHook.maxTotalAssetsDecreaseRatio();
 
         // Process accounting should revert due to exceeding maxDecreaseRatio

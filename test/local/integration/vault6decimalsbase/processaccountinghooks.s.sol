@@ -17,6 +17,7 @@ import {MockProvider} from "lib/yieldnest-vault/test/unit/mocks/MockProvider.sol
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {ShareInflationFeeHooks} from "test/local/integration/mocks/ShareInflationFeeHooks.sol";
 import {Math} from "lib/yieldnest-vault/src/Common.sol";
+
 // Minimal mock for IHooks
 
 contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegrationTest_base_6decimals {
@@ -120,7 +121,7 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
     }
 
     function test_deposit_and_processAccounting_doubleAsset_increase_success() public {
-        uint256 depositAmount = 100 ether;
+        uint256 depositAmount = 1_000_000 * 1e6; // 1,000,000 USDC (6 decimals)
         uint256 expectedTotalAssetsAndShares = 0;
         // Deposit as whitelisted user
 
@@ -136,22 +137,25 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        expectedTotalAssetsAndShares += depositAmount;
+        // Since the vault uses 18 decimals for shares, but USDC depositAmount is 6 decimals,
+        // shares are calculated according to the vault's ERC4626 logic.
+        // So the expected shares to receive is depositAmount * 1e12 (from 6 decimals USDC to 18 decimals shares).
+        uint256 expectedShares = depositAmount * 1e12;
 
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_doubleAsset_increase: Depositor balance mismatch"
+            expectedShares,
+            "deposit_and_processAccounting_doubleAsset_increase_usdc: Depositor shares mismatch"
         );
         assertEq(
             vault.totalAssets(),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_doubleAsset_increase: totalAssets mismatch"
+            depositAmount,
+            "deposit_and_processAccounting_doubleAsset_increase_usdc: totalAssets mismatch"
         );
 
         // Donate to vault to trigger fee calculation
-        uint256 donationAmount = depositAmount; // 10% donation to create profit
+        uint256 donationAmount = depositAmount; // match the deposit, 1,000,000 USDC donation
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
@@ -166,7 +170,7 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         assertGt(
             totalSupplyAfter,
             totalSupplyBefore,
-            "deposit_and_processAccounting_doubleAsset_increase: Total supply should have increased"
+            "deposit_and_processAccounting_doubleAsset_increase_usdc: Total supply should have increased"
         );
     }
 

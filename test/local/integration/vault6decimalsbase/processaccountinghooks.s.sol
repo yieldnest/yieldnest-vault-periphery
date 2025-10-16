@@ -117,12 +117,10 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
             totalSupplyBefore,
             "deposit_and_processAccounting_with_fees: Total supply should have increased"
         );
-        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
     }
 
     function test_deposit_and_processAccounting_doubleAsset_increase_success() public {
         uint256 depositAmount = 1_000_000 * 1e6; // 1,000,000 USDC (6 decimals)
-        uint256 expectedTotalAssetsAndShares = 0;
         // Deposit as whitelisted user
 
         vm.startPrank(owner);
@@ -222,7 +220,6 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
             totalSupplyBefore,
             "deposit_and_processAccounting_with_100_percent_fees: Total supply should have increased"
         );
-        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
     }
 
     function convertToShares(uint256 assets, uint256 totalSupply, uint256 totalAssets, Math.Rounding rounding)
@@ -585,7 +582,7 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
-        bytes memory revertData = abi.encodeWithSelector(
+        abi.encodeWithSelector(
             HooksLib.HookCallFailed.selector,
             abi.encodeWithSelector(
                 ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,

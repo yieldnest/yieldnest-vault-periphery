@@ -97,7 +97,6 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
 
         uint256 totalSupplyAfter = vault.totalSupply();
         assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
-        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
     }
 
     function test_deposit_and_processAccounting_doubleAsset_increase_success() public {
@@ -175,7 +174,6 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
 
         uint256 totalSupplyAfter = vault.totalSupply();
         assertGt(totalSupplyAfter, totalSupplyBefore, "Total supply should have increased");
-        uint256 supplyIncrease = totalSupplyAfter - totalSupplyBefore;
     }
 
     function convertToShares(uint256 assets, uint256 totalSupply, uint256 totalAssets, Math.Rounding rounding)
@@ -486,7 +484,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseIntegrationTest {
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
-        bytes memory revertData = abi.encodeWithSelector(
+        abi.encodeWithSelector(
             HooksLib.HookCallFailed.selector,
             abi.encodeWithSelector(
                 ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,

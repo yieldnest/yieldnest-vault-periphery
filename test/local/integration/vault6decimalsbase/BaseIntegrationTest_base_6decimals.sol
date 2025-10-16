@@ -14,8 +14,9 @@ import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {FeeHooks} from "lib/yieldnest-vault/src/hooks/FeeHooks.sol";
+import {SetupBase6DecimalsVault} from "lib/yieldnest-vault/test/unit/vault/base6decimals/SetupBase6DecimalsVault.sol";
 
-contract BaseMainnetIntegrationTest is Test, Actors {
+contract BaseIntegrationTest_base_6decimals is Test, Actors {
     Vault public vault;
     WETH9 public weth;
 
@@ -26,44 +27,28 @@ contract BaseMainnetIntegrationTest is Test, Actors {
 
     address public constant owner = address(111222333);
 
+    address public constant HOOK_MANAGER = 0x1234567890123456789012345678911234567891;
     address public constant depositor = address(0xbeefe1);
 
-    address public constant feeReceiver = address(0xbeefe277);
-
     function setUp() public virtual {
-        vault = Vault(payable(MC.YNETHX));
-        weth = WETH9(payable(MC.WETH));
-
-        vm.startPrank(ADMIN);
-        vault.grantRole(vault.HOOKS_MANAGER_ROLE(), HOOKS_MANAGER);
-        vm.stopPrank();
+        SetupBase6DecimalsVault setup = new SetupBase6DecimalsVault();
+        (vault, weth) = setup.setup();
 
         // address vault_, address defaultAdmin, address hookManager)
-        metaHooks = new MetaHooks(address(vault), ADMIN, HOOKS_MANAGER);
+        metaHooks = new MetaHooks(address(vault), ADMIN, HOOK_MANAGER);
 
         // Create individual hooks
         address[] memory whitelistedUsers = new address[](1);
         whitelistedUsers[0] = depositor;
         permissionedVaultHook = new PermissionedVaultHook(address(metaHooks), owner, whitelistedUsers);
 
-        uint256 performanceFee = 0.001 ether;
+        FeeHooks previousFeeHooks = FeeHooks(address(vault.hooks()));
         feeHooks = new FeeHooks(
             address(metaHooks),
             owner,
-            performanceFee, // performanceFee (0.1%)
-            feeReceiver,
-            IHooks.Config({
-                beforeDeposit: false,
-                afterDeposit: false,
-                beforeMint: false,
-                afterMint: false,
-                beforeRedeem: false,
-                afterRedeem: false,
-                beforeWithdraw: false,
-                afterWithdraw: false,
-                beforeProcessAccounting: false,
-                afterProcessAccounting: true
-            })
+            previousFeeHooks.performanceFee(), // performanceFee (0.1%)
+            previousFeeHooks.performanceFeeRecipient(),
+            previousFeeHooks.getConfig()
         );
 
         processAccountingGuardHook = new ProcessAccountingGuardHook(
@@ -72,10 +57,8 @@ contract BaseMainnetIntegrationTest is Test, Actors {
             0.001 ether, // maxDecreaseRatio (0.1%)
             0.002 ether, // maxIncreaseRatio (0.2%)
             0.0015 ether, // maxTotalSupplyIncreaseRatio (0.15%)
-            performanceFee
+            previousFeeHooks.performanceFee()
         );
-
-        vault.processAccounting();
 
         // Set up hooks array for MetaHooks
         IHooks[] memory hooks = new IHooks[](3);
@@ -83,12 +66,16 @@ contract BaseMainnetIntegrationTest is Test, Actors {
         hooks[1] = IHooks(address(feeHooks));
         hooks[2] = IHooks(address(processAccountingGuardHook));
 
-        vm.startPrank(HOOKS_MANAGER);
+        vm.startPrank(HOOK_MANAGER);
         metaHooks.setHooks(hooks);
         vm.stopPrank();
 
         vm.startPrank(HOOKS_MANAGER);
         vault.setHooks(address(metaHooks));
+        vm.stopPrank();
+
+        vm.startPrank(ADMIN);
+        vault.setBaseWithdrawalFee(1e5); // 0.1% (1e5 / 1e8)
         vm.stopPrank();
     }
 }

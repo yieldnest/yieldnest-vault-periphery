@@ -15,6 +15,8 @@ import {IVaultForHooks} from "src/interface/IVaultForHooks.sol";
  * @dev It supports the IHooks interface, in order to be used as a hook for the vault.
  */
 contract MetaHooks is IHooks, IVaultForHooks, AccessControl {
+    string public constant VERSION = "0.1.0";
+
     error ZeroVaultAddress();
     error DuplicateInInput(IHooks hook);
     error CallerNotHook(address caller);

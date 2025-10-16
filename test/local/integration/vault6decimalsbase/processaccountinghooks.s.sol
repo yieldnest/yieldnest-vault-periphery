@@ -241,8 +241,9 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         uint256 performanceFee,
         uint256 donationAmount
     ) public {
-        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
-        performanceFee = bound(performanceFee, 0, 1 ether); // from 0 to 100%
+        // Use 6 decimals for USDC asset
+        depositAmount = bound(depositAmount, 1_000_000, 10_000_000e6); // 1 USDC to 1,000 USDC (in 6 decimals)
+        performanceFee = bound(performanceFee, 0, 1e18); // from 0 to 100%
         donationAmount = bound(donationAmount, 1, depositAmount / 100); // Bound donation to reasonable range
 
         // Set the performance fee first
@@ -252,31 +253,31 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         processAccountingGuardHook.setMaxTotalAssetsIncreaseRatio(0.1 ether);
         processAccountingGuardHook.setMaxTotalSupplyIncreaseRatio(0.1 ether);
         vm.stopPrank();
-        uint256 expectedTotalAssetsAndShares = 0;
-        // Deposit as whitelisted user
+        uint256 expectedTotalShares = 0;
 
+        // Deposit as whitelisted user
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), depositAmount);
         vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        expectedTotalAssetsAndShares += depositAmount;
+        // Shares are always 18 decimals. Deposit is in 6 decimals, so multiply by 1e12 for expected shares.
+        expectedTotalShares += depositAmount * 1e12;
 
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            expectedTotalAssetsAndShares,
-            "fuzz_deposit_and_processAccounting_with_fees: Depositor balance mismatch"
+            expectedTotalShares,
+            "fuzz_deposit_and_processAccounting_with_fees_usdc: Depositor balance mismatch"
         );
         assertEq(
             vault.totalAssets(),
-            expectedTotalAssetsAndShares,
-            "fuzz_deposit_and_processAccounting_with_fees: totalAssets mismatch"
+            depositAmount,
+            "fuzz_deposit_and_processAccounting_with_fees_usdc: totalAssets mismatch"
         );
 
         // Donate to vault to trigger fee calculation
-
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
@@ -291,10 +292,13 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         assertGe(
             totalSupplyAfter,
             totalSupplyBefore,
-            "fuzz_deposit_and_processAccounting_with_fees: Total supply should have increased"
+            "fuzz_deposit_and_processAccounting_with_fees_usdc: Total supply should have increased"
         );
 
-        uint256 feeInBaseAssets = donationAmount.mulDiv(performanceFee, 1e18, Math.Rounding.Floor);
+        // Fee is in base assets (6 decimals), but shares are 18 decimals. First calculate fee in base assets.
+        // Base asset is WUSDC with 18 decimals.FEE_MANAGER_ROLE
+        uint256 feeInBaseAssets = (donationAmount * 1e12).mulDiv(performanceFee, 1e18, Math.Rounding.Floor);
+
         uint256 feeShares =
             convertToShares(feeInBaseAssets, vault.totalSupply(), vault.totalSupply(), Math.Rounding.Floor);
 
@@ -557,51 +561,54 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
             feeHooks.getConfig()
         );
 
-        uint256 fixedMintAmount = 100000000000000000000;
+        uint256 fixedMintAmount = 10_000_000e12; // 10,000,000 shares (18 decimals)
 
         shareInflationFeeHook.setFixedMintAmount(fixedMintAmount);
 
         setNewFeeHook(shareInflationFeeHook);
 
-        uint256 depositAmount = 100 ether;
-        uint256 expectedTotalAssetsAndShares = 0;
-        // Deposit as whitelisted user
+        // USDC amount, 6 decimals
+        uint256 depositAmount = 10_000_000e6;
+        uint256 expectedShares = 0;
 
+        // Deposit as whitelisted user
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), depositAmount);
         vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        expectedTotalAssetsAndShares += depositAmount;
+        expectedShares += depositAmount * 1e12; // Convert asset (6dec) to shares (18dec)
 
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            expectedTotalAssetsAndShares,
-            "processAccounting_with_excessive_mintShares: Depositor balance mismatch"
+            expectedShares,
+            "processAccounting_with_excessive_mintShares_usdc: Depositor balance mismatch"
         );
         assertEq(
-            vault.totalAssets(),
-            expectedTotalAssetsAndShares,
-            "processAccounting_with_excessive_mintShares: totalAssets mismatch"
+            vault.totalAssets(), depositAmount, "processAccounting_with_excessive_mintShares_usdc: totalAssets mismatch"
         );
 
         // Donate to vault to trigger fee calculation
-        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        uint256 donationAmount = depositAmount / 1000; // 10_000 USDC
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
-        abi.encodeWithSelector(
+        // The revert expects totalSupply to increase by too much.
+        // Let's ensure max allowed increase is less than what will happen. Example: 15% (using 0.15e18)
+        // Starting totalSupply: 10_000_000e18
+        // Minting additional 10_000_000e12 shares (enormous; should easily revert)
+        bytes memory revertData = abi.encodeWithSelector(
             HooksLib.HookCallFailed.selector,
             abi.encodeWithSelector(
                 ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
-                100000000000000000000, // totalSupplyBefore
-                200000000000000000000, // totalSupplyAfter
-                150000000000000000 // maxShares
+                10_000_000e18, // totalSupplyBefore (shares, 18 dec)
+                20_000_000e18, // totalSupplyAfter (shares, 18 dec)
+                1_500_000e18 // maxShares allowed to increase (15% of 10_000_000e18)
             )
         );
-        vm.expectRevert();
+        vm.expectRevert(revertData);
         vault.processAccounting();
     }
 }

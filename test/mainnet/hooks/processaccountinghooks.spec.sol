@@ -77,7 +77,6 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         // Assert that convertToAssets increased after processAccounting
         uint256 assetsPerShareBefore = vault.convertToAssets(1 ether);
 
-
         uint256 feeReceiverBalanceBefore = vault.balanceOf(feeReceiver);
 
         // Process accounting should succeed (within allowed ratio bounds)
@@ -85,7 +84,11 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         vault.processAccounting();
         vm.stopPrank();
 
-        assertGt(vault.convertToAssets(1 ether), assetsPerShareBefore, "convertToAssets should increase after processAccounting");
+        assertGt(
+            vault.convertToAssets(1 ether),
+            assetsPerShareBefore,
+            "convertToAssets should increase after processAccounting"
+        );
 
         uint256 totalSupplyAfter = vault.totalSupply();
         uint256 totalAssetsAfter = vault.totalAssets();
@@ -95,12 +98,18 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         uint256 assetsIncrease = totalAssetsAfter - totalAssetsBefore;
 
         // Calculate expected supply increase after performance fee (0.1%)
-        uint256 expectedSupplyIncrease = vault.convertToShares(assetsIncrease  * feeHooks.performanceFee() / 1 ether);
+        uint256 expectedSupplyIncrease = vault.convertToShares(assetsIncrease * feeHooks.performanceFee() / 1 ether);
 
         // Allow for rounding error of 1 wei
-        assertApproxEqAbs(supplyIncrease, expectedSupplyIncrease, 1, "Supply increase should match assets increase minus fee");  
+        assertApproxEqAbs(
+            supplyIncrease, expectedSupplyIncrease, 1, "Supply increase should match assets increase minus fee"
+        );
 
-        assertEq(vault.balanceOf(feeReceiver) - feeReceiverBalanceBefore, supplyIncrease, "Fee receiver balance should equal supply increase");
+        assertEq(
+            vault.balanceOf(feeReceiver) - feeReceiverBalanceBefore,
+            supplyIncrease,
+            "Fee receiver balance should equal supply increase"
+        );
     }
 
     function test_deposit_donate_and_processAccounting_revert(uint256 depositAmount, uint256 donationAmount) public {
@@ -112,7 +121,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), depositAmount);
-        uint256 shares =vault.deposit(depositAmount, depositor);
+        uint256 shares = vault.deposit(depositAmount, depositor);
         vm.stopPrank();
         // Verify deposit was successful
         assertEq(vault.balanceOf(depositor), shares, "Depositor balance should match deposit shares");
@@ -165,7 +174,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
         // Double the performance fee in feeHooks
         vm.startPrank(owner);
         uint256 oldFee = feeHooks.performanceFee();
-        uint256 newFee = oldFee  + oldFee / 10;
+        uint256 newFee = oldFee + oldFee / 10;
         feeHooks.setPerformanceFee(newFee);
         vm.stopPrank();
 

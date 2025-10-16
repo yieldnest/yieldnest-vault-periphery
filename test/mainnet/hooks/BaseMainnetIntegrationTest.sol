@@ -31,7 +31,6 @@ contract BaseMainnetIntegrationTest is Test, Actors {
     address public constant feeReceiver = address(0xbeefe277);
 
     function setUp() public virtual {
-        
         vault = Vault(payable(MC.YNETHX));
         weth = WETH9(payable(MC.WETH));
 
@@ -91,6 +90,5 @@ contract BaseMainnetIntegrationTest is Test, Actors {
         vm.startPrank(HOOKS_MANAGER);
         vault.setHooks(address(metaHooks));
         vm.stopPrank();
-
     }
 }

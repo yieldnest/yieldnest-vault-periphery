@@ -43,8 +43,8 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
     }
 
     function test_deposit_and_processAccounting_multiple_times_success() public {
-        uint256 depositAmount = 100 ether;
-        uint256 expectedTotalAssetsAndShares = 0;
+        uint256 depositAmount = 1_000_000 * 1e6; // 1,000,000 units of an asset with 6 decimals (large USDC amount)
+        uint256 expectedTotalShares = 0;
         for (uint256 i = 0; i < 5; i++) {
             // Deposit as whitelisted user
             deal(vault.asset(), depositor, depositAmount);
@@ -53,18 +53,13 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
             vault.deposit(depositAmount, depositor);
             vm.stopPrank();
 
-            expectedTotalAssetsAndShares += depositAmount;
+            expectedTotalShares += depositAmount * 1e12;
 
-            // Verify deposit was successful
+            // Verify deposit was successful (using shares, not just depositAmount)
             assertEq(
                 vault.balanceOf(depositor),
-                expectedTotalAssetsAndShares,
-                "deposit_and_processAccounting_multiple_times: Depositor balance mismatch after deposit"
-            );
-            assertEq(
-                vault.totalAssets(),
-                expectedTotalAssetsAndShares,
-                "deposit_and_processAccounting_multiple_times: totalAssets mismatch after deposit"
+                expectedTotalShares,
+                "deposit_and_processAccounting_multiple_times: Depositor share balance mismatch after deposit"
             );
 
             // Process accounting should succeed (within allowed ratio bounds)
@@ -75,32 +70,26 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
     }
 
     function test_deposit_and_processAccounting_with_fees_success() public {
-        uint256 depositAmount = 100 ether;
-        uint256 expectedTotalAssetsAndShares = 0;
-        // Deposit as whitelisted user
+        uint256 depositAmount = 100 * 1e6; // 100 USDC with 6 decimals
+        uint256 expectedShares = depositAmount * 1e12; // shares use 18 decimals
 
+        // Deposit as whitelisted user
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), depositAmount);
         vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        expectedTotalAssetsAndShares += depositAmount;
-
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_with_fees: Depositor balance mismatch"
+            expectedShares,
+            "deposit_and_processAccounting_with_fees: Depositor share balance mismatch"
         );
-        assertEq(
-            vault.totalAssets(),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_with_fees: totalAssets mismatch"
-        );
+        assertEq(vault.totalAssets(), depositAmount, "deposit_and_processAccounting_with_fees: totalAssets mismatch");
 
         // Donate to vault to trigger fee calculation
-        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        uint256 donationAmount = depositAmount / 1000; // 0.1% donation to create profit
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
@@ -173,37 +162,37 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
     }
 
     function test_deposit_and_processAccounting_with_100_percent_fees_success() public {
-        uint256 depositAmount = 100 ether;
-        uint256 expectedTotalAssetsAndShares = 0;
-        // Deposit as whitelisted user
-
+        uint256 depositAmount = 1_000_000 * 1e6; // 1,000,000 USDC (6 decimals)
+        // Set 100% performance fee
         vm.startPrank(owner);
         feeHooks.setPerformanceFee(1 ether);
         processAccountingGuardHook.setExpectedPerformanceFee(1 ether);
         vm.stopPrank();
 
+        // Deposit as whitelisted user
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), depositAmount);
         vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        expectedTotalAssetsAndShares += depositAmount;
+        // Shares should be scaled up from 6 decimals USDC to 18 decimals shares: 1_000_000 * 1e12
+        uint256 expectedShares = depositAmount * 1e12;
 
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_with_100_percent_fees: Depositor balance mismatch"
+            expectedShares,
+            "deposit_and_processAccounting_with_100_percent_fees_usdc: Depositor shares mismatch"
         );
         assertEq(
             vault.totalAssets(),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_with_100_percent_fees: totalAssets mismatch"
+            depositAmount,
+            "deposit_and_processAccounting_with_100_percent_fees_usdc: totalAssets mismatch"
         );
 
-        // Donate to vault to trigger fee calculation
-        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        // Donate to vault to trigger fee calculation (10% donation)
+        uint256 donationAmount = depositAmount / 1000;
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
@@ -218,7 +207,18 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         assertGt(
             totalSupplyAfter,
             totalSupplyBefore,
-            "deposit_and_processAccounting_with_100_percent_fees: Total supply should have increased"
+            "deposit_and_processAccounting_with_100_percent_fees_usdc: Total supply should have increased"
+        );
+
+        // Check that with 100% fee, all profit goes to fee receiver as new shares
+        // All profit shares should go to fee receiver, not depositor
+        uint256 profitAssets = donationAmount;
+        uint256 expectedFeeShares = profitAssets * 1e12; // Since 100% fee, and shares logic multiplies by 1e12
+        uint256 feeReceiverBalance = vault.balanceOf(feeHooks.performanceFeeRecipient());
+
+        // Allow for dust due to rounding
+        assertApproxEqAbs(
+            feeReceiverBalance, expectedFeeShares, 1e6, "Fee receiver should get all new shares from 100% fee"
         );
     }
 
@@ -300,41 +300,40 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
     }
 
     function test_deposit_and_processAccounting_revert_fee_increase() public {
-        uint256 depositAmount = 100 ether;
-        uint256 expectedTotalAssetsAndShares = 0;
-        // Deposit as whitelisted user
+        // Use a large USDC amount (6 decimals), mirrored after test_deposit_and_processAccounting_multiple_times_success
+        uint256 depositAmount = 1_000_000 * 1e6; // 1,000,000 USDC units
+        uint256 expectedTotalShares = 0;
 
+        // Deposit as whitelisted user
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
         IERC20(vault.asset()).approve(address(vault), depositAmount);
         vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        expectedTotalAssetsAndShares += depositAmount;
+        expectedTotalShares += depositAmount * 1e12; // 6 decimal asset -> 18 decimal shares
 
-        // Verify deposit was successful
+        // Verify deposit was successful, using shares
         assertEq(
             vault.balanceOf(depositor),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_revert_fee_increase: Depositor balance mismatch"
-        );
-        assertEq(
-            vault.totalAssets(),
-            expectedTotalAssetsAndShares,
-            "deposit_and_processAccounting_revert_fee_increase: totalAssets mismatch"
+            expectedTotalShares,
+            "revert_fee_increase: Depositor share balance mismatch after deposit"
         );
 
-        // set a performance fee higher than what the processaccountingguardhook expects
+        // Sanity: check vault's totalAssets (in USDC, 6 decimals)
+        assertEq(vault.totalAssets(), depositAmount, "revert_fee_increase: totalAssets mismatch");
+
+        // Set a performance fee higher than what the processAccountingGuardHook expects
         vm.startPrank(owner);
         feeHooks.setPerformanceFee(feeHooks.performanceFee() * 2);
         vm.stopPrank();
 
-        // Donate to vault to trigger fee calculation
-        uint256 donationAmount = depositAmount / 1000; // 10% donation to create profit
+        // Donate to vault to trigger fee calculation (large USDC amount)
+        uint256 donationAmount = depositAmount / 1000;
         deal(vault.asset(), address(this), donationAmount);
         IERC20(vault.asset()).transfer(address(vault), donationAmount);
 
-        // Process accounting should succeed (within allowed ratio bounds)
+        // Process accounting should revert due to unexpectedly high fee
         vm.startPrank(PROCESSOR);
         vm.expectRevert();
         vault.processAccounting();
@@ -355,7 +354,7 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            depositAmount,
+            depositAmount * 1e12,
             "deposit_donate_and_processAccounting_revert: Depositor balance mismatch after deposit"
         );
         uint256 totalAssetsBefore = vault.totalAssets();
@@ -497,8 +496,8 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
 
         setNewFeeHook(shareInflationFeeHook);
 
-        uint256 depositAmount = 100 ether;
-        uint256 expectedTotalAssetsAndShares = 0;
+        uint256 depositAmount = 10_000_000e6;
+        uint256 expectedShares = 0;
         // Deposit as whitelisted user
 
         deal(vault.asset(), depositor, depositAmount);
@@ -507,17 +506,17 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
         vault.deposit(depositAmount, depositor);
         vm.stopPrank();
 
-        expectedTotalAssetsAndShares += depositAmount;
+        expectedShares += depositAmount * 1e12;
 
         // Verify deposit was successful
         assertEq(
             vault.balanceOf(depositor),
-            expectedTotalAssetsAndShares,
+            expectedShares,
             "deposit_and_processAccounting_with_excessive_mintShares_reverts: Depositor balance mismatch"
         );
         assertEq(
             vault.totalAssets(),
-            expectedTotalAssetsAndShares,
+            depositAmount,
             "deposit_and_processAccounting_with_excessive_mintShares_reverts: totalAssets mismatch"
         );
 
@@ -530,8 +529,8 @@ contract ProcessAccountingHooksIntegrationTest_base_6decimals is BaseIntegration
             HooksLib.HookCallFailed.selector,
             abi.encodeWithSelector(
                 ProcessAccountingGuardHook.TotalSupplyIncreasedTooMuch.selector,
-                100000000000000000000, // totalSupplyBefore
-                100019982016185433110 // totalSupplyAfter
+                10000000000000000000000000, // totalSupplyBefore; 1e7 * 1e18
+                10001998201618543311020080 // totalSupplyAfter; excessive mint amount
             )
         );
         vm.expectRevert(revertData);

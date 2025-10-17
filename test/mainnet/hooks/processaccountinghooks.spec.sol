@@ -26,7 +26,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
     }
 
     function test_deposit_and_processAccounting_multiple_times_success() public {
-        uint256 depositAmount = 100 ether;
+        uint256 depositAmount = 100_000_000e6;
         uint256 expectedTotalShares = 0;
         uint256 prevFeeReceiverBalance = vault.balanceOf(feeReceiver);
         for (uint256 i = 0; i < 5; i++) {
@@ -55,7 +55,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
     }
 
     function test_deposit_and_processAccounting_with_fees_success() public {
-        uint256 depositAmount = 100 ether;
+        uint256 depositAmount = 100_000_000e6;
         // Deposit as whitelisted user
         deal(vault.asset(), depositor, depositAmount);
         vm.startPrank(depositor);
@@ -114,7 +114,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
 
     function test_deposit_donate_and_processAccounting_revert(uint256 depositAmount, uint256 donationAmount) public {
         // Bound inputs
-        depositAmount = bound(depositAmount, 1 ether, 1000 ether);
+        depositAmount = bound(depositAmount, 1e6, 100_000_000e6);
         donationAmount = bound(donationAmount, 1, depositAmount * 10); // Cap donation to 10x the deposit amount
 
         // Deposit as whitelisted user
@@ -157,7 +157,7 @@ contract ProcessAccountingHooksIntegrationTest is BaseMainnetIntegrationTest {
 
     function test_deposit_donate_and_processAccounting_when_fee_doubles_reverts() public {
         // Bound inputs
-        uint256 depositAmount = 1_000_000e6;
+        uint256 depositAmount = 100_000_000e6;
         uint256 donationAmount = depositAmount / 10_000; // low amount
 
         // Deposit as whitelisted user

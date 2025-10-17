@@ -17,9 +17,9 @@ contract DeployMetaHooks is BaseScript {
     uint256 public performanceFee = 0.1 ether; // 10%
 
     // Set appropriate risk ratios for YNUSDx
-    uint256 public maxDecreaseRatio = 0.001 ether; // 0.1%
-    uint256 public maxIncreaseRatio = 0.005 ether; // 0.5%
-    uint256 public maxTotalSupplyIncreaseRatio = 0.001 ether; // 0.1%, 20% of maxIncreaseRatio
+    uint256 public maxDecreaseRatio = 0.0005 ether; // 0.05%
+    uint256 public maxIncreaseRatio = 0.002 ether; // 0.5%
+    uint256 public maxTotalSupplyIncreaseRatio = 0.0005 ether; // 0.05%, 25% of maxIncreaseRatio
 
     function run() public virtual {
         actors = new MainnetActors();

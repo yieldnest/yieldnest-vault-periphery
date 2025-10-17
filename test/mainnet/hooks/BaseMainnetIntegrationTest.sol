@@ -8,16 +8,16 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
-import {SetupVault, Vault, WETH9} from "lib/yieldnest-vault/test/unit/helpers/SetupVault.sol";
+import {BaseTest} from "lib/yieldnest-vault/test/mainnet/helpers/BaseTest.sol";
 import {MetaHooks} from "src/hooks/MetaHooks.sol";
 import {PermissionedVaultHook} from "test/testhooks/PermissionedVaultHook.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {FeeHooks} from "lib/yieldnest-vault/src/hooks/FeeHooks.sol";
+import {Vault} from "lib/yieldnest-vault/src/Vault.sol";
 
 contract BaseMainnetIntegrationTest is Test, Actors {
     Vault public vault;
-    WETH9 public weth;
 
     MetaHooks public metaHooks;
     PermissionedVaultHook public permissionedVaultHook;
@@ -31,9 +31,8 @@ contract BaseMainnetIntegrationTest is Test, Actors {
     address public constant feeReceiver = address(0xbeefe277);
 
     function setUp() public virtual {
-        
-        vault = Vault(payable(MC.YNETHX));
-        weth = WETH9(payable(MC.WETH));
+        BaseTest baseTest = new BaseTest();
+        (vault,) = baseTest.deploy();
 
         vm.startPrank(ADMIN);
         vault.grantRole(vault.HOOKS_MANAGER_ROLE(), HOOKS_MANAGER);
@@ -91,6 +90,5 @@ contract BaseMainnetIntegrationTest is Test, Actors {
         vm.startPrank(HOOKS_MANAGER);
         vault.setHooks(address(metaHooks));
         vm.stopPrank();
-
     }
 }

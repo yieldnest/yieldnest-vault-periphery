@@ -29,7 +29,7 @@ contract VerifyMetaHooks is BaseScript, Test {
     }
 
     function label() public view override returns (string memory) {
-        return string.concat("metaHooks-ynETHx-", Strings.toString(block.chainid));
+        return string.concat("metaHooks-ynUSDx-", Strings.toString(block.chainid));
     }
 
     function compareConfigsWithAsserts(IHooks.Config memory a, IHooks.Config memory b) internal pure {

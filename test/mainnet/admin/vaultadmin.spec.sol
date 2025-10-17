@@ -17,8 +17,8 @@ contract VaultManagerIntegrationTest is Test, Actors {
     IVault public vault;
 
     function setUp() public {
-        vault = IVault(MC.YNETHX);
-        vaultManager = new VaultManager(MC.YNETHX, ADMIN, ADMIN, ADMIN);
+        vault = IVault(MC.YNUSDx);
+        vaultManager = new VaultManager(MC.YNUSDx, ADMIN, ADMIN, ADMIN);
 
         // Grant VaultManager the necessary roles on the vault
         vm.startPrank(ADMIN);
@@ -98,7 +98,7 @@ contract VaultManagerIntegrationTest is Test, Actors {
     }
 
     function testSetProviderToNewProvider() public {
-        Provider newProvider = new Provider();
+        Provider newProvider = new Provider(MC.WRAPPED_USDC);
 
         vault.processAccounting();
         uint256 totalBaseAssetsBefore = vault.totalBaseAssets();
@@ -116,7 +116,7 @@ contract VaultManagerIntegrationTest is Test, Actors {
         MockProvider mockProvider = new MockProvider();
 
         vm.prank(ADMIN);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.ProviderRateNotDefined.selector, MC.WETH));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.ProviderRateNotDefined.selector, MC.WRAPPED_USDC));
         vaultManager.setProvider(address(mockProvider));
     }
 

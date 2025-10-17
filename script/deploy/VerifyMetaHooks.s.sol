@@ -150,7 +150,7 @@ contract VerifyMetaHooks is BaseScript, Test {
         );
 
         // Vault check
-        assertEq(address(vault), address(MC.YNETHX), "Vault: address mismatch");
+        assertEq(address(vault), address(MC.YNUSDx), "Vault: address mismatch");
 
         // L1Actors check
     }

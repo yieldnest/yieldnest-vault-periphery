@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: BSD-3-Clause
+pragma solidity ^0.8.24;
+
+import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
+import {IHooks} from "src/interface/IHooks.sol";
+
+interface IVault is IERC4626 {
+    struct VaultStorage {
+        uint256 totalAssets;
+        address provider;
+        address buffer;
+        bool paused;
+        uint8 decimals;
+        bool countNativeAsset;
+        bool alwaysComputeTotalAssets;
+        /// @notice The index of the default asset.
+        /// The default asset is vault.asset(), used for deposit, withdraw, redeem, mint as default.
+        /// If defaultAssetIndex is 0, the vault will use the base asset as default asset.
+        uint256 defaultAssetIndex;
+    }
+
+    struct AssetParams {
+        uint256 index;
+        bool active;
+        uint8 decimals;
+    }
+
+    struct AssetUpdateFields {
+        bool active;
+    }
+
+    struct AssetStorage {
+        mapping(address => AssetParams) assets;
+        address[] list;
+    }
+
+    struct OverriddenBaseWithdrawalFeeFields {
+        /// @notice The base withdrawal fee in basis points (1e8 = 100%) for the user to override
+        uint64 baseWithdrawalFee;
+        /// @notice Whether the fee is overridden for the user
+        bool isOverridden;
+    }
+
+    struct FeeStorage {
+        /// @notice The base withdrawal fee in basis points (1e8 = 100%)
+        uint64 baseWithdrawalFee;
+        mapping(address user => OverriddenBaseWithdrawalFeeFields fields) overriddenBaseWithdrawalFee;
+    }
+
+    struct HooksStorage {
+        IHooks hooks;
+    }
+
+    enum ParamType {
+        UINT256,
+        ADDRESS
+    }
+
+    struct ParamRule {
+        ParamType paramType;
+        bool isArray;
+        address[] allowList;
+    }
+
+    error Paused();
+    error Unpaused();
+    error ZeroAddress();
+    error ZeroAmount();
+    error ZeroRate();
+    error InvalidString();
+    error InvalidArray();
+    error ExceededMaxDeposit(address sender, uint256 amount, uint256 maxAssets);
+    error DefaultAsset();
+    error AssetNotEmpty(address);
+    error InvalidAsset(address);
+    error InvalidTarget(address);
+    error InvalidDecimals();
+    error InvalidFunction(address target, bytes4 funcSig);
+    error DuplicateAsset(address asset);
+    error ExceededMaxWithdraw(address, uint256, uint256);
+    error ExceededMaxRedeem(address, uint256, uint256);
+    error ProcessFailed(bytes, bytes);
+    error ProcessInvalid(bytes);
+    error ProviderNotSet();
+    error BufferNotSet();
+    error DepositFailed();
+    error AssetNotActive();
+    error ExceedsMaxBasisPoints(uint256 value);
+    error InvalidNativeAssetDecimals(uint256 decimals);
+    error InvalidAssetDecimals(uint256 decimals);
+    error InvalidDefaultAssetIndex(uint256 index);
+    error ExceedsMaxPerformanceFee(uint256 value);
+    error BaseAsset();
+    error CallerNotHooks();
+    error InvalidHooks();
+
+    event DepositAsset(
+        address indexed sender,
+        address indexed receiver,
+        address indexed asset,
+        uint256 assets,
+        uint256 baseAssets,
+        uint256 shares
+    );
+    event WithdrawAsset(
+        address indexed sender,
+        address indexed receiver,
+        address indexed owner,
+        address asset,
+        uint256 assets,
+        uint256 shares
+    );
+
+    event SetProvider(address indexed provider);
+    event SetBuffer(address indexed buffer);
+    event SetAlwaysComputeTotalAssets(bool alwaysComputeTotalAssets);
+    event NewAsset(address indexed asset, uint256 decimals, uint256 index);
+    event ProcessSuccess(address[] targets, uint256[] values, bytes[] data);
+    event Pause(bool paused);
+    event NativeDeposit(uint256 amount);
+    event ProcessAccounting(uint256 timestamp, uint256 totalAssetsBefore, uint256 totalAssetsAfter);
+    event UpdateAsset(uint256 indexed index, address indexed asset, AssetUpdateFields fields);
+    event DeleteAsset(uint256 indexed index, address indexed asset);
+    event SetBaseWithdrawalFee(uint64 oldFee, uint64 newFee);
+    event WithdrawalFeeOverridden(address indexed user, uint64 baseWithdrawalFee, bool isOverridden);
+    event SetHooks(address indexed oldHooks, address indexed newHooks);
+
+    // 4626-MAX
+    function getAssets() external view returns (address[] memory list);
+    function getAsset(address asset_) external view returns (AssetParams memory);
+    function hasAsset(address asset_) external view returns (bool);
+    function previewDepositAsset(address assetAddress, uint256 assets) external view returns (uint256);
+    function depositAsset(address assetAddress, uint256 amount, address receiver) external returns (uint256);
+    function provider() external view returns (address);
+    function buffer() external view returns (address);
+    function totalBaseAssets() external view returns (uint256);
+    function computeTotalAssets() external view returns (uint256);
+    function alwaysComputeTotalAssets() external view returns (bool);
+
+    // ADMIN
+    function setProvider(address provider) external;
+    function setBuffer(address buffer) external;
+    function addAsset(address asset_, bool active_) external;
+    function deleteAsset(uint256 index) external;
+    function pause() external;
+    function unpause() external;
+    function hooks() external view returns (IHooks);
+    function setHooks(address hooks) external;
+    function mintShares(address recipient, uint256 shares) external;
+    function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256);
+
+    function processAccounting() external;
+    function processor(address[] calldata targets, uint256[] calldata values, bytes[] calldata data)
+        external
+        returns (bytes[] memory);
+
+    // FEES
+    function _feeOnRaw(uint256 amount, address user) external view returns (uint256);
+    function _feeOnTotal(uint256 amount, address user) external view returns (uint256);
+}

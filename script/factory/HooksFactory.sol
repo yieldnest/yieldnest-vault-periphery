@@ -33,6 +33,16 @@ contract HooksFactory {
         return metaHooks;
     }
 
+    event ProcessAccountingGuardHookCreated(
+        address indexed hook,
+        address indexed vault,
+        address indexed owner,
+        uint256 maxDecreaseRatio,
+        uint256 maxIncreaseRatio,
+        uint256 maxTotalSupplyIncreaseRatio,
+        uint256 performanceFee
+    );
+
     function createProcessAccountingGuardHook(
         address vault,
         address owner,
@@ -41,8 +51,12 @@ contract HooksFactory {
         uint256 maxTotalSupplyIncreaseRatio,
         uint256 performanceFee
     ) public returns (ProcessAccountingGuardHook) {
-        return new ProcessAccountingGuardHook(
+        ProcessAccountingGuardHook hook = new ProcessAccountingGuardHook(
             vault, owner, maxDecreaseRatio, maxIncreaseRatio, maxTotalSupplyIncreaseRatio, performanceFee
         );
+        emit ProcessAccountingGuardHookCreated(
+            address(hook), vault, owner, maxDecreaseRatio, maxIncreaseRatio, maxTotalSupplyIncreaseRatio, performanceFee
+        );
+        return hook;
     }
 }

@@ -3,10 +3,18 @@ pragma solidity ^0.8.24;
 
 import {MetaHooks} from "src/hooks/MetaHooks.sol";
 import {ProcessAccountingGuardHook} from "src/hooks/ProcessAccountingGuardHook.sol";
+import {FeeHooks} from "lib/yieldnest-vault/src/hooks/FeeHooks.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 
 contract HooksFactory {
     event MetaHooksCreated(address indexed metaHooks, address indexed vault, address owner, address hookManager);
+    event FeeHooksCreated(
+        address indexed feeHooks,
+        address indexed vault,
+        address owner,
+        uint256 performanceFee,
+        address performanceFeeRecipient
+    );
 
     function createMetaHooks(address vault, address owner, address hookManager, IHooks[] memory hooks)
         public
@@ -14,8 +22,11 @@ contract HooksFactory {
     {
         address deployer = address(this);
         MetaHooks metaHooks = new MetaHooks(vault, deployer, deployer);
-        // Set hooks as deployer
-        metaHooks.setHooks(hooks);
+
+        if (hooks.length > 0) {
+            // Set hooks as deployer
+            metaHooks.setHooks(hooks);
+        }
 
         // Give ADMIN the roles and renounce from deployer
         bytes32 DEFAULT_ADMIN_ROLE = metaHooks.DEFAULT_ADMIN_ROLE();
@@ -58,5 +69,31 @@ contract HooksFactory {
             address(hook), vault, owner, maxDecreaseRatio, maxIncreaseRatio, maxTotalSupplyIncreaseRatio, performanceFee
         );
         return hook;
+    }
+
+    function createFeeHooks(address vault, address owner, uint256 performanceFee, address performanceFeeRecipient)
+        public
+        returns (FeeHooks)
+    {
+        FeeHooks feeHooks = new FeeHooks(
+            vault,
+            owner,
+            performanceFee,
+            performanceFeeRecipient,
+            IHooks.Config({
+                beforeDeposit: false,
+                afterDeposit: false,
+                beforeMint: false,
+                afterMint: false,
+                beforeRedeem: false,
+                afterRedeem: false,
+                beforeWithdraw: false,
+                afterWithdraw: false,
+                beforeProcessAccounting: false,
+                afterProcessAccounting: true
+            })
+        );
+        emit FeeHooksCreated(address(feeHooks), vault, owner, performanceFee, performanceFeeRecipient);
+        return feeHooks;
     }
 }

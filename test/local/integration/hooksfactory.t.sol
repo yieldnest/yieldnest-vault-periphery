@@ -59,4 +59,48 @@ contract HooksFactoryIntegrationTest is BaseIntegrationTest {
         assertEq(hook.maxTotalSupplyIncreaseRatio(), maxTotalSupplyIncreaseRatio);
         assertEq(hook.expectedPerformanceFee(), performanceFee);
     }
+
+    function testCreateFeeHooks() public {
+        uint256 performanceFee = 0.1e18;
+        address performanceFeeRecipient = address(0xBEEF);
+
+        FeeHooks feeHooks = factory.createFeeHooks(address(vault), owner, performanceFee, performanceFeeRecipient);
+
+        assertEq(address(feeHooks.VAULT()), address(vault));
+        assertEq(feeHooks.owner(), owner);
+        assertEq(feeHooks.performanceFee(), performanceFee);
+        assertEq(feeHooks.performanceFeeRecipient(), performanceFeeRecipient);
+    }
+
+    function testCreateMetaHooksWithFeeHooks() public {
+        uint256 performanceFee = 0.1e18;
+        address performanceFeeRecipient = address(0xBEEF);
+
+        FeeHooks feeHooks = factory.createFeeHooks(address(vault), owner, performanceFee, performanceFeeRecipient);
+
+        uint256 maxDecreaseRatio = 0.05e18;
+        uint256 maxIncreaseRatio = 0.2e18;
+        uint256 maxTotalSupplyIncreaseRatio = 0.01e18;
+
+        ProcessAccountingGuardHook processAccountingGuardHook = factory.createProcessAccountingGuardHook(
+            address(vault), owner, maxDecreaseRatio, maxIncreaseRatio, maxTotalSupplyIncreaseRatio, performanceFee
+        );
+
+        // Deploy MetaHooks with an empty array
+        IHooks[] memory emptyHooks = new IHooks[](0);
+        MetaHooks metaHooks = factory.createMetaHooks(address(vault), owner, hookManager, emptyHooks);
+
+        // setHooks as owner (should have HOOK_MANAGER_ROLE after creation)
+        IHooks[] memory hooks = new IHooks[](2);
+        hooks[0] = IHooks(address(feeHooks));
+        hooks[1] = IHooks(address(processAccountingGuardHook));
+        // Set hooks as hookManager
+        vm.startPrank(hookManager);
+        metaHooks.setHooks(hooks);
+        vm.stopPrank();
+
+        // Check that the MetaHooks has both hooks set correctly
+        assertEq(address(metaHooks.hooks(0)), address(feeHooks));
+        assertEq(address(metaHooks.hooks(1)), address(processAccountingGuardHook));
+    }
 }

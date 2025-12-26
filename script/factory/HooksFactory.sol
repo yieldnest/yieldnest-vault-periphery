@@ -7,6 +7,8 @@ import {FeeHooks} from "lib/yieldnest-vault/src/hooks/FeeHooks.sol";
 import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 
 contract HooksFactory {
+    string public constant FACTORY_VERSION = "0.1.0";
+
     event MetaHooksCreated(address indexed metaHooks, address indexed vault, address owner, address hookManager);
 
     event ProcessAccountingGuardHookCreated(

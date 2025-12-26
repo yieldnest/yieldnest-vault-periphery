@@ -8,6 +8,17 @@ import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 
 contract HooksFactory {
     event MetaHooksCreated(address indexed metaHooks, address indexed vault, address owner, address hookManager);
+
+    event ProcessAccountingGuardHookCreated(
+        address indexed hook,
+        address indexed vault,
+        address indexed owner,
+        uint256 maxDecreaseRatio,
+        uint256 maxIncreaseRatio,
+        uint256 maxTotalSupplyIncreaseRatio,
+        uint256 performanceFee
+    );
+
     event FeeHooksCreated(
         address indexed feeHooks,
         address indexed vault,
@@ -43,16 +54,6 @@ contract HooksFactory {
 
         return metaHooks;
     }
-
-    event ProcessAccountingGuardHookCreated(
-        address indexed hook,
-        address indexed vault,
-        address indexed owner,
-        uint256 maxDecreaseRatio,
-        uint256 maxIncreaseRatio,
-        uint256 maxTotalSupplyIncreaseRatio,
-        uint256 performanceFee
-    );
 
     function createProcessAccountingGuardHook(
         address vault,

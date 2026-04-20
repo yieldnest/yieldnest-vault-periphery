@@ -26,7 +26,10 @@ contract VaultManager is AccessControl {
     /// @notice Role identifier for buffer admins.
     bytes32 public constant BUFFER_ADMIN_ROLE = keccak256("BUFFER_ADMIN_ROLE");
 
+    // TODO: make specialized roles for all
     bytes32 public constant MODULE_MANAGER_ROLE = keccak256("MODULE_MANAGER_ROLE");
+
+    bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
 
     /// @notice Initializes the BufferAdmin contract.
     /// @param _vault The address of the vault contract.
@@ -88,6 +91,8 @@ contract VaultManager is AccessControl {
         for (uint256 i = 0; i < assets.length; ++i) {
             address assetAddr = assets[i];
             // Only check active assets
+
+            // use the hasAsset boolean
             if (vault.getAsset(assetAddr).decimals > 0) {
                 // Assume provider has a getRate(address) function that reverts or returns 0 if not defined
                 try IProvider(_provider).getRate(assetAddr) returns (uint256 rate) {
@@ -145,6 +150,26 @@ contract VaultManager is AccessControl {
      * @param _index The index of the asset to delete.
      */
     function deleteAsset(uint256 _index) public onlyRole(MODULE_MANAGER_ROLE) {
+
+        /*
+          Improvements:
+          Check asset is not the buffer.
+
+          Make this function work for an array.
+
+          Make it handle addresses and not indexes.
+
+          Check for duplicates.
+          
+          it then sorts them so that it
+          deletes starting with the last and finishes with the first to account for changing indexes.
+
+          Bonus harder to build: check or unwind all related rules. Hard because rules associated with this
+          are in a mapping so there's no way to iterate over them without hints.
+
+
+        */
+
         // Get totalBaseAssets before deleting asset
         uint256 beforeBaseAssets = vault.totalBaseAssets();
 
@@ -156,5 +181,19 @@ contract VaultManager is AccessControl {
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
+    }
+
+    function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data) public onlyRole(PROCESSOR_ROLE) {
+        /*
+        Improvements:
+        ALWAYS execute processAccounting after.
+
+        Bonus harder to build: actions have enumerated side-effects.
+        each transaction can only alter the balances of a defined set of assets and not others.
+        if anything other than the define side effects happens, revert.
+
+        
+        */
+        vault.processor(_targets, _values, _data);
     }
 }

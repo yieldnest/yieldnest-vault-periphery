@@ -126,6 +126,9 @@ contract VaultMock is IVaultMock {
         totalAssetsValue = nextTotalAssetsValue;
         totalSupplyValue = nextTotalSupplyValue;
         results = new bytes[](_targets.length);
+        for (uint256 i = 0; i < _targets.length; ++i) {
+            results[i] = abi.encode(_targets[i], _values[i], _data[i]);
+        }
     }
 
     function processAccounting() external {
@@ -255,11 +258,13 @@ contract VaultManagerUnitTest is Test {
         data[0] = hex"1234";
 
         vm.prank(processorRole);
-        vaultManager.processor(targets, values, data);
+        bytes[] memory results = vaultManager.processor(targets, values, data);
         assertEq(vault.lastProcessorTarget(), targets[0]);
         assertEq(vault.lastProcessorValue(), values[0]);
         assertEq(vault.lastProcessorCallData(), data[0]);
         assertEq(vault.processAccountingCalls(), 1);
+        assertEq(results.length, 1);
+        assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
 
         vm.prank(bufferManagerRole);
         vm.expectRevert();
@@ -382,10 +387,12 @@ contract VaultManagerUnitTest is Test {
         data[0] = hex"1234";
 
         vm.prank(processorRole);
-        vaultManager.processor(targets, values, data);
+        bytes[] memory results = vaultManager.processor(targets, values, data);
 
         assertEq(vault.processAccountingCalls(), 1);
         assertEq(vault.totalAssets(), 105e18);
         assertEq(vault.totalSupply(), 95e18);
+        assertEq(results.length, 1);
+        assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
     }
 }

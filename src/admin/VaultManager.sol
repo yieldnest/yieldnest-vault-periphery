@@ -226,13 +226,14 @@ contract VaultManager is AccessControl {
     function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
         public
         onlyRole(PROCESSOR_ROLE)
+        returns (bytes[] memory results)
     {
         if (_targets.length != _values.length || _targets.length != _data.length) revert LengthMismatch();
 
         uint256 beforeTotalAssets = vault.totalAssets();
         uint256 beforeTotalSupply = vault.totalSupply();
 
-        vault.processor(_targets, _values, _data);
+        results = vault.processor(_targets, _values, _data);
         vault.processAccounting();
 
         uint256 afterTotalAssets = vault.totalAssets();

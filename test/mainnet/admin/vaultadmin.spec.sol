@@ -18,7 +18,7 @@ contract VaultManagerIntegrationTest is Test, Actors {
 
     function setUp() public {
         vault = IVault(MC.YNETHX);
-        vaultManager = new VaultManager(MC.YNETHX, ADMIN, ADMIN, ADMIN);
+        vaultManager = new VaultManager(MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN);
 
         // Grant VaultManager the necessary roles on the vault
         vm.startPrank(ADMIN);
@@ -208,12 +208,12 @@ contract VaultManagerIntegrationTest is Test, Actors {
     function testAccessControl() public {
         address unauthorized = address(0x9999);
 
-        // Test BUFFER_ADMIN_ROLE
+        // Test BUFFER_MANAGER_ROLE
         vm.prank(unauthorized);
         vm.expectRevert();
         vaultManager.setCurrentBuffer(address(0x1234));
 
-        // Test MODULE_MANAGER_ROLE
+        // Test PROVIDER_MANAGER_ROLE
         vm.prank(unauthorized);
         vm.expectRevert();
         vaultManager.setProvider(address(0x1234));
@@ -223,10 +223,12 @@ contract VaultManagerIntegrationTest is Test, Actors {
         assets[0] = address(0x1234);
         active[0] = true;
 
+        // Test ASSET_ADDER_ROLE
         vm.prank(unauthorized);
         vm.expectRevert();
         vaultManager.addAssets(assets, active);
 
+        // Test ASSET_DELETER_ROLE
         vm.prank(unauthorized);
         vm.expectRevert();
         vaultManager.deleteAsset(0);

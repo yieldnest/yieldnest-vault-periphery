@@ -23,29 +23,46 @@ contract VaultManager is AccessControl {
 
     IVault public immutable vault;
 
-    /// @notice Role identifier for buffer admins.
-    bytes32 public constant BUFFER_ADMIN_ROLE = keccak256("BUFFER_ADMIN_ROLE");
-
-    // TODO: make specialized roles for all
-    bytes32 public constant MODULE_MANAGER_ROLE = keccak256("MODULE_MANAGER_ROLE");
-
+    /// @notice Role identifier for buffer managers.
+    bytes32 public constant BUFFER_MANAGER_ROLE = keccak256("BUFFER_MANAGER_ROLE");
+    /// @notice Role identifier for provider managers.
+    bytes32 public constant PROVIDER_MANAGER_ROLE = keccak256("PROVIDER_MANAGER_ROLE");
+    /// @notice Role identifier for asset addition managers.
+    bytes32 public constant ASSET_ADDER_ROLE = keccak256("ASSET_ADDER_ROLE");
+    /// @notice Role identifier for asset deletion managers.
+    bytes32 public constant ASSET_DELETER_ROLE = keccak256("ASSET_DELETER_ROLE");
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
 
-    /// @notice Initializes the BufferAdmin contract.
+    /// @notice Initializes the VaultManager contract.
     /// @param _vault The address of the vault contract.
     /// @param defaultAdmin The address to be granted DEFAULT_ADMIN_ROLE.
-    /// @param bufferAdmin The address to be granted BUFFER_ADMIN_ROLE.
-    constructor(address _vault, address defaultAdmin, address bufferAdmin, address moduleManager) {
+    /// @param bufferManager The address to be granted BUFFER_MANAGER_ROLE.
+    /// @param providerManager The address to be granted PROVIDER_MANAGER_ROLE.
+    /// @param assetAdder The address to be granted ASSET_ADDER_ROLE.
+    /// @param assetDeleter The address to be granted ASSET_DELETER_ROLE.
+    /// @param processorManager The address to be granted PROCESSOR_ROLE.
+    constructor(
+        address _vault,
+        address defaultAdmin,
+        address bufferManager,
+        address providerManager,
+        address assetAdder,
+        address assetDeleter,
+        address processorManager
+    ) {
         vault = IVault(_vault);
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(BUFFER_ADMIN_ROLE, bufferAdmin);
-        _grantRole(MODULE_MANAGER_ROLE, moduleManager);
+        _grantRole(BUFFER_MANAGER_ROLE, bufferManager);
+        _grantRole(PROVIDER_MANAGER_ROLE, providerManager);
+        _grantRole(ASSET_ADDER_ROLE, assetAdder);
+        _grantRole(ASSET_DELETER_ROLE, assetDeleter);
+        _grantRole(PROCESSOR_ROLE, processorManager);
     }
 
     /// @notice Set the current buffer in the vault.
-    /// @dev Only callable by BUFFER_ADMIN_ROLE. Performs all validation here.
+    /// @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
     /// @param _buffer The buffer address to set as current.
-    function setCurrentBuffer(address _buffer) public onlyRole(BUFFER_ADMIN_ROLE) {
+    function setCurrentBuffer(address _buffer) public onlyRole(BUFFER_MANAGER_ROLE) {
         // Check that _buffer is a valid vault asset
         if (!_isVaultAsset(_buffer)) revert NotVaultAsset(_buffer);
 
@@ -85,7 +102,7 @@ contract VaultManager is AccessControl {
      * @dev Assumes that vault.processAccounting() is called before this function is called.
      * @param _provider The provider address to set.
      */
-    function setProvider(address _provider) public onlyRole(MODULE_MANAGER_ROLE) {
+    function setProvider(address _provider) public onlyRole(PROVIDER_MANAGER_ROLE) {
         // Check that all assets have a defined rate as defined by provider using getAssets
         address[] memory assets = vault.getAssets();
         for (uint256 i = 0; i < assets.length; ++i) {
@@ -122,7 +139,7 @@ contract VaultManager is AccessControl {
      * @param _assets The addresses of the assets to add.
      * @param _active Whether the assets are active.
      */
-    function addAssets(address[] memory _assets, bool[] memory _active) public onlyRole(MODULE_MANAGER_ROLE) {
+    function addAssets(address[] memory _assets, bool[] memory _active) public onlyRole(ASSET_ADDER_ROLE) {
         // Get totalBaseAssets before changing provider
         uint256 beforeBaseAssets = vault.totalBaseAssets();
 
@@ -149,7 +166,7 @@ contract VaultManager is AccessControl {
      * @dev Assumes that vault.processAccounting() is called before this function is called.
      * @param _index The index of the asset to delete.
      */
-    function deleteAsset(uint256 _index) public onlyRole(MODULE_MANAGER_ROLE) {
+    function deleteAsset(uint256 _index) public onlyRole(ASSET_DELETER_ROLE) {
 
         /*
           Improvements:

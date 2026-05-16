@@ -10,6 +10,8 @@ import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 /// @notice Contract for managing Admin functions for a Vault, with role-based access control.
 /// @notice Each wrapper function performs additional checks to ensure vault state is consistent.
 contract VaultManager is AccessControl {
+    uint256 public constant RATIO_DENOMINATOR = 1e18;
+
     /// @notice Thrown when the buffer is not a valid asset in the vault.
     error NotVaultAsset(address buffer);
     /// @notice Thrown when an asset deletion request includes the current buffer.
@@ -24,8 +26,17 @@ contract VaultManager is AccessControl {
     error LengthMismatch();
     /// @notice Thrown when an asset appears more than once in a batch.
     error DuplicateAsset(address asset);
+    /// @notice Thrown when the processor changes total assets by more than the configured ratio.
+    error TotalAssetsDeltaExceeded(uint256 beforeTotalAssets, uint256 afterTotalAssets);
+    /// @notice Thrown when the processor changes total supply by more than the configured ratio.
+    error TotalSupplyDeltaExceeded(uint256 beforeTotalSupply, uint256 afterTotalSupply);
+    /// @notice Thrown when a configured ratio exceeds the allowed denominator.
+    error RatioTooHigh(uint256 ratio);
+
+    event ProcessorMaxDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
 
     IVault public immutable vault;
+    uint256 public maxProcessorDeltaRatio;
 
     /// @notice Role identifier for buffer managers.
     bytes32 public constant BUFFER_MANAGER_ROLE = keccak256("BUFFER_MANAGER_ROLE");
@@ -61,6 +72,7 @@ contract VaultManager is AccessControl {
         _grantRole(ASSET_ADDER_ROLE, assetAdder);
         _grantRole(ASSET_DELETER_ROLE, assetDeleter);
         _grantRole(PROCESSOR_ROLE, processorManager);
+        maxProcessorDeltaRatio = RATIO_DENOMINATOR;
     }
 
     /// @notice Set the current buffer in the vault.
@@ -216,8 +228,30 @@ contract VaultManager is AccessControl {
         onlyRole(PROCESSOR_ROLE)
     {
         if (_targets.length != _values.length || _targets.length != _data.length) revert LengthMismatch();
+
+        uint256 beforeTotalAssets = vault.totalAssets();
+        uint256 beforeTotalSupply = vault.totalSupply();
+
         vault.processor(_targets, _values, _data);
         vault.processAccounting();
+
+        uint256 afterTotalAssets = vault.totalAssets();
+        uint256 afterTotalSupply = vault.totalSupply();
+
+        if (_ratioDelta(beforeTotalAssets, afterTotalAssets) > maxProcessorDeltaRatio) {
+            revert TotalAssetsDeltaExceeded(beforeTotalAssets, afterTotalAssets);
+        }
+
+        if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorDeltaRatio) {
+            revert TotalSupplyDeltaExceeded(beforeTotalSupply, afterTotalSupply);
+        }
+    }
+
+    function setMaxProcessorDeltaRatio(uint256 _maxProcessorDeltaRatio) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_maxProcessorDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorDeltaRatio);
+
+        emit ProcessorMaxDeltaRatioSet(maxProcessorDeltaRatio, _maxProcessorDeltaRatio);
+        maxProcessorDeltaRatio = _maxProcessorDeltaRatio;
     }
 
     function _sortDescending(uint256[] memory values) internal pure {
@@ -234,5 +268,14 @@ contract VaultManager is AccessControl {
 
             values[j] = current;
         }
+    }
+
+    function _ratioDelta(uint256 beforeValue, uint256 afterValue) internal pure returns (uint256) {
+        if (beforeValue == afterValue) return 0;
+
+        uint256 delta = beforeValue > afterValue ? beforeValue - afterValue : afterValue - beforeValue;
+        uint256 baseline = beforeValue == 0 ? 1 : beforeValue;
+
+        return (delta * RATIO_DENOMINATOR) / baseline;
     }
 }

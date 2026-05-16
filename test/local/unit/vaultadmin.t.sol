@@ -29,6 +29,10 @@ contract VaultMock is IVaultMock {
     uint256 public lastProcessorValue;
     bytes public lastProcessorCallData;
     uint256 public processAccountingCalls;
+    uint256 public totalAssetsValue = 1e18;
+    uint256 public totalSupplyValue = 1e18;
+    uint256 public nextTotalAssetsValue = 1e18;
+    uint256 public nextTotalSupplyValue = 1e18;
 
     function setAsset(address _addr, uint8 _decimals) external {
         assets[_addr] = AssetParams({index: allAssets.length, active: true, decimals: _decimals});
@@ -73,6 +77,26 @@ contract VaultMock is IVaultMock {
         return 1e18;
     }
 
+    function totalAssets() external view returns (uint256) {
+        return totalAssetsValue;
+    }
+
+    function totalSupply() external view returns (uint256) {
+        return totalSupplyValue;
+    }
+
+    function setAccountingSnapshot(uint256 _totalAssets, uint256 _totalSupply) external {
+        totalAssetsValue = _totalAssets;
+        totalSupplyValue = _totalSupply;
+        nextTotalAssetsValue = _totalAssets;
+        nextTotalSupplyValue = _totalSupply;
+    }
+
+    function setNextAccountingSnapshot(uint256 _totalAssets, uint256 _totalSupply) external {
+        nextTotalAssetsValue = _totalAssets;
+        nextTotalSupplyValue = _totalSupply;
+    }
+
     function addAsset(address _addr, bool _active) external {
         assets[_addr] = AssetParams({index: allAssets.length, active: _active, decimals: 18});
         allAssets.push(_addr);
@@ -99,6 +123,8 @@ contract VaultMock is IVaultMock {
         lastProcessorTarget = _targets[0];
         lastProcessorValue = _values[0];
         lastProcessorCallData = _data[0];
+        totalAssetsValue = nextTotalAssetsValue;
+        totalSupplyValue = nextTotalSupplyValue;
         results = new bytes[](_targets.length);
     }
 
@@ -151,6 +177,7 @@ contract VaultManagerUnitTest is Test {
     function setUp() public {
         vault = new VaultMock();
         vault.setAssetAddress(asset1);
+        vault.setAccountingSnapshot(1e18, 1e18);
         provider = new ProviderMock();
 
         // Set up ERC4626 mocks with correct asset
@@ -290,5 +317,75 @@ contract VaultManagerUnitTest is Test {
         vm.prank(processorRole);
         vm.expectRevert(VaultManager.LengthMismatch.selector);
         vaultManager.processor(targets, values, data);
+    }
+
+    function testSetMaxProcessorDeltaRatio() public {
+        vm.prank(admin);
+        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+
+        assertEq(vaultManager.maxProcessorDeltaRatio(), 0.05e18);
+    }
+
+    function testSetMaxProcessorDeltaRatioRevertsAboveDenominator() public {
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.RatioTooHigh.selector, 1e18 + 1));
+        vaultManager.setMaxProcessorDeltaRatio(1e18 + 1);
+    }
+
+    function testProcessorRevertsWhenTotalAssetsDeltaExceeded() public {
+        vm.prank(admin);
+        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+
+        vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setNextAccountingSnapshot(107e18, 100e18);
+
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory data = new bytes[](1);
+        targets[0] = address(0x3001);
+        data[0] = hex"1234";
+
+        vm.prank(processorRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalAssetsDeltaExceeded.selector, 100e18, 107e18));
+        vaultManager.processor(targets, values, data);
+    }
+
+    function testProcessorRevertsWhenTotalSupplyDeltaExceeded() public {
+        vm.prank(admin);
+        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+
+        vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setNextAccountingSnapshot(100e18, 107e18);
+
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory data = new bytes[](1);
+        targets[0] = address(0x3001);
+        data[0] = hex"1234";
+
+        vm.prank(processorRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyDeltaExceeded.selector, 100e18, 107e18));
+        vaultManager.processor(targets, values, data);
+    }
+
+    function testProcessorAllowsConfiguredDeltaForAssetsAndSupply() public {
+        vm.prank(admin);
+        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+
+        vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setNextAccountingSnapshot(105e18, 95e18);
+
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory data = new bytes[](1);
+        targets[0] = address(0x3001);
+        data[0] = hex"1234";
+
+        vm.prank(processorRole);
+        vaultManager.processor(targets, values, data);
+
+        assertEq(vault.processAccountingCalls(), 1);
+        assertEq(vault.totalAssets(), 105e18);
+        assertEq(vault.totalSupply(), 95e18);
     }
 }

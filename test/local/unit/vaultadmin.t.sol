@@ -33,6 +33,9 @@ contract VaultMock is IVaultMock {
     uint256 public totalSupplyValue = 1e18;
     uint256 public nextTotalAssetsValue = 1e18;
     uint256 public nextTotalSupplyValue = 1e18;
+    uint256 public cachedTotalBaseAssetsValue = 1e18;
+    uint256 public computedTotalBaseAssetsValue = 1e18;
+    bool public alwaysComputeTotalAssetsEnabled;
 
     function setAsset(address _addr, uint8 _decimals) external {
         assets[_addr] = AssetParams({index: allAssets.length, active: true, decimals: _decimals});
@@ -69,12 +72,16 @@ contract VaultMock is IVaultMock {
         return index < allAssets.length && allAssets[index] == _asset;
     }
 
-    function totalBaseAssets() external pure returns (uint256) {
-        return 1e18;
+    function totalBaseAssets() external view returns (uint256) {
+        return alwaysComputeTotalAssetsEnabled ? computedTotalBaseAssetsValue : cachedTotalBaseAssetsValue;
     }
 
-    function computeTotalAssets() external pure returns (uint256) {
-        return 1e18;
+    function computeTotalAssets() external view returns (uint256) {
+        return computedTotalBaseAssetsValue;
+    }
+
+    function alwaysComputeTotalAssets() external view returns (bool) {
+        return alwaysComputeTotalAssetsEnabled;
     }
 
     function totalAssets() external view returns (uint256) {
@@ -90,11 +97,18 @@ contract VaultMock is IVaultMock {
         totalSupplyValue = _totalSupply;
         nextTotalAssetsValue = _totalAssets;
         nextTotalSupplyValue = _totalSupply;
+        cachedTotalBaseAssetsValue = _totalAssets;
+        computedTotalBaseAssetsValue = _totalAssets;
     }
 
     function setNextAccountingSnapshot(uint256 _totalAssets, uint256 _totalSupply) external {
         nextTotalAssetsValue = _totalAssets;
         nextTotalSupplyValue = _totalSupply;
+    }
+
+    function setBaseAssetsSnapshot(uint256 _cachedTotalBaseAssets, uint256 _computedTotalBaseAssets) external {
+        cachedTotalBaseAssetsValue = _cachedTotalBaseAssets;
+        computedTotalBaseAssetsValue = _computedTotalBaseAssets;
     }
 
     function addAsset(address _addr, bool _active) external {
@@ -133,11 +147,21 @@ contract VaultMock is IVaultMock {
 
     function processAccounting() external {
         processAccountingCalls += 1;
+        cachedTotalBaseAssetsValue = computedTotalBaseAssetsValue;
+    }
+
+    function setAlwaysComputeTotalAssets(bool _alwaysComputeTotalAssets) external {
+        alwaysComputeTotalAssetsEnabled = _alwaysComputeTotalAssets;
+        totalAssetsValue = nextTotalAssetsValue;
+        if (!_alwaysComputeTotalAssets) {
+            cachedTotalBaseAssetsValue = computedTotalBaseAssetsValue;
+        }
     }
 }
 
 contract ERC4626Mock {
     address public asset_;
+    bool public revertOnMaxWithdraw;
 
     constructor(address _asset) {
         asset_ = _asset;
@@ -145,6 +169,15 @@ contract ERC4626Mock {
 
     function asset() external view returns (address) {
         return asset_;
+    }
+
+    function setRevertOnMaxWithdraw(bool _revertOnMaxWithdraw) external {
+        revertOnMaxWithdraw = _revertOnMaxWithdraw;
+    }
+
+    function maxWithdraw(address) external view returns (uint256) {
+        if (revertOnMaxWithdraw) revert();
+        return 0;
     }
 }
 
@@ -168,7 +201,8 @@ contract VaultManagerUnitTest is Test {
     address providerManagerRole = address(0xC1);
     address assetAdderRole = address(0xD1);
     address assetDeleterRole = address(0xE1);
-    address processorRole = address(0xF1);
+    address totalAssetsModeManagerRole = address(0xF1);
+    address processorRole = address(0xF2);
 
     address asset1 = address(0x1001);
     address asset2 = address(0x1002);
@@ -201,6 +235,7 @@ contract VaultManagerUnitTest is Test {
             providerManagerRole,
             assetAdderRole,
             assetDeleterRole,
+            totalAssetsModeManagerRole,
             processorRole
         );
     }
@@ -224,6 +259,25 @@ contract VaultManagerUnitTest is Test {
         vaultManager.setCurrentBuffer(address(wrongERC4626));
 
         vm.stopPrank();
+    }
+
+    function testSetCurrentBufferSkipIsAssetCheck() public {
+        ERC4626Mock externalBuffer = new ERC4626Mock(asset1);
+
+        vm.prank(bufferManagerRole);
+        vaultManager.setCurrentBuffer(address(externalBuffer), true);
+
+        assertEq(vault.currentBuffer(), address(externalBuffer));
+    }
+
+    function testSetCurrentBufferRevertsWhenMaxWithdrawProbeFails() public {
+        erc4626_1.setRevertOnMaxWithdraw(true);
+
+        vm.prank(bufferManagerRole);
+        vm.expectRevert(
+            abi.encodeWithSelector(VaultManager.BufferMaxWithdrawCheckFailed.selector, address(erc4626_1))
+        );
+        vaultManager.setCurrentBuffer(address(erc4626_1));
     }
 
     function testRolesAreDecoupledPerOperation() public {
@@ -394,5 +448,50 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.totalSupply(), 95e18);
         assertEq(results.length, 1);
         assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
+    }
+
+    function testSetAlwaysComputeTotalAssets() public {
+        vm.prank(totalAssetsModeManagerRole);
+        vaultManager.setAlwaysComputeTotalAssets(true);
+
+        assertTrue(vault.alwaysComputeTotalAssetsEnabled());
+        assertEq(vault.processAccountingCalls(), 1);
+    }
+
+    function testSetAlwaysComputeTotalAssetsSyncsAccountingBeforeEnablingAlwaysCompute() public {
+        vault.setBaseAssetsSnapshot(100e18, 110e18);
+
+        vm.prank(totalAssetsModeManagerRole);
+        vaultManager.setAlwaysComputeTotalAssets(true);
+
+        assertTrue(vault.alwaysComputeTotalAssetsEnabled());
+        assertEq(vault.processAccountingCalls(), 1);
+        assertEq(vault.totalBaseAssets(), 110e18);
+    }
+
+    function testSetAlwaysComputeTotalAssetsRevertsOnTotalAssetsMismatch() public {
+        vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setBaseAssetsSnapshot(100e18, 100e18);
+        vault.setNextAccountingSnapshot(120e18, 100e18);
+
+        vm.prank(totalAssetsModeManagerRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalAssetsMismatch.selector, 100e18, 120e18));
+        vaultManager.setAlwaysComputeTotalAssets(true);
+    }
+
+    function testSetAlwaysComputeTotalAssetsDisablesWithoutChangingVisibleTotals() public {
+        vm.prank(totalAssetsModeManagerRole);
+        vaultManager.setAlwaysComputeTotalAssets(true);
+
+        vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setBaseAssetsSnapshot(100e18, 100e18);
+        vault.setNextAccountingSnapshot(100e18, 100e18);
+
+        vm.prank(totalAssetsModeManagerRole);
+        vaultManager.setAlwaysComputeTotalAssets(false);
+
+        assertFalse(vault.alwaysComputeTotalAssetsEnabled());
+        assertEq(vault.totalBaseAssets(), 100e18);
+        assertEq(vault.totalAssets(), 100e18);
     }
 }

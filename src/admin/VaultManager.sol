@@ -5,6 +5,11 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
+import {IStrategy} from "lib/yieldnest-vault/src/interface/IStrategy.sol";
+
+interface IAlwaysComputeTotalAssetsVault {
+    function setAlwaysComputeTotalAssets(bool alwaysComputeTotalAssets_) external;
+}
 
 /// @title VaultManager
 /// @notice Contract for managing Admin functions for a Vault, with role-based access control.
@@ -18,10 +23,14 @@ contract VaultManager is AccessControl {
     error CannotDeleteBufferAsset(address asset);
     /// @notice Thrown when the buffer does not match the ERC4626 asset.
     error ERC4626AssetMismatch(address buffer);
+    /// @notice Thrown when the buffer cannot satisfy a maxWithdraw probe.
+    error BufferMaxWithdrawCheckFailed(address buffer);
     /// @notice Thrown when a provider rate is not defined for an asset.
     error ProviderRateNotDefined(address asset);
     /// @notice Thrown when the total base assets mismatch after changing provider.
     error TotalBaseAssetsMismatch(uint256 beforeBaseAssets, uint256 afterBaseAssets);
+    /// @notice Thrown when the total assets mismatch after a configuration change.
+    error TotalAssetsMismatch(uint256 beforeTotalAssets, uint256 afterTotalAssets);
     /// @notice Thrown when arrays have mismatched lengths.
     error LengthMismatch();
     /// @notice Thrown when an asset appears more than once in a batch.
@@ -46,6 +55,8 @@ contract VaultManager is AccessControl {
     bytes32 public constant ASSET_ADDER_ROLE = keccak256("ASSET_ADDER_ROLE");
     /// @notice Role identifier for asset deletion managers.
     bytes32 public constant ASSET_DELETER_ROLE = keccak256("ASSET_DELETER_ROLE");
+    /// @notice Role identifier for accounting mode managers.
+    bytes32 public constant TOTAL_ASSETS_MODE_MANAGER_ROLE = keccak256("TOTAL_ASSETS_MODE_MANAGER_ROLE");
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
 
     /// @notice Initializes the VaultManager contract.
@@ -55,6 +66,7 @@ contract VaultManager is AccessControl {
     /// @param providerManager The address to be granted PROVIDER_MANAGER_ROLE.
     /// @param assetAdder The address to be granted ASSET_ADDER_ROLE.
     /// @param assetDeleter The address to be granted ASSET_DELETER_ROLE.
+    /// @param totalAssetsModeManager The address to be granted TOTAL_ASSETS_MODE_MANAGER_ROLE.
     /// @param processorManager The address to be granted PROCESSOR_ROLE.
     constructor(
         address _vault,
@@ -63,6 +75,7 @@ contract VaultManager is AccessControl {
         address providerManager,
         address assetAdder,
         address assetDeleter,
+        address totalAssetsModeManager,
         address processorManager
     ) {
         vault = IVault(_vault);
@@ -71,6 +84,7 @@ contract VaultManager is AccessControl {
         _grantRole(PROVIDER_MANAGER_ROLE, providerManager);
         _grantRole(ASSET_ADDER_ROLE, assetAdder);
         _grantRole(ASSET_DELETER_ROLE, assetDeleter);
+        _grantRole(TOTAL_ASSETS_MODE_MANAGER_ROLE, totalAssetsModeManager);
         _grantRole(PROCESSOR_ROLE, processorManager);
         maxProcessorDeltaRatio = RATIO_DENOMINATOR;
     }
@@ -79,11 +93,23 @@ contract VaultManager is AccessControl {
     /// @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
     /// @param _buffer The buffer address to set as current.
     function setCurrentBuffer(address _buffer) public onlyRole(BUFFER_MANAGER_ROLE) {
+        setCurrentBuffer(_buffer, false);
+    }
+
+    /// @notice Set the current buffer in the vault.
+    /// @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
+    /// @param _buffer The buffer address to set as current.
+    /// @param skipIsAssetCheck Whether to skip the vault asset membership check.
+    function setCurrentBuffer(address _buffer, bool skipIsAssetCheck) public onlyRole(BUFFER_MANAGER_ROLE) {
         // Check that _buffer is a valid vault asset
-        if (!_isVaultAsset(_buffer)) revert NotVaultAsset(_buffer);
+        if (!skipIsAssetCheck && !_isVaultAsset(_buffer)) revert NotVaultAsset(_buffer);
 
         // Check that _buffer is a valid ERC4626 asset for the vault
         if (!_erc4626AssetMatchesVaultAsset(_buffer)) revert ERC4626AssetMismatch(_buffer);
+
+        try IStrategy(_buffer).maxWithdraw(address(vault)) returns (uint256) {} catch {
+            revert BufferMaxWithdrawCheckFailed(_buffer);
+        }
 
         vault.setBuffer(_buffer);
     }
@@ -245,6 +271,33 @@ contract VaultManager is AccessControl {
 
         if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorDeltaRatio) {
             revert TotalSupplyDeltaExceeded(beforeTotalSupply, afterTotalSupply);
+        }
+    }
+
+    function setAlwaysComputeTotalAssets(bool _alwaysComputeTotalAssets)
+        external
+        onlyRole(TOTAL_ASSETS_MODE_MANAGER_ROLE)
+    {
+        bool wasAlwaysComputeTotalAssets = vault.alwaysComputeTotalAssets();
+
+        if (!wasAlwaysComputeTotalAssets && _alwaysComputeTotalAssets) {
+            vault.processAccounting();
+        }
+
+        uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
+        uint256 beforeTotalAssets = vault.totalAssets();
+
+        IAlwaysComputeTotalAssetsVault(address(vault)).setAlwaysComputeTotalAssets(_alwaysComputeTotalAssets);
+
+        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
+        uint256 afterTotalAssets = vault.totalAssets();
+
+        if (beforeTotalBaseAssets != afterTotalBaseAssets) {
+            revert TotalBaseAssetsMismatch(beforeTotalBaseAssets, afterTotalBaseAssets);
+        }
+
+        if (beforeTotalAssets != afterTotalAssets) {
+            revert TotalAssetsMismatch(beforeTotalAssets, afterTotalAssets);
         }
     }
 

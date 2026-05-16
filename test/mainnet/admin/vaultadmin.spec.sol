@@ -18,7 +18,7 @@ contract VaultManagerIntegrationTest is Test, Actors {
 
     function setUp() public {
         vault = IVault(MC.YNETHX);
-        vaultManager = new VaultManager(MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN);
+        vaultManager = new VaultManager(MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN);
 
         // Grant VaultManager the necessary roles on the vault
         vm.startPrank(ADMIN);

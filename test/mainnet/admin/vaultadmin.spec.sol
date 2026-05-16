@@ -160,11 +160,8 @@ contract VaultManagerIntegrationTest is Test, Actors {
         address[] memory assetsAfterAdd = vault.getAssets();
         assertEq(assetsAfterAdd.length, initialAssetCount + 1, "Asset should be added");
 
-        // Now delete the asset we just added (it should be at the last index)
-        uint256 indexToDelete = assetsAfterAdd.length - 1;
-
         vm.prank(ADMIN);
-        vaultManager.deleteAsset(indexToDelete);
+        vaultManager.deleteAsset(address(newAsset));
 
         // Verify asset was deleted
         address[] memory assetsAfterDelete = vault.getAssets();
@@ -231,7 +228,7 @@ contract VaultManagerIntegrationTest is Test, Actors {
         // Test ASSET_DELETER_ROLE
         vm.prank(unauthorized);
         vm.expectRevert();
-        vaultManager.deleteAsset(0);
+        vaultManager.deleteAsset(address(0x1234));
     }
 }
 

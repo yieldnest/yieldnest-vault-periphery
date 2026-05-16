@@ -16,6 +16,7 @@ interface IVaultMock {
     function getAsset(address) external view returns (AssetParams memory);
     function asset() external view returns (address);
     function setBuffer(address) external;
+    function hasAsset(address) external view returns (bool);
 }
 
 contract VaultMock is IVaultMock {
@@ -27,6 +28,7 @@ contract VaultMock is IVaultMock {
     address public lastProcessorTarget;
     uint256 public lastProcessorValue;
     bytes public lastProcessorCallData;
+    uint256 public processAccountingCalls;
 
     function setAsset(address _addr, uint8 _decimals) external {
         assets[_addr] = AssetParams({index: allAssets.length, active: true, decimals: _decimals});
@@ -49,8 +51,18 @@ contract VaultMock is IVaultMock {
         currentBuffer = _buffer;
     }
 
+    function buffer() external view returns (address) {
+        return currentBuffer;
+    }
+
     function getAssets() external view returns (address[] memory) {
         return allAssets;
+    }
+
+    function hasAsset(address _asset) external view returns (bool) {
+        if (allAssets.length == 0) return false;
+        uint256 index = assets[_asset].index;
+        return index < allAssets.length && allAssets[index] == _asset;
     }
 
     function totalBaseAssets() external pure returns (uint256) {
@@ -88,6 +100,10 @@ contract VaultMock is IVaultMock {
         lastProcessorValue = _values[0];
         lastProcessorCallData = _data[0];
         results = new bytes[](_targets.length);
+    }
+
+    function processAccounting() external {
+        processAccountingCalls += 1;
     }
 }
 
@@ -201,7 +217,7 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.getAssets().length, 3);
 
         vm.prank(assetDeleterRole);
-        vaultManager.deleteAsset(2);
+        vaultManager.deleteAsset(newAsset);
         assertEq(vault.getAssets().length, 2);
 
         address[] memory targets = new address[](1);
@@ -216,6 +232,7 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.lastProcessorTarget(), targets[0]);
         assertEq(vault.lastProcessorValue(), values[0]);
         assertEq(vault.lastProcessorCallData(), data[0]);
+        assertEq(vault.processAccountingCalls(), 1);
 
         vm.prank(bufferManagerRole);
         vm.expectRevert();
@@ -227,10 +244,51 @@ contract VaultManagerUnitTest is Test {
 
         vm.prank(assetAdderRole);
         vm.expectRevert();
-        vaultManager.deleteAsset(0);
+        vaultManager.deleteAsset(address(erc4626_1));
 
         vm.prank(assetDeleterRole);
         vm.expectRevert();
+        vaultManager.processor(targets, values, data);
+    }
+
+    function testDeleteAssetRevertsForBuffer() public {
+        vm.prank(bufferManagerRole);
+        vaultManager.setCurrentBuffer(address(erc4626_1));
+
+        vm.prank(assetDeleterRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.CannotDeleteBufferAsset.selector, address(erc4626_1)));
+        vaultManager.deleteAsset(address(erc4626_1));
+    }
+
+    function testDeleteAssetsRevertsForDuplicates() public {
+        address[] memory assetsToDelete = new address[](2);
+        assetsToDelete[0] = address(erc4626_1);
+        assetsToDelete[1] = address(erc4626_1);
+
+        vm.prank(assetDeleterRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.DuplicateAsset.selector, address(erc4626_1)));
+        vaultManager.deleteAssets(assetsToDelete);
+    }
+
+    function testAddAssetsRevertsOnLengthMismatch() public {
+        address[] memory assetsToAdd = new address[](1);
+        bool[] memory activeFlags = new bool[](0);
+        assetsToAdd[0] = address(0x2001);
+
+        vm.prank(assetAdderRole);
+        vm.expectRevert(VaultManager.LengthMismatch.selector);
+        vaultManager.addAssets(assetsToAdd, activeFlags);
+    }
+
+    function testProcessorRevertsOnLengthMismatch() public {
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory data = new bytes[](1);
+        targets[0] = address(0x3001);
+        data[0] = hex"1234";
+
+        vm.prank(processorRole);
+        vm.expectRevert(VaultManager.LengthMismatch.selector);
         vaultManager.processor(targets, values, data);
     }
 }

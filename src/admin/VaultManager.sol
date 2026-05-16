@@ -12,14 +12,18 @@ import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 contract VaultManager is AccessControl {
     /// @notice Thrown when the buffer is not a valid asset in the vault.
     error NotVaultAsset(address buffer);
+    /// @notice Thrown when an asset deletion request includes the current buffer.
+    error CannotDeleteBufferAsset(address asset);
     /// @notice Thrown when the buffer does not match the ERC4626 asset.
     error ERC4626AssetMismatch(address buffer);
-    /// @notice Thrown when setting the buffer fails.
-    error SetBufferFailed();
     /// @notice Thrown when a provider rate is not defined for an asset.
     error ProviderRateNotDefined(address asset);
     /// @notice Thrown when the total base assets mismatch after changing provider.
     error TotalBaseAssetsMismatch(uint256 beforeBaseAssets, uint256 afterBaseAssets);
+    /// @notice Thrown when arrays have mismatched lengths.
+    error LengthMismatch();
+    /// @notice Thrown when an asset appears more than once in a batch.
+    error DuplicateAsset(address asset);
 
     IVault public immutable vault;
 
@@ -76,10 +80,7 @@ contract VaultManager is AccessControl {
     /// @param asset The address to check.
     /// @return True if the address is a valid asset, false otherwise.
     function _isVaultAsset(address asset) public view returns (bool) {
-        // TODO: optimizse using vault.hasAsset() post upgrade
-        uint256 vaultIndex = vault.getAsset(asset).index;
-        address[] memory allAssets = vault.getAssets();
-        return vaultIndex < allAssets.length && allAssets[vaultIndex] == asset;
+        return vault.hasAsset(asset);
     }
 
     /// @notice Checks if an address is a valid ERC4626 asset for the vault.
@@ -107,10 +108,7 @@ contract VaultManager is AccessControl {
         address[] memory assets = vault.getAssets();
         for (uint256 i = 0; i < assets.length; ++i) {
             address assetAddr = assets[i];
-            // Only check active assets
-
-            // use the hasAsset boolean
-            if (vault.getAsset(assetAddr).decimals > 0) {
+            if (vault.getAsset(assetAddr).active) {
                 // Assume provider has a getRate(address) function that reverts or returns 0 if not defined
                 try IProvider(_provider).getRate(assetAddr) returns (uint256 rate) {
                     if (rate == 0) revert ProviderRateNotDefined(assetAddr);
@@ -140,6 +138,8 @@ contract VaultManager is AccessControl {
      * @param _active Whether the assets are active.
      */
     function addAssets(address[] memory _assets, bool[] memory _active) public onlyRole(ASSET_ADDER_ROLE) {
+        if (_assets.length != _active.length) revert LengthMismatch();
+
         // Get totalBaseAssets before changing provider
         uint256 beforeBaseAssets = vault.totalBaseAssets();
 
@@ -164,33 +164,44 @@ contract VaultManager is AccessControl {
     /**
      * @notice Delete an asset from the vault.
      * @dev Assumes that vault.processAccounting() is called before this function is called.
-     * @param _index The index of the asset to delete.
+     * @param _asset The asset to delete.
      */
-    function deleteAsset(uint256 _index) public onlyRole(ASSET_DELETER_ROLE) {
+    function deleteAsset(address _asset) public onlyRole(ASSET_DELETER_ROLE) {
+        address[] memory assets = new address[](1);
+        assets[0] = _asset;
+        deleteAssets(assets);
+    }
 
-        /*
-          Improvements:
-          Check asset is not the buffer.
+    /**
+     * @notice Delete assets from the vault.
+     * @dev Assumes that vault.processAccounting() is called before this function is called.
+     * @param _assets The assets to delete.
+     */
+    function deleteAssets(address[] memory _assets) public onlyRole(ASSET_DELETER_ROLE) {
+        uint256[] memory indexes = new uint256[](_assets.length);
+        address currentBuffer = vault.buffer();
 
-          Make this function work for an array.
+        for (uint256 i = 0; i < _assets.length; ++i) {
+            address asset = _assets[i];
 
-          Make it handle addresses and not indexes.
+            if (!_isVaultAsset(asset)) revert NotVaultAsset(asset);
+            if (asset == currentBuffer) revert CannotDeleteBufferAsset(asset);
 
-          Check for duplicates.
-          
-          it then sorts them so that it
-          deletes starting with the last and finishes with the first to account for changing indexes.
+            for (uint256 j = i + 1; j < _assets.length; ++j) {
+                if (asset == _assets[j]) revert DuplicateAsset(asset);
+            }
 
-          Bonus harder to build: check or unwind all related rules. Hard because rules associated with this
-          are in a mapping so there's no way to iterate over them without hints.
+            indexes[i] = vault.getAsset(asset).index;
+        }
 
-
-        */
+        _sortDescending(indexes);
 
         // Get totalBaseAssets before deleting asset
         uint256 beforeBaseAssets = vault.totalBaseAssets();
 
-        vault.deleteAsset(_index);
+        for (uint256 i = 0; i < indexes.length; ++i) {
+            vault.deleteAsset(indexes[i]);
+        }
 
         // Get totalBaseAssets after deleting asset, using computeTotalAssets (forces recompute)
         uint256 afterBaseAssets = vault.computeTotalAssets();
@@ -200,17 +211,28 @@ contract VaultManager is AccessControl {
         }
     }
 
-    function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data) public onlyRole(PROCESSOR_ROLE) {
-        /*
-        Improvements:
-        ALWAYS execute processAccounting after.
-
-        Bonus harder to build: actions have enumerated side-effects.
-        each transaction can only alter the balances of a defined set of assets and not others.
-        if anything other than the define side effects happens, revert.
-
-        
-        */
+    function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
+        public
+        onlyRole(PROCESSOR_ROLE)
+    {
+        if (_targets.length != _values.length || _targets.length != _data.length) revert LengthMismatch();
         vault.processor(_targets, _values, _data);
+        vault.processAccounting();
+    }
+
+    function _sortDescending(uint256[] memory values) internal pure {
+        for (uint256 i = 1; i < values.length; ++i) {
+            uint256 current = values[i];
+            uint256 j = i;
+
+            while (j > 0 && values[j - 1] < current) {
+                values[j] = values[j - 1];
+                unchecked {
+                    --j;
+                }
+            }
+
+            values[j] = current;
+        }
     }
 }

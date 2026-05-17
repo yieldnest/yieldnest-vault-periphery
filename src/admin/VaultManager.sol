@@ -298,8 +298,9 @@ contract VaultManager is AccessControl {
             return;
         }
 
+        if (_alwaysComputeTotalAssets && address(vault.hooks()) != address(0)) revert HooksMustBeDisabled();
+
         if (!wasAlwaysComputeTotalAssets && _alwaysComputeTotalAssets) {
-            if (address(vault.hooks()) != address(0)) revert HooksMustBeDisabled();
             vault.processAccounting();
         }
 

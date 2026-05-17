@@ -160,8 +160,6 @@ contract VaultManager is AccessControl {
      */
     function setProvider(address _provider) public onlyRole(PROVIDER_MANAGER_ROLE) {
         address[] memory assets = vault.getAssets();
-        address baseAsset = assets[0];
-        address defaultAsset = vault.asset();
         address currentProvider = vault.provider();
 
         // Check that all assets have a defined rate as defined by provider using getAssets
@@ -177,31 +175,41 @@ contract VaultManager is AccessControl {
             }
         }
 
+        // Check that the rates of the base asset and default asset have not changed
+        {
+            address baseAsset = assets[0];
+            address defaultAsset = vault.asset();
+
+            uint256 beforeBaseAssetRate = IProvider(currentProvider).getRate(baseAsset);
+            uint256 beforeDefaultAssetRate = IProvider(currentProvider).getRate(defaultAsset);
+            uint256 afterBaseAssetRate = IProvider(_provider).getRate(baseAsset);
+            uint256 afterDefaultAssetRate = IProvider(_provider).getRate(defaultAsset);
+
+            if (beforeBaseAssetRate != afterBaseAssetRate) {
+                revert AssetRateChanged(baseAsset, beforeBaseAssetRate, afterBaseAssetRate);
+            }
+
+            if (beforeDefaultAssetRate != afterDefaultAssetRate) {
+                revert AssetRateChanged(defaultAsset, beforeDefaultAssetRate, afterDefaultAssetRate);
+            }
+        }
+
+        // Process accounting to ensure totalBaseAssets is updated
         vault.processAccounting();
 
         // Get totalBaseAssets before changing provider from a fresh accounting snapshot
         uint256 beforeBaseAssets = vault.totalBaseAssets();
-        uint256 beforeBaseAssetRate = IProvider(currentProvider).getRate(baseAsset);
-        uint256 beforeDefaultAssetRate = IProvider(currentProvider).getRate(defaultAsset);
-        uint256 afterBaseAssetRate = IProvider(_provider).getRate(baseAsset);
-        uint256 afterDefaultAssetRate = IProvider(_provider).getRate(defaultAsset);
-
-        if (beforeBaseAssetRate != afterBaseAssetRate) {
-            revert AssetRateChanged(baseAsset, beforeBaseAssetRate, afterBaseAssetRate);
-        }
-
-        if (beforeDefaultAssetRate != afterDefaultAssetRate) {
-            revert AssetRateChanged(defaultAsset, beforeDefaultAssetRate, afterDefaultAssetRate);
-        }
 
         vault.setProvider(_provider);
 
-        // Get totalBaseAssets after changing provider, using computeTotalAssets (forces recompute)
+        // Get totalBaseAssets after changing provider, using computeTotalAssets (virtual recompute)
         uint256 afterBaseAssets = vault.computeTotalAssets();
 
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
+
+        // processAccounting is not called again, since storage value doesn't actually change.
     }
 
     /**

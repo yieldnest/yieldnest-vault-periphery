@@ -36,6 +36,8 @@ contract VaultMock is IVaultMock {
     uint256 public cachedTotalBaseAssetsValue = 1e18;
     uint256 public computedTotalBaseAssetsValue = 1e18;
     bool public alwaysComputeTotalAssetsEnabled;
+    bool public pausedState;
+    address public hooksAddress;
 
     function setAsset(address _addr, uint8 _decimals) external {
         assets[_addr] = AssetParams({index: allAssets.length, active: true, decimals: _decimals});
@@ -60,6 +62,14 @@ contract VaultMock is IVaultMock {
 
     function buffer() external view returns (address) {
         return currentBuffer;
+    }
+
+    function paused() external view returns (bool) {
+        return pausedState;
+    }
+
+    function setPaused(bool _paused) external {
+        pausedState = _paused;
     }
 
     function getAssets() external view returns (address[] memory) {
@@ -92,6 +102,10 @@ contract VaultMock is IVaultMock {
         return totalSupplyValue;
     }
 
+    function hooks() external view returns (address) {
+        return hooksAddress;
+    }
+
     function setAccountingSnapshot(uint256 _totalAssets, uint256 _totalSupply) external {
         totalAssetsValue = _totalAssets;
         totalSupplyValue = _totalSupply;
@@ -109,6 +123,12 @@ contract VaultMock is IVaultMock {
     function setBaseAssetsSnapshot(uint256 _cachedTotalBaseAssets, uint256 _computedTotalBaseAssets) external {
         cachedTotalBaseAssetsValue = _cachedTotalBaseAssets;
         computedTotalBaseAssetsValue = _computedTotalBaseAssets;
+    }
+
+    function setHooks(address _hooks) external {
+        hooksAddress = _hooks;
+        totalAssetsValue = nextTotalAssetsValue;
+        totalSupplyValue = nextTotalSupplyValue;
     }
 
     function addAsset(address _addr, bool _active) external {
@@ -202,7 +222,8 @@ contract VaultManagerUnitTest is Test {
     address assetAdderRole = address(0xD1);
     address assetDeleterRole = address(0xE1);
     address totalAssetsModeManagerRole = address(0xF1);
-    address processorRole = address(0xF2);
+    address hooksManagerRole = address(0xF2);
+    address processorRole = address(0xF3);
 
     address asset1 = address(0x1001);
     address asset2 = address(0x1002);
@@ -236,6 +257,7 @@ contract VaultManagerUnitTest is Test {
             assetAdderRole,
             assetDeleterRole,
             totalAssetsModeManagerRole,
+            hooksManagerRole,
             processorRole
         );
     }
@@ -493,5 +515,60 @@ contract VaultManagerUnitTest is Test {
         assertFalse(vault.alwaysComputeTotalAssetsEnabled());
         assertEq(vault.totalBaseAssets(), 100e18);
         assertEq(vault.totalAssets(), 100e18);
+    }
+
+    function testSetAlwaysComputeTotalAssetsRevertsWhenHooksAreConfigured() public {
+        vault.setHooks(address(0xBEEF));
+
+        vm.prank(totalAssetsModeManagerRole);
+        vm.expectRevert(VaultManager.HooksMustBeDisabled.selector);
+        vaultManager.setAlwaysComputeTotalAssets(true);
+    }
+
+    function testSetHooks() public {
+        vault.setPaused(true);
+
+        vm.prank(hooksManagerRole);
+        vaultManager.setHooks(address(0xBEEF));
+
+        assertEq(vault.hooks(), address(0xBEEF));
+        assertEq(vault.processAccountingCalls(), 2);
+    }
+
+    function testSetHooksRevertsWhenVaultNotPaused() public {
+        vm.prank(hooksManagerRole);
+        vm.expectRevert(VaultManager.VaultNotPaused.selector);
+        vaultManager.setHooks(address(0xBEEF));
+    }
+
+    function testSetHooksRevertsWhenAlwaysComputeTotalAssetsEnabled() public {
+        vault.setPaused(true);
+
+        vm.prank(totalAssetsModeManagerRole);
+        vaultManager.setAlwaysComputeTotalAssets(true);
+
+        vm.prank(hooksManagerRole);
+        vm.expectRevert(VaultManager.AlwaysComputeTotalAssetsMustBeDisabled.selector);
+        vaultManager.setHooks(address(0xBEEF));
+    }
+
+    function testSetHooksRevertsOnTotalAssetsMismatch() public {
+        vault.setPaused(true);
+        vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setNextAccountingSnapshot(120e18, 100e18);
+
+        vm.prank(hooksManagerRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalAssetsMismatch.selector, 100e18, 120e18));
+        vaultManager.setHooks(address(0xBEEF));
+    }
+
+    function testSetHooksRevertsOnTotalSupplyMismatch() public {
+        vault.setPaused(true);
+        vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setNextAccountingSnapshot(100e18, 120e18);
+
+        vm.prank(hooksManagerRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyMismatch.selector, 100e18, 120e18));
+        vaultManager.setHooks(address(0xBEEF));
     }
 }

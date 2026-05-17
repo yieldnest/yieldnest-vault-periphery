@@ -11,6 +11,11 @@ interface IAlwaysComputeTotalAssetsVault {
     function setAlwaysComputeTotalAssets(bool alwaysComputeTotalAssets_) external;
 }
 
+interface IHooksManagedVault {
+    function paused() external view returns (bool);
+    function setHooks(address hooks_) external;
+}
+
 /// @title VaultManager
 /// @notice Contract for managing Admin functions for a Vault, with role-based access control.
 /// @notice Each wrapper function performs additional checks to ensure vault state is consistent.
@@ -31,6 +36,8 @@ contract VaultManager is AccessControl {
     error TotalBaseAssetsMismatch(uint256 beforeBaseAssets, uint256 afterBaseAssets);
     /// @notice Thrown when the total assets mismatch after a configuration change.
     error TotalAssetsMismatch(uint256 beforeTotalAssets, uint256 afterTotalAssets);
+    /// @notice Thrown when the total supply mismatch after a configuration change.
+    error TotalSupplyMismatch(uint256 beforeTotalSupply, uint256 afterTotalSupply);
     /// @notice Thrown when arrays have mismatched lengths.
     error LengthMismatch();
     /// @notice Thrown when an asset appears more than once in a batch.
@@ -41,6 +48,12 @@ contract VaultManager is AccessControl {
     error TotalSupplyDeltaExceeded(uint256 beforeTotalSupply, uint256 afterTotalSupply);
     /// @notice Thrown when a configured ratio exceeds the allowed denominator.
     error RatioTooHigh(uint256 ratio);
+    /// @notice Thrown when the vault must be paused for the requested operation.
+    error VaultNotPaused();
+    /// @notice Thrown when hooks must be disabled for the requested operation.
+    error HooksMustBeDisabled();
+    /// @notice Thrown when alwaysComputeTotalAssets must be disabled for the requested operation.
+    error AlwaysComputeTotalAssetsMustBeDisabled();
 
     event ProcessorMaxDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
 
@@ -57,6 +70,8 @@ contract VaultManager is AccessControl {
     bytes32 public constant ASSET_DELETER_ROLE = keccak256("ASSET_DELETER_ROLE");
     /// @notice Role identifier for accounting mode managers.
     bytes32 public constant TOTAL_ASSETS_MODE_MANAGER_ROLE = keccak256("TOTAL_ASSETS_MODE_MANAGER_ROLE");
+    /// @notice Role identifier for hooks managers.
+    bytes32 public constant HOOKS_MANAGER_ROLE = keccak256("HOOKS_MANAGER_ROLE");
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
 
     /// @notice Initializes the VaultManager contract.
@@ -67,6 +82,7 @@ contract VaultManager is AccessControl {
     /// @param assetAdder The address to be granted ASSET_ADDER_ROLE.
     /// @param assetDeleter The address to be granted ASSET_DELETER_ROLE.
     /// @param totalAssetsModeManager The address to be granted TOTAL_ASSETS_MODE_MANAGER_ROLE.
+    /// @param hooksManager The address to be granted HOOKS_MANAGER_ROLE.
     /// @param processorManager The address to be granted PROCESSOR_ROLE.
     constructor(
         address _vault,
@@ -76,6 +92,7 @@ contract VaultManager is AccessControl {
         address assetAdder,
         address assetDeleter,
         address totalAssetsModeManager,
+        address hooksManager,
         address processorManager
     ) {
         vault = IVault(_vault);
@@ -85,6 +102,7 @@ contract VaultManager is AccessControl {
         _grantRole(ASSET_ADDER_ROLE, assetAdder);
         _grantRole(ASSET_DELETER_ROLE, assetDeleter);
         _grantRole(TOTAL_ASSETS_MODE_MANAGER_ROLE, totalAssetsModeManager);
+        _grantRole(HOOKS_MANAGER_ROLE, hooksManager);
         _grantRole(PROCESSOR_ROLE, processorManager);
         maxProcessorDeltaRatio = RATIO_DENOMINATOR;
     }
@@ -284,6 +302,7 @@ contract VaultManager is AccessControl {
         }
 
         if (!wasAlwaysComputeTotalAssets && _alwaysComputeTotalAssets) {
+            if (address(vault.hooks()) != address(0)) revert HooksMustBeDisabled();
             vault.processAccounting();
         }
 
@@ -301,6 +320,29 @@ contract VaultManager is AccessControl {
 
         if (beforeTotalAssets != afterTotalAssets) {
             revert TotalAssetsMismatch(beforeTotalAssets, afterTotalAssets);
+        }
+    }
+
+    function setHooks(address _hooks) external onlyRole(HOOKS_MANAGER_ROLE) {
+        if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
+        if (!IHooksManagedVault(address(vault)).paused()) revert VaultNotPaused();
+
+        vault.processAccounting();
+        uint256 beforeTotalAssets = vault.totalAssets();
+        uint256 beforeTotalSupply = vault.totalSupply();
+
+        IHooksManagedVault(address(vault)).setHooks(_hooks);
+
+        vault.processAccounting();
+        uint256 afterTotalAssets = vault.totalAssets();
+        uint256 afterTotalSupply = vault.totalSupply();
+
+        if (beforeTotalAssets != afterTotalAssets) {
+            revert TotalAssetsMismatch(beforeTotalAssets, afterTotalAssets);
+        }
+
+        if (beforeTotalSupply != afterTotalSupply) {
+            revert TotalSupplyMismatch(beforeTotalSupply, afterTotalSupply);
         }
     }
 

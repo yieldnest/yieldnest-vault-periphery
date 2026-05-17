@@ -22,7 +22,7 @@ contract VaultManagerIntegrationTest is Test, Actors {
         VaultManager implementation = new VaultManager();
         bytes memory initData = abi.encodeCall(
             VaultManager.initialize,
-            (MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN)
+            (MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), ADMIN, initData);
         return VaultManager(address(proxy));

@@ -30,6 +30,11 @@ contract VaultMock is IVaultMock {
     address public lastProcessorTarget;
     uint256 public lastProcessorValue;
     bytes public lastProcessorCallData;
+    address public lastWithdrawAsset;
+    uint256 public lastWithdrawAssets;
+    address public lastWithdrawReceiver;
+    address public lastWithdrawOwner;
+    uint256 public nextWithdrawShares = 1e18;
     uint256 public processAccountingCalls;
     uint256 public totalAssetsValue = 1e18;
     uint256 public totalSupplyValue = 1e18;
@@ -167,6 +172,21 @@ contract VaultMock is IVaultMock {
         }
     }
 
+    function setNextWithdrawShares(uint256 _nextWithdrawShares) external {
+        nextWithdrawShares = _nextWithdrawShares;
+    }
+
+    function withdrawAsset(address asset_, uint256 assetAmount, address receiver, address owner)
+        external
+        returns (uint256)
+    {
+        lastWithdrawAsset = asset_;
+        lastWithdrawAssets = assetAmount;
+        lastWithdrawReceiver = receiver;
+        lastWithdrawOwner = owner;
+        return nextWithdrawShares;
+    }
+
     function processAccounting() external {
         processAccountingCalls += 1;
         cachedTotalBaseAssetsValue = computedTotalBaseAssetsValue;
@@ -223,9 +243,10 @@ contract VaultManagerUnitTest is Test {
     address providerManagerRole = address(0xC1);
     address assetAdderRole = address(0xD1);
     address assetDeleterRole = address(0xE1);
-    address totalAssetsModeManagerRole = address(0xF1);
-    address hooksManagerRole = address(0xF2);
-    address processorRole = address(0xF3);
+    address assetWithdrawerRole = address(0xF1);
+    address totalAssetsModeManagerRole = address(0xF2);
+    address hooksManagerRole = address(0xF3);
+    address processorRole = address(0xF4);
 
     address asset1 = address(0x1001);
     address asset2 = address(0x1002);
@@ -246,6 +267,7 @@ contract VaultManagerUnitTest is Test {
                 providerManagerRole,
                 assetAdderRole,
                 assetDeleterRole,
+                assetWithdrawerRole,
                 totalAssetsModeManagerRole,
                 hooksManagerRole,
                 processorRole
@@ -342,6 +364,17 @@ contract VaultManagerUnitTest is Test {
         vaultManager.deleteAsset(newAsset);
         assertEq(vault.getAssets().length, 2);
 
+        vault.setNextWithdrawShares(42e18);
+
+        vm.prank(assetWithdrawerRole);
+        uint256 shares = vaultManager.withdrawAsset(asset1, 10e18, address(0x4001));
+        assertEq(shares, 42e18);
+        assertEq(vault.lastWithdrawAsset(), asset1);
+        assertEq(vault.lastWithdrawAssets(), 10e18);
+        assertEq(vault.lastWithdrawReceiver(), address(0x4001));
+        assertEq(vault.lastWithdrawOwner(), address(0x4001));
+        assertEq(vault.processAccountingCalls(), 2);
+
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
         bytes[] memory data = new bytes[](1);
@@ -354,7 +387,7 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.lastProcessorTarget(), targets[0]);
         assertEq(vault.lastProcessorValue(), values[0]);
         assertEq(vault.lastProcessorCallData(), data[0]);
-        assertEq(vault.processAccountingCalls(), 2);
+        assertEq(vault.processAccountingCalls(), 3);
         assertEq(results.length, 1);
         assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
 
@@ -373,6 +406,10 @@ contract VaultManagerUnitTest is Test {
         vm.prank(assetDeleterRole);
         vm.expectRevert();
         vaultManager.processor(targets, values, data);
+
+        vm.prank(processorRole);
+        vm.expectRevert();
+        vaultManager.withdrawAsset(asset1, 1e18, address(0x5001));
     }
 
     function testSetProviderSyncsAccountingBeforeComparingTotals() public {
@@ -610,5 +647,33 @@ contract VaultManagerUnitTest is Test {
         vm.prank(hooksManagerRole);
         vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyMismatch.selector, 100e18, 120e18));
         vaultManager.setHooks(address(0xBEEF));
+    }
+
+    function testWithdrawAssetUsesReceiverAsOwnerAndProcessesAccounting() public {
+        vault.setNextWithdrawShares(7e18);
+
+        vm.prank(assetWithdrawerRole);
+        uint256 shares = vaultManager.withdrawAsset(asset1, 5e18, address(0xBEEF));
+
+        assertEq(shares, 7e18);
+        assertEq(vault.lastWithdrawAsset(), asset1);
+        assertEq(vault.lastWithdrawAssets(), 5e18);
+        assertEq(vault.lastWithdrawReceiver(), address(0xBEEF));
+        assertEq(vault.lastWithdrawOwner(), address(0xBEEF));
+        assertEq(vault.processAccountingCalls(), 1);
+    }
+
+    function testWithdrawAssetWithExplicitOwnerProcessesAccounting() public {
+        vault.setNextWithdrawShares(9e18);
+
+        vm.prank(assetWithdrawerRole);
+        uint256 shares = vaultManager.withdrawAsset(asset1, 6e18, address(0xCAFE), address(0xD00D));
+
+        assertEq(shares, 9e18);
+        assertEq(vault.lastWithdrawAsset(), asset1);
+        assertEq(vault.lastWithdrawAssets(), 6e18);
+        assertEq(vault.lastWithdrawReceiver(), address(0xCAFE));
+        assertEq(vault.lastWithdrawOwner(), address(0xD00D));
+        assertEq(vault.processAccountingCalls(), 1);
     }
 }

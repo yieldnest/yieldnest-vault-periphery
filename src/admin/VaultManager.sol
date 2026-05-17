@@ -79,6 +79,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     bytes32 public constant ASSET_ADDER_ROLE = keccak256("ASSET_ADDER_ROLE");
     /// @notice Role identifier for asset deletion managers.
     bytes32 public constant ASSET_DELETER_ROLE = keccak256("ASSET_DELETER_ROLE");
+    /// @notice Role identifier for asset withdrawal managers.
+    bytes32 public constant ASSET_WITHDRAWER_ROLE = keccak256("ASSET_WITHDRAWER_ROLE");
     /// @notice Role identifier for accounting mode managers.
     bytes32 public constant TOTAL_ASSETS_MODE_MANAGER_ROLE = keccak256("TOTAL_ASSETS_MODE_MANAGER_ROLE");
     /// @notice Role identifier for hooks managers.
@@ -99,6 +101,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     /// @param providerManager The address to be granted PROVIDER_MANAGER_ROLE.
     /// @param assetAdder The address to be granted ASSET_ADDER_ROLE.
     /// @param assetDeleter The address to be granted ASSET_DELETER_ROLE.
+    /// @param assetWithdrawer The address to be granted ASSET_WITHDRAWER_ROLE.
     /// @param totalAssetsModeManager The address to be granted TOTAL_ASSETS_MODE_MANAGER_ROLE.
     /// @param hooksManager The address to be granted HOOKS_MANAGER_ROLE.
     /// @param processorManager The address to be granted PROCESSOR_ROLE.
@@ -109,6 +112,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         address providerManager,
         address assetAdder,
         address assetDeleter,
+        address assetWithdrawer,
         address totalAssetsModeManager,
         address hooksManager,
         address processorManager
@@ -121,6 +125,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         _grantRole(PROVIDER_MANAGER_ROLE, providerManager);
         _grantRole(ASSET_ADDER_ROLE, assetAdder);
         _grantRole(ASSET_DELETER_ROLE, assetDeleter);
+        _grantRole(ASSET_WITHDRAWER_ROLE, assetWithdrawer);
         _grantRole(TOTAL_ASSETS_MODE_MANAGER_ROLE, totalAssetsModeManager);
         _grantRole(HOOKS_MANAGER_ROLE, hooksManager);
         _grantRole(PROCESSOR_ROLE, processorManager);
@@ -431,5 +436,25 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
             values[j] = current;
         }
+    }
+
+    //// WITHDRAW ASSET ////
+
+    function withdrawAsset(address asset_, uint256 assets, address receiver)
+        external
+        onlyRole(ASSET_WITHDRAWER_ROLE)
+        returns (uint256 shares)
+    {
+        shares = vault.withdrawAsset(asset_, assets, receiver, receiver);
+        vault.processAccounting();
+    }
+
+    function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
+        external
+        onlyRole(ASSET_WITHDRAWER_ROLE)
+        returns (uint256 shares)
+    {
+        shares = vault.withdrawAsset(asset_, assets, receiver, owner);
+        vault.processAccounting();
     }
 }

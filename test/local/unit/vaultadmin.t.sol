@@ -35,6 +35,7 @@ contract VaultMock is IVaultMock {
     uint256 public nextTotalSupplyValue = 1e18;
     uint256 public cachedTotalBaseAssetsValue = 1e18;
     uint256 public computedTotalBaseAssetsValue = 1e18;
+    uint256 public nextComputedTotalBaseAssetsValue = 1e18;
     bool public alwaysComputeTotalAssetsEnabled;
     address public hooksAddress;
 
@@ -104,6 +105,7 @@ contract VaultMock is IVaultMock {
         nextTotalSupplyValue = _totalSupply;
         cachedTotalBaseAssetsValue = _totalAssets;
         computedTotalBaseAssetsValue = _totalAssets;
+        nextComputedTotalBaseAssetsValue = _totalAssets;
     }
 
     function setNextAccountingSnapshot(uint256 _totalAssets, uint256 _totalSupply) external {
@@ -114,12 +116,18 @@ contract VaultMock is IVaultMock {
     function setBaseAssetsSnapshot(uint256 _cachedTotalBaseAssets, uint256 _computedTotalBaseAssets) external {
         cachedTotalBaseAssetsValue = _cachedTotalBaseAssets;
         computedTotalBaseAssetsValue = _computedTotalBaseAssets;
+        nextComputedTotalBaseAssetsValue = _computedTotalBaseAssets;
+    }
+
+    function setNextBaseAssetsSnapshot(uint256 _computedTotalBaseAssets) external {
+        nextComputedTotalBaseAssetsValue = _computedTotalBaseAssets;
     }
 
     function setHooks(address _hooks) external {
         hooksAddress = _hooks;
         totalAssetsValue = nextTotalAssetsValue;
         totalSupplyValue = nextTotalSupplyValue;
+        computedTotalBaseAssetsValue = nextComputedTotalBaseAssetsValue;
     }
 
     function addAsset(address _addr, bool _active) external {
@@ -150,6 +158,7 @@ contract VaultMock is IVaultMock {
         lastProcessorCallData = _data[0];
         totalAssetsValue = nextTotalAssetsValue;
         totalSupplyValue = nextTotalSupplyValue;
+        computedTotalBaseAssetsValue = nextComputedTotalBaseAssetsValue;
         results = new bytes[](_targets.length);
         for (uint256 i = 0; i < _targets.length; ++i) {
             results[i] = abi.encode(_targets[i], _values[i], _data[i]);
@@ -409,6 +418,8 @@ contract VaultManagerUnitTest is Test {
         vaultManager.setMaxProcessorDeltaRatio(0.05e18);
 
         vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setBaseAssetsSnapshot(100e18, 100e18);
+        vault.setNextBaseAssetsSnapshot(107e18);
         vault.setNextAccountingSnapshot(107e18, 100e18);
 
         address[] memory targets = new address[](1);
@@ -418,7 +429,9 @@ contract VaultManagerUnitTest is Test {
         data[0] = hex"1234";
 
         vm.prank(processorRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalAssetsDeltaExceeded.selector, 100e18, 107e18));
+        vm.expectRevert(
+            abi.encodeWithSelector(VaultManager.TotalBaseAssetsDeltaExceeded.selector, 100e18, 107e18)
+        );
         vaultManager.processor(targets, values, data);
     }
 
@@ -427,6 +440,8 @@ contract VaultManagerUnitTest is Test {
         vaultManager.setMaxProcessorDeltaRatio(0.05e18);
 
         vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setBaseAssetsSnapshot(100e18, 100e18);
+        vault.setNextBaseAssetsSnapshot(100e18);
         vault.setNextAccountingSnapshot(100e18, 107e18);
 
         address[] memory targets = new address[](1);
@@ -445,6 +460,8 @@ contract VaultManagerUnitTest is Test {
         vaultManager.setMaxProcessorDeltaRatio(0.05e18);
 
         vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setBaseAssetsSnapshot(100e18, 100e18);
+        vault.setNextBaseAssetsSnapshot(105e18);
         vault.setNextAccountingSnapshot(105e18, 95e18);
 
         address[] memory targets = new address[](1);
@@ -457,6 +474,7 @@ contract VaultManagerUnitTest is Test {
         bytes[] memory results = vaultManager.processor(targets, values, data);
 
         assertEq(vault.processAccountingCalls(), 1);
+        assertEq(vault.totalBaseAssets(), 105e18);
         assertEq(vault.totalAssets(), 105e18);
         assertEq(vault.totalSupply(), 95e18);
         assertEq(results.length, 1);
@@ -480,16 +498,6 @@ contract VaultManagerUnitTest is Test {
         assertTrue(vault.alwaysComputeTotalAssetsEnabled());
         assertEq(vault.processAccountingCalls(), 1);
         assertEq(vault.totalBaseAssets(), 110e18);
-    }
-
-    function testSetAlwaysComputeTotalAssetsRevertsOnTotalAssetsMismatch() public {
-        vault.setAccountingSnapshot(100e18, 100e18);
-        vault.setBaseAssetsSnapshot(100e18, 100e18);
-        vault.setNextAccountingSnapshot(120e18, 100e18);
-
-        vm.prank(totalAssetsModeManagerRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalAssetsMismatch.selector, 100e18, 120e18));
-        vaultManager.setAlwaysComputeTotalAssets(true);
     }
 
     function testSetAlwaysComputeTotalAssetsDisablesWithoutChangingVisibleTotals() public {
@@ -533,17 +541,21 @@ contract VaultManagerUnitTest is Test {
         vaultManager.setHooks(address(0xBEEF));
     }
 
-    function testSetHooksRevertsOnTotalAssetsMismatch() public {
+    function testSetHooksRevertsOnTotalBaseAssetsMismatch() public {
         vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setBaseAssetsSnapshot(100e18, 100e18);
+        vault.setNextBaseAssetsSnapshot(120e18);
         vault.setNextAccountingSnapshot(120e18, 100e18);
 
         vm.prank(hooksManagerRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalAssetsMismatch.selector, 100e18, 120e18));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalBaseAssetsMismatch.selector, 100e18, 120e18));
         vaultManager.setHooks(address(0xBEEF));
     }
 
     function testSetHooksRevertsOnTotalSupplyMismatch() public {
         vault.setAccountingSnapshot(100e18, 100e18);
+        vault.setBaseAssetsSnapshot(100e18, 100e18);
+        vault.setNextBaseAssetsSnapshot(100e18);
         vault.setNextAccountingSnapshot(100e18, 120e18);
 
         vm.prank(hooksManagerRole);

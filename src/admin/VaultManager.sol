@@ -33,8 +33,6 @@ contract VaultManager is AccessControl {
     error ProviderRateNotDefined(address asset);
     /// @notice Thrown when the total base assets mismatch after changing provider.
     error TotalBaseAssetsMismatch(uint256 beforeBaseAssets, uint256 afterBaseAssets);
-    /// @notice Thrown when the total assets mismatch after a configuration change.
-    error TotalAssetsMismatch(uint256 beforeTotalAssets, uint256 afterTotalAssets);
     /// @notice Thrown when the total supply mismatch after a configuration change.
     error TotalSupplyMismatch(uint256 beforeTotalSupply, uint256 afterTotalSupply);
     /// @notice Thrown when arrays have mismatched lengths.
@@ -43,6 +41,8 @@ contract VaultManager is AccessControl {
     error DuplicateAsset(address asset);
     /// @notice Thrown when the processor changes total assets by more than the configured ratio.
     error TotalAssetsDeltaExceeded(uint256 beforeTotalAssets, uint256 afterTotalAssets);
+    /// @notice Thrown when the processor changes total base assets by more than the configured ratio.
+    error TotalBaseAssetsDeltaExceeded(uint256 beforeTotalBaseAssets, uint256 afterTotalBaseAssets);
     /// @notice Thrown when the processor changes total supply by more than the configured ratio.
     error TotalSupplyDeltaExceeded(uint256 beforeTotalSupply, uint256 afterTotalSupply);
     /// @notice Thrown when a configured ratio exceeds the allowed denominator.
@@ -271,17 +271,17 @@ contract VaultManager is AccessControl {
     {
         if (_targets.length != _values.length || _targets.length != _data.length) revert LengthMismatch();
 
-        uint256 beforeTotalAssets = vault.totalAssets();
+        uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
         uint256 beforeTotalSupply = vault.totalSupply();
 
         results = vault.processor(_targets, _values, _data);
         vault.processAccounting();
 
-        uint256 afterTotalAssets = vault.totalAssets();
+        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
         uint256 afterTotalSupply = vault.totalSupply();
 
-        if (_ratioDelta(beforeTotalAssets, afterTotalAssets) > maxProcessorDeltaRatio) {
-            revert TotalAssetsDeltaExceeded(beforeTotalAssets, afterTotalAssets);
+        if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorDeltaRatio) {
+            revert TotalBaseAssetsDeltaExceeded(beforeTotalBaseAssets, afterTotalBaseAssets);
         }
 
         if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorDeltaRatio) {
@@ -305,19 +305,13 @@ contract VaultManager is AccessControl {
         }
 
         uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
-        uint256 beforeTotalAssets = vault.totalAssets();
 
         IAlwaysComputeTotalAssetsVault(address(vault)).setAlwaysComputeTotalAssets(_alwaysComputeTotalAssets);
 
         uint256 afterTotalBaseAssets = vault.totalBaseAssets();
-        uint256 afterTotalAssets = vault.totalAssets();
 
         if (beforeTotalBaseAssets != afterTotalBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeTotalBaseAssets, afterTotalBaseAssets);
-        }
-
-        if (beforeTotalAssets != afterTotalAssets) {
-            revert TotalAssetsMismatch(beforeTotalAssets, afterTotalAssets);
         }
     }
 
@@ -325,17 +319,17 @@ contract VaultManager is AccessControl {
         if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
 
         vault.processAccounting();
-        uint256 beforeTotalAssets = vault.totalAssets();
+        uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
         uint256 beforeTotalSupply = vault.totalSupply();
 
         IHooksManagedVault(address(vault)).setHooks(_hooks);
 
         vault.processAccounting();
-        uint256 afterTotalAssets = vault.totalAssets();
+        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
         uint256 afterTotalSupply = vault.totalSupply();
 
-        if (beforeTotalAssets != afterTotalAssets) {
-            revert TotalAssetsMismatch(beforeTotalAssets, afterTotalAssets);
+        if (beforeTotalBaseAssets != afterTotalBaseAssets) {
+            revert TotalBaseAssetsMismatch(beforeTotalBaseAssets, afterTotalBaseAssets);
         }
 
         if (beforeTotalSupply != afterTotalSupply) {

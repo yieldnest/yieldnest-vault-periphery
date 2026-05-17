@@ -19,7 +19,11 @@ interface IHooksManagedVault {
 /// @notice Contract for managing Admin functions for a Vault, with role-based access control.
 /// @notice Each wrapper function performs additional checks to ensure vault state is consistent.
 contract VaultManager is AccessControl {
+    //// CONSTANTS ////
+
     uint256 public constant RATIO_DENOMINATOR = 1e18;
+
+    //// ERRORS ////
 
     /// @notice Thrown when the buffer is not a valid asset in the vault.
     error NotVaultAsset(address buffer);
@@ -54,10 +58,16 @@ contract VaultManager is AccessControl {
     /// @notice Thrown when alwaysComputeTotalAssets must be disabled for the requested operation.
     error AlwaysComputeTotalAssetsMustBeDisabled();
 
+    //// EVENTS ////
+
     event ProcessorMaxDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
+
+    //// STATE ////
 
     IVault public immutable vault;
     uint256 public maxProcessorDeltaRatio;
+
+    //// ROLES ////
 
     /// @notice Role identifier for buffer managers.
     bytes32 public constant BUFFER_MANAGER_ROLE = keccak256("BUFFER_MANAGER_ROLE");
@@ -72,6 +82,8 @@ contract VaultManager is AccessControl {
     /// @notice Role identifier for hooks managers.
     bytes32 public constant HOOKS_MANAGER_ROLE = keccak256("HOOKS_MANAGER_ROLE");
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
+
+    //// CONSTRUCTOR ////
 
     /// @notice Initializes the VaultManager contract.
     /// @param _vault The address of the vault contract.
@@ -105,6 +117,8 @@ contract VaultManager is AccessControl {
         _grantRole(PROCESSOR_ROLE, processorManager);
         maxProcessorDeltaRatio = RATIO_DENOMINATOR;
     }
+
+    //// BUFFER ////
 
     /// @notice Set the current buffer in the vault.
     /// @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
@@ -142,13 +156,14 @@ contract VaultManager is AccessControl {
     /// @param _buffer The address to check.
     /// @return True if the address is a valid ERC4626 asset, false otherwise.
     function _erc4626AssetMatchesVaultAsset(address _buffer) public view returns (bool) {
-        // Use IVault and IERC4626 interfaces
         try IERC4626(_buffer).asset() returns (address bufferAsset) {
             return bufferAsset == vault.asset();
         } catch {
             return false;
         }
     }
+
+    //// PROVIDER ////
 
     /**
      * @notice Set the provider for the vault.
@@ -212,6 +227,8 @@ contract VaultManager is AccessControl {
         // processAccounting is not called again, since storage value doesn't actually change.
     }
 
+    //// ADD ASSET ////
+
     /**
      * @notice Add assets to the vault.
      * @dev Assumes that vault.processAccounting() is called before this function is called.
@@ -241,6 +258,8 @@ contract VaultManager is AccessControl {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
     }
+
+    //// DELETE ASSET ////
 
     /**
      * @notice Delete an asset from the vault.
@@ -292,6 +311,8 @@ contract VaultManager is AccessControl {
         }
     }
 
+    //// PROCESSOR ////
+
     function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
         public
         onlyRole(PROCESSOR_ROLE)
@@ -316,6 +337,17 @@ contract VaultManager is AccessControl {
             revert TotalSupplyDeltaExceeded(beforeTotalSupply, afterTotalSupply);
         }
     }
+
+    function _ratioDelta(uint256 beforeValue, uint256 afterValue) internal pure returns (uint256) {
+        if (beforeValue == afterValue) return 0;
+
+        uint256 delta = beforeValue > afterValue ? beforeValue - afterValue : afterValue - beforeValue;
+        uint256 baseline = beforeValue == 0 ? 1 : beforeValue;
+
+        return (delta * RATIO_DENOMINATOR) / baseline;
+    }
+
+    //// ALWAYS COMPUTE TOTAL ASSETS ////
 
     function setAlwaysComputeTotalAssets(bool _alwaysComputeTotalAssets)
         external
@@ -343,6 +375,8 @@ contract VaultManager is AccessControl {
         }
     }
 
+    //// HOOKS ////
+
     function setHooks(address _hooks) external onlyRole(HOOKS_MANAGER_ROLE) {
         if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
 
@@ -365,6 +399,8 @@ contract VaultManager is AccessControl {
         }
     }
 
+    //// CONFIGURATION ////
+
     function setMaxProcessorDeltaRatio(uint256 _maxProcessorDeltaRatio) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_maxProcessorDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorDeltaRatio);
 
@@ -386,14 +422,5 @@ contract VaultManager is AccessControl {
 
             values[j] = current;
         }
-    }
-
-    function _ratioDelta(uint256 beforeValue, uint256 afterValue) internal pure returns (uint256) {
-        if (beforeValue == afterValue) return 0;
-
-        uint256 delta = beforeValue > afterValue ? beforeValue - afterValue : afterValue - beforeValue;
-        uint256 baseline = beforeValue == 0 ? 1 : beforeValue;
-
-        return (delta * RATIO_DENOMINATOR) / baseline;
     }
 }

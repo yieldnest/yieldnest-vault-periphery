@@ -11,14 +11,26 @@ import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
 import {Provider} from "lib/yieldnest-vault/src/module/Provider.sol";
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
+import {TransparentUpgradeableProxy} from
+    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract VaultManagerIntegrationTest is Test, Actors {
     VaultManager public vaultManager;
     IVault public vault;
 
+    function _deployVaultManager() internal returns (VaultManager) {
+        VaultManager implementation = new VaultManager();
+        bytes memory initData = abi.encodeCall(
+            VaultManager.initialize,
+            (MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN)
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), ADMIN, initData);
+        return VaultManager(address(proxy));
+    }
+
     function setUp() public {
         vault = IVault(MC.YNETHX);
-        vaultManager = new VaultManager(MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN);
+        vaultManager = _deployVaultManager();
 
         // Grant VaultManager the necessary roles on the vault
         vm.startPrank(ADMIN);

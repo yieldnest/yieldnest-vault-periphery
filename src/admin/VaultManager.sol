@@ -2,10 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
-import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IStrategy} from "lib/yieldnest-vault/src/interface/IStrategy.sol";
+import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from
+    "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
 interface IAlwaysComputeTotalAssetsVault {
     function setAlwaysComputeTotalAssets(bool alwaysComputeTotalAssets_) external;
@@ -18,7 +20,7 @@ interface IHooksManagedVault {
 /// @title VaultManager
 /// @notice Contract for managing Admin functions for a Vault, with role-based access control.
 /// @notice Each wrapper function performs additional checks to ensure vault state is consistent.
-contract VaultManager is AccessControl {
+contract VaultManager is Initializable, AccessControlUpgradeable {
     //// CONSTANTS ////
 
     uint256 public constant RATIO_DENOMINATOR = 1e18;
@@ -64,7 +66,7 @@ contract VaultManager is AccessControl {
 
     //// STATE ////
 
-    IVault public immutable vault;
+    IVault public vault;
     uint256 public maxProcessorDeltaRatio;
 
     //// ROLES ////
@@ -83,7 +85,12 @@ contract VaultManager is AccessControl {
     bytes32 public constant HOOKS_MANAGER_ROLE = keccak256("HOOKS_MANAGER_ROLE");
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
 
-    //// CONSTRUCTOR ////
+    //// INITIALIZER ////
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
     /// @notice Initializes the VaultManager contract.
     /// @param _vault The address of the vault contract.
@@ -95,7 +102,7 @@ contract VaultManager is AccessControl {
     /// @param totalAssetsModeManager The address to be granted TOTAL_ASSETS_MODE_MANAGER_ROLE.
     /// @param hooksManager The address to be granted HOOKS_MANAGER_ROLE.
     /// @param processorManager The address to be granted PROCESSOR_ROLE.
-    constructor(
+    function initialize(
         address _vault,
         address defaultAdmin,
         address bufferManager,
@@ -105,7 +112,9 @@ contract VaultManager is AccessControl {
         address totalAssetsModeManager,
         address hooksManager,
         address processorManager
-    ) {
+    ) external initializer {
+        __AccessControl_init();
+
         vault = IVault(_vault);
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BUFFER_MANAGER_ROLE, bufferManager);

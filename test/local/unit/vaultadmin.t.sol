@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {VaultManager} from "src/admin/VaultManager.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
+import {TransparentUpgradeableProxy} from
+    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 // Use the AssetParams struct from IVault interface, as per file_context_1
 struct AssetParams {
@@ -233,6 +235,26 @@ contract VaultManagerUnitTest is Test {
     ProviderMock provider;
     ProviderMock newProvider;
 
+    function _deployVaultManager() internal returns (VaultManager) {
+        VaultManager implementation = new VaultManager();
+        bytes memory initData = abi.encodeCall(
+            VaultManager.initialize,
+            (
+                address(vault),
+                admin,
+                bufferManagerRole,
+                providerManagerRole,
+                assetAdderRole,
+                assetDeleterRole,
+                totalAssetsModeManagerRole,
+                hooksManagerRole,
+                processorRole
+            )
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), admin, initData);
+        return VaultManager(address(proxy));
+    }
+
     function setUp() public {
         vault = new VaultMock();
         vault.setAssetAddress(asset1);
@@ -253,17 +275,7 @@ contract VaultManagerUnitTest is Test {
         newProvider.setRate(address(erc4626_2), 1e18);
         vault.setProvider(address(provider));
 
-        vaultManager = new VaultManager(
-            address(vault),
-            admin,
-            bufferManagerRole,
-            providerManagerRole,
-            assetAdderRole,
-            assetDeleterRole,
-            totalAssetsModeManagerRole,
-            hooksManagerRole,
-            processorRole
-        );
+        vaultManager = _deployVaultManager();
     }
 
     function testSetCurrentBuffer() public {

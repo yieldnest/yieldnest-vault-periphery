@@ -279,6 +279,9 @@ contract VaultManager is AccessControl {
         onlyRole(TOTAL_ASSETS_MODE_MANAGER_ROLE)
     {
         bool wasAlwaysComputeTotalAssets = vault.alwaysComputeTotalAssets();
+        if (wasAlwaysComputeTotalAssets == _alwaysComputeTotalAssets) {
+            return;
+        }
 
         if (!wasAlwaysComputeTotalAssets && _alwaysComputeTotalAssets) {
             vault.processAccounting();

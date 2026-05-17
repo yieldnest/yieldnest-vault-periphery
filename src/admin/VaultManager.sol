@@ -171,7 +171,9 @@ contract VaultManager is AccessControl {
             }
         }
 
-        // Get totalBaseAssets before changing provider
+        vault.processAccounting();
+
+        // Get totalBaseAssets before changing provider from a fresh accounting snapshot
         uint256 beforeBaseAssets = vault.totalBaseAssets();
 
         vault.setProvider(_provider);

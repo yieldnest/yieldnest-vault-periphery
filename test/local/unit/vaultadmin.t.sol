@@ -338,7 +338,7 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.lastProcessorTarget(), targets[0]);
         assertEq(vault.lastProcessorValue(), values[0]);
         assertEq(vault.lastProcessorCallData(), data[0]);
-        assertEq(vault.processAccountingCalls(), 1);
+        assertEq(vault.processAccountingCalls(), 2);
         assertEq(results.length, 1);
         assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
 
@@ -357,6 +357,18 @@ contract VaultManagerUnitTest is Test {
         vm.prank(assetDeleterRole);
         vm.expectRevert();
         vaultManager.processor(targets, values, data);
+    }
+
+    function testSetProviderSyncsAccountingBeforeComparingTotals() public {
+        vault.setBaseAssetsSnapshot(100e18, 110e18);
+        vault.setNextBaseAssetsSnapshot(110e18);
+
+        vm.prank(providerManagerRole);
+        vaultManager.setProvider(address(provider));
+
+        assertEq(vault.provider(), address(provider));
+        assertEq(vault.processAccountingCalls(), 1);
+        assertEq(vault.totalBaseAssets(), 110e18);
     }
 
     function testDeleteAssetRevertsForBuffer() public {

@@ -12,7 +12,6 @@ interface IAlwaysComputeTotalAssetsVault {
 }
 
 interface IHooksManagedVault {
-    function paused() external view returns (bool);
     function setHooks(address hooks_) external;
 }
 
@@ -48,8 +47,6 @@ contract VaultManager is AccessControl {
     error TotalSupplyDeltaExceeded(uint256 beforeTotalSupply, uint256 afterTotalSupply);
     /// @notice Thrown when a configured ratio exceeds the allowed denominator.
     error RatioTooHigh(uint256 ratio);
-    /// @notice Thrown when the vault must be paused for the requested operation.
-    error VaultNotPaused();
     /// @notice Thrown when hooks must be disabled for the requested operation.
     error HooksMustBeDisabled();
     /// @notice Thrown when alwaysComputeTotalAssets must be disabled for the requested operation.
@@ -325,7 +322,6 @@ contract VaultManager is AccessControl {
 
     function setHooks(address _hooks) external onlyRole(HOOKS_MANAGER_ROLE) {
         if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
-        if (!IHooksManagedVault(address(vault)).paused()) revert VaultNotPaused();
 
         vault.processAccounting();
         uint256 beforeTotalAssets = vault.totalAssets();

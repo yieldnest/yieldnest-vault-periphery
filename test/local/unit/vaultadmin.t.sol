@@ -36,7 +36,6 @@ contract VaultMock is IVaultMock {
     uint256 public cachedTotalBaseAssetsValue = 1e18;
     uint256 public computedTotalBaseAssetsValue = 1e18;
     bool public alwaysComputeTotalAssetsEnabled;
-    bool public pausedState;
     address public hooksAddress;
 
     function setAsset(address _addr, uint8 _decimals) external {
@@ -62,14 +61,6 @@ contract VaultMock is IVaultMock {
 
     function buffer() external view returns (address) {
         return currentBuffer;
-    }
-
-    function paused() external view returns (bool) {
-        return pausedState;
-    }
-
-    function setPaused(bool _paused) external {
-        pausedState = _paused;
     }
 
     function getAssets() external view returns (address[] memory) {
@@ -526,8 +517,6 @@ contract VaultManagerUnitTest is Test {
     }
 
     function testSetHooks() public {
-        vault.setPaused(true);
-
         vm.prank(hooksManagerRole);
         vaultManager.setHooks(address(0xBEEF));
 
@@ -535,15 +524,7 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.processAccountingCalls(), 2);
     }
 
-    function testSetHooksRevertsWhenVaultNotPaused() public {
-        vm.prank(hooksManagerRole);
-        vm.expectRevert(VaultManager.VaultNotPaused.selector);
-        vaultManager.setHooks(address(0xBEEF));
-    }
-
     function testSetHooksRevertsWhenAlwaysComputeTotalAssetsEnabled() public {
-        vault.setPaused(true);
-
         vm.prank(totalAssetsModeManagerRole);
         vaultManager.setAlwaysComputeTotalAssets(true);
 
@@ -553,7 +534,6 @@ contract VaultManagerUnitTest is Test {
     }
 
     function testSetHooksRevertsOnTotalAssetsMismatch() public {
-        vault.setPaused(true);
         vault.setAccountingSnapshot(100e18, 100e18);
         vault.setNextAccountingSnapshot(120e18, 100e18);
 
@@ -563,7 +543,6 @@ contract VaultManagerUnitTest is Test {
     }
 
     function testSetHooksRevertsOnTotalSupplyMismatch() public {
-        vault.setPaused(true);
         vault.setAccountingSnapshot(100e18, 100e18);
         vault.setNextAccountingSnapshot(100e18, 120e18);
 

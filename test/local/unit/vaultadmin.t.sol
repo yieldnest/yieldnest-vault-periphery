@@ -231,12 +231,14 @@ contract VaultManagerUnitTest is Test {
     ERC4626Mock erc4626_1;
     ERC4626Mock erc4626_2;
     ProviderMock provider;
+    ProviderMock newProvider;
 
     function setUp() public {
         vault = new VaultMock();
         vault.setAssetAddress(asset1);
         vault.setAccountingSnapshot(1e18, 1e18);
         provider = new ProviderMock();
+        newProvider = new ProviderMock();
 
         // Set up ERC4626 mocks with correct asset
         erc4626_1 = new ERC4626Mock(asset1);
@@ -247,6 +249,8 @@ contract VaultManagerUnitTest is Test {
         vault.setAsset(address(erc4626_2), 18);
         provider.setRate(address(erc4626_1), 1e18);
         provider.setRate(address(erc4626_2), 1e18);
+        newProvider.setRate(address(erc4626_1), 1e18);
+        newProvider.setRate(address(erc4626_2), 1e18);
         vault.setProvider(address(provider));
 
         vaultManager = new VaultManager(
@@ -364,11 +368,32 @@ contract VaultManagerUnitTest is Test {
         vault.setNextBaseAssetsSnapshot(110e18);
 
         vm.prank(providerManagerRole);
-        vaultManager.setProvider(address(provider));
+        vaultManager.setProvider(address(newProvider));
 
-        assertEq(vault.provider(), address(provider));
+        assertEq(vault.provider(), address(newProvider));
         assertEq(vault.processAccountingCalls(), 1);
         assertEq(vault.totalBaseAssets(), 110e18);
+    }
+
+    function testSetProviderRevertsWhenBaseAssetRateChanges() public {
+        newProvider.setRate(address(erc4626_1), 2e18);
+
+        vm.prank(providerManagerRole);
+        vm.expectRevert(
+            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(erc4626_1), 1e18, 2e18)
+        );
+        vaultManager.setProvider(address(newProvider));
+    }
+
+    function testSetProviderRevertsWhenDefaultAssetRateChanges() public {
+        vault.setAssetAddress(address(erc4626_2));
+        newProvider.setRate(address(erc4626_2), 2e18);
+
+        vm.prank(providerManagerRole);
+        vm.expectRevert(
+            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(erc4626_2), 1e18, 2e18)
+        );
+        vaultManager.setProvider(address(newProvider));
     }
 
     function testDeleteAssetRevertsForBuffer() public {

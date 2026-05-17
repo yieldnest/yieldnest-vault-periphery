@@ -31,6 +31,8 @@ contract VaultManager is AccessControl {
     error BufferMaxWithdrawCheckFailed(address buffer);
     /// @notice Thrown when a provider rate is not defined for an asset.
     error ProviderRateNotDefined(address asset);
+    /// @notice Thrown when an asset rate changes across a provider update.
+    error AssetRateChanged(address asset, uint256 beforeRate, uint256 afterRate);
     /// @notice Thrown when the total base assets mismatch after changing provider.
     error TotalBaseAssetsMismatch(uint256 beforeBaseAssets, uint256 afterBaseAssets);
     /// @notice Thrown when the total supply mismatch after a configuration change.
@@ -157,8 +159,12 @@ contract VaultManager is AccessControl {
      * @param _provider The provider address to set.
      */
     function setProvider(address _provider) public onlyRole(PROVIDER_MANAGER_ROLE) {
-        // Check that all assets have a defined rate as defined by provider using getAssets
         address[] memory assets = vault.getAssets();
+        address baseAsset = assets[0];
+        address defaultAsset = vault.asset();
+        address currentProvider = vault.provider();
+
+        // Check that all assets have a defined rate as defined by provider using getAssets
         for (uint256 i = 0; i < assets.length; ++i) {
             address assetAddr = assets[i];
             if (vault.getAsset(assetAddr).active) {
@@ -175,6 +181,18 @@ contract VaultManager is AccessControl {
 
         // Get totalBaseAssets before changing provider from a fresh accounting snapshot
         uint256 beforeBaseAssets = vault.totalBaseAssets();
+        uint256 beforeBaseAssetRate = IProvider(currentProvider).getRate(baseAsset);
+        uint256 beforeDefaultAssetRate = IProvider(currentProvider).getRate(defaultAsset);
+        uint256 afterBaseAssetRate = IProvider(_provider).getRate(baseAsset);
+        uint256 afterDefaultAssetRate = IProvider(_provider).getRate(defaultAsset);
+
+        if (beforeBaseAssetRate != afterBaseAssetRate) {
+            revert AssetRateChanged(baseAsset, beforeBaseAssetRate, afterBaseAssetRate);
+        }
+
+        if (beforeDefaultAssetRate != afterDefaultAssetRate) {
+            revert AssetRateChanged(defaultAsset, beforeDefaultAssetRate, afterDefaultAssetRate);
+        }
 
         vault.setProvider(_provider);
 

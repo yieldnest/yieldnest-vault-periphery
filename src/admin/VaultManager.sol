@@ -184,7 +184,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
      * @dev Validates that the new provider can provide rates for all active vault assets
      *      and that changing the provider doesn't affect the total base assets calculation.
      *      This ensures consistency in asset valuation before and after the provider change.
-     * @dev Assumes that vault.processAccounting() is called before this function is called.
      * @param _provider The provider address to set.
      */
     function setProvider(address _provider) public onlyRole(PROVIDER_MANAGER_ROLE) {
@@ -224,7 +223,9 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         }
 
         // Process accounting to ensure totalBaseAssets is updated
-        vault.processAccounting();
+        if (!vault.alwaysComputeTotalAssets()) {
+            vault.processAccounting();
+        }
 
         // Get totalBaseAssets before changing provider from a fresh accounting snapshot
         uint256 beforeBaseAssets = vault.totalBaseAssets();
@@ -232,25 +233,31 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         vault.setProvider(_provider);
 
         // Get totalBaseAssets after changing provider, using computeTotalAssets (virtual recompute)
+        // This is an optimization to avoid calling processAccounting again.
+        // If the virtual result is different, the call must revert.
         uint256 afterBaseAssets = vault.computeTotalAssets();
 
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
 
-        // processAccounting is not called again, since storage value doesn't actually change.
+        // processAccounting is not called again, since storage value doesn't actually change,
+        // assuming there was no revert condition.
     }
 
     //// ADD ASSET ////
 
     /**
      * @notice Add assets to the vault.
-     * @dev Assumes that vault.processAccounting() is called before this function is called.
      * @param _assets The addresses of the assets to add.
      * @param _active Whether the assets are active.
      */
     function addAssets(address[] memory _assets, bool[] memory _active) public onlyRole(ASSET_ADDER_ROLE) {
         if (_assets.length != _active.length) revert LengthMismatch();
+
+        if (!vault.alwaysComputeTotalAssets()) {
+            vault.processAccounting();
+        }
 
         // Get totalBaseAssets before changing provider
         uint256 beforeBaseAssets = vault.totalBaseAssets();
@@ -271,6 +278,9 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
+
+        // No need to call processAccounting again since storage value doesn't actually change,
+        // assuming there was no revert condition.
     }
 
     //// DELETE ASSET ////
@@ -295,6 +305,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         uint256[] memory indexes = new uint256[](_assets.length);
         address currentBuffer = vault.buffer();
 
+
         for (uint256 i = 0; i < _assets.length; ++i) {
             address asset = _assets[i];
 
@@ -310,6 +321,10 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
         _sortDescending(indexes);
 
+        if (!vault.alwaysComputeTotalAssets()) {
+            vault.processAccounting();
+        }
+
         // Get totalBaseAssets before deleting asset
         uint256 beforeBaseAssets = vault.totalBaseAssets();
 
@@ -317,12 +332,15 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
             vault.deleteAsset(indexes[i]);
         }
 
-        // Get totalBaseAssets after deleting asset, using computeTotalAssets (forces recompute)
+        // Get totalBaseAssets after deleting asset, using computeTotalAssets (forces virtual recompute)
         uint256 afterBaseAssets = vault.computeTotalAssets();
 
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
         }
+
+        // No need to call processAccounting again since storage value doesn't actually change,
+        // assuming there was no revert condition.
     }
 
     //// PROCESSOR ////
@@ -334,13 +352,16 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     {
         if (_targets.length != _values.length || _targets.length != _data.length) revert LengthMismatch();
 
+        if (!vault.alwaysComputeTotalAssets()) {
+            vault.processAccounting();
+        }
+
         uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
         uint256 beforeTotalSupply = vault.totalSupply();
 
         results = vault.processor(_targets, _values, _data);
-        vault.processAccounting();
 
-        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
+        uint256 afterTotalBaseAssets = vault.computeTotalAssets();
         uint256 afterTotalSupply = vault.totalSupply();
 
         if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorDeltaRatio) {
@@ -350,6 +371,9 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorDeltaRatio) {
             revert TotalSupplyDeltaExceeded(beforeTotalSupply, afterTotalSupply);
         }
+
+        // No need to call processAccounting again since storage value doesn't actually change,
+        // assuming there was no revert condition.
     }
 
     function _ratioDelta(uint256 beforeValue, uint256 afterValue) internal pure returns (uint256) {
@@ -394,12 +418,14 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     function setHooks(address _hooks) external onlyRole(HOOKS_MANAGER_ROLE) {
         if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
 
+        // alwaysComputeTotalAssets is false, so processAccounting is called.
         vault.processAccounting();
         uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
         uint256 beforeTotalSupply = vault.totalSupply();
 
         IHooksManagedVault(address(vault)).setHooks(_hooks);
 
+        // alwaysComputeTotalAssets is true, so processAccounting is not called.
         vault.processAccounting();
         uint256 afterTotalBaseAssets = vault.totalBaseAssets();
         uint256 afterTotalSupply = vault.totalSupply();

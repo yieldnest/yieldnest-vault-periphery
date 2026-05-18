@@ -471,13 +471,20 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         onlyRole(ASSET_WITHDRAWER_ROLE)
         returns (uint256 shares)
     {
-        shares = vault.withdrawAsset(asset_, assets, receiver, receiver);
-        vault.processAccounting();
+        return _withdrawAsset(asset_, assets, receiver, receiver);
     }
 
+    
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
-        external
-        onlyRole(ASSET_WITHDRAWER_ROLE)
+    external
+    onlyRole(ASSET_WITHDRAWER_ROLE)
+    returns (uint256 shares)
+    {
+        return _withdrawAsset(asset_, assets, receiver, owner);
+    }
+
+    function _withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
+        internal
         returns (uint256 shares)
     {
         shares = vault.withdrawAsset(asset_, assets, receiver, owner);

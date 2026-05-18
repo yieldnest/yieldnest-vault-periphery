@@ -361,7 +361,12 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
         results = vault.processor(_targets, _values, _data);
 
-        uint256 afterTotalBaseAssets = vault.computeTotalAssets();
+        // trigger recomputation since deltas are very likely
+        if (!vault.alwaysComputeTotalAssets()) {
+            vault.processAccounting();
+        }
+
+        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
         uint256 afterTotalSupply = vault.totalSupply();
 
         if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorDeltaRatio) {

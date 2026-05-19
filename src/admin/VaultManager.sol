@@ -62,12 +62,14 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// EVENTS ////
 
-    event ProcessorMaxDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
+    event ProcessorMaxBaseAssetsDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
+    event ProcessorMaxSupplyDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
 
     //// STATE ////
 
     IVault public vault;
-    uint256 public maxProcessorDeltaRatio;
+    uint256 public maxProcessorBaseAssetsDeltaRatio;
+    uint256 public maxProcessorSupplyDeltaRatio;
 
     //// ROLES ////
 
@@ -132,7 +134,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         _grantRole(TOTAL_ASSETS_MODE_MANAGER_ROLE, totalAssetsModeManager);
         _grantRole(HOOKS_MANAGER_ROLE, hooksManager);
         _grantRole(PROCESSOR_ROLE, processorManager);
-        maxProcessorDeltaRatio = RATIO_DENOMINATOR;
+        maxProcessorBaseAssetsDeltaRatio = RATIO_DENOMINATOR;
+        maxProcessorSupplyDeltaRatio = RATIO_DENOMINATOR;
     }
 
     //// BUFFER ////
@@ -388,11 +391,11 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         uint256 afterTotalBaseAssets = vault.totalBaseAssets();
         uint256 afterTotalSupply = vault.totalSupply();
 
-        if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorDeltaRatio) {
+        if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorBaseAssetsDeltaRatio) {
             revert TotalBaseAssetsDeltaExceeded(beforeTotalBaseAssets, afterTotalBaseAssets);
         }
 
-        if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorDeltaRatio) {
+        if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorSupplyDeltaRatio) {
             revert TotalSupplyDeltaExceeded(beforeTotalSupply, afterTotalSupply);
         }
 
@@ -482,14 +485,35 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     //// CONFIGURATION ////
 
     /**
-     * @notice Set the maximum allowed processor delta ratio.
-     * @param _maxProcessorDeltaRatio The new delta ratio scaled by `RATIO_DENOMINATOR`.
+     * @notice Set the maximum allowed processor base-assets delta ratio.
+     * @param _maxProcessorBaseAssetsDeltaRatio The new base-assets delta ratio scaled by `RATIO_DENOMINATOR`.
      */
-    function setMaxProcessorDeltaRatio(uint256 _maxProcessorDeltaRatio) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_maxProcessorDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorDeltaRatio);
+    function setMaxProcessorBaseAssetsDeltaRatio(uint256 _maxProcessorBaseAssetsDeltaRatio)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (_maxProcessorBaseAssetsDeltaRatio > RATIO_DENOMINATOR) {
+            revert RatioTooHigh(_maxProcessorBaseAssetsDeltaRatio);
+        }
 
-        emit ProcessorMaxDeltaRatioSet(maxProcessorDeltaRatio, _maxProcessorDeltaRatio);
-        maxProcessorDeltaRatio = _maxProcessorDeltaRatio;
+        emit ProcessorMaxBaseAssetsDeltaRatioSet(
+            maxProcessorBaseAssetsDeltaRatio, _maxProcessorBaseAssetsDeltaRatio
+        );
+        maxProcessorBaseAssetsDeltaRatio = _maxProcessorBaseAssetsDeltaRatio;
+    }
+
+    /**
+     * @notice Set the maximum allowed processor supply delta ratio.
+     * @param _maxProcessorSupplyDeltaRatio The new supply delta ratio scaled by `RATIO_DENOMINATOR`.
+     */
+    function setMaxProcessorSupplyDeltaRatio(uint256 _maxProcessorSupplyDeltaRatio)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (_maxProcessorSupplyDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorSupplyDeltaRatio);
+
+        emit ProcessorMaxSupplyDeltaRatioSet(maxProcessorSupplyDeltaRatio, _maxProcessorSupplyDeltaRatio);
+        maxProcessorSupplyDeltaRatio = _maxProcessorSupplyDeltaRatio;
     }
 
     /**

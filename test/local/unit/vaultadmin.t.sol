@@ -486,22 +486,31 @@ contract VaultManagerUnitTest is Test {
         vaultManager.processor(targets, values, data);
     }
 
-    function testSetMaxProcessorDeltaRatio() public {
+    function testSetMaxProcessorDeltaRatios() public {
         vm.prank(admin);
-        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
+        vm.prank(admin);
+        vaultManager.setMaxProcessorSupplyDeltaRatio(0.06e18);
 
-        assertEq(vaultManager.maxProcessorDeltaRatio(), 0.05e18);
+        assertEq(vaultManager.maxProcessorBaseAssetsDeltaRatio(), 0.05e18);
+        assertEq(vaultManager.maxProcessorSupplyDeltaRatio(), 0.06e18);
     }
 
-    function testSetMaxProcessorDeltaRatioRevertsAboveDenominator() public {
+    function testSetMaxProcessorBaseAssetsDeltaRatioRevertsAboveDenominator() public {
         vm.prank(admin);
         vm.expectRevert(abi.encodeWithSelector(VaultManager.RatioTooHigh.selector, 1e18 + 1));
-        vaultManager.setMaxProcessorDeltaRatio(1e18 + 1);
+        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(1e18 + 1);
+    }
+
+    function testSetMaxProcessorSupplyDeltaRatioRevertsAboveDenominator() public {
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.RatioTooHigh.selector, 1e18 + 1));
+        vaultManager.setMaxProcessorSupplyDeltaRatio(1e18 + 1);
     }
 
     function testProcessorRevertsWhenTotalAssetsDeltaExceeded() public {
         vm.prank(admin);
-        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
 
         vault.setAccountingSnapshot(100e18, 100e18);
         vault.setBaseAssetsSnapshot(100e18, 100e18);
@@ -523,7 +532,7 @@ contract VaultManagerUnitTest is Test {
 
     function testProcessorRevertsWhenTotalSupplyDeltaExceeded() public {
         vm.prank(admin);
-        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+        vaultManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
 
         vault.setAccountingSnapshot(100e18, 100e18);
         vault.setBaseAssetsSnapshot(100e18, 100e18);
@@ -543,7 +552,9 @@ contract VaultManagerUnitTest is Test {
 
     function testProcessorAllowsConfiguredDeltaForAssetsAndSupply() public {
         vm.prank(admin);
-        vaultManager.setMaxProcessorDeltaRatio(0.05e18);
+        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
+        vm.prank(admin);
+        vaultManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
 
         vault.setAccountingSnapshot(100e18, 100e18);
         vault.setBaseAssetsSnapshot(100e18, 100e18);

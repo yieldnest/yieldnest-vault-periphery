@@ -373,7 +373,7 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.lastWithdrawAssets(), 10e18);
         assertEq(vault.lastWithdrawReceiver(), address(0x4001));
         assertEq(vault.lastWithdrawOwner(), address(0x4001));
-        assertEq(vault.processAccountingCalls(), 2);
+        assertEq(vault.processAccountingCalls(), 4);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
@@ -387,7 +387,7 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.lastProcessorTarget(), targets[0]);
         assertEq(vault.lastProcessorValue(), values[0]);
         assertEq(vault.lastProcessorCallData(), data[0]);
-        assertEq(vault.processAccountingCalls(), 3);
+        assertEq(vault.processAccountingCalls(), 6);
         assertEq(results.length, 1);
         assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
 
@@ -570,7 +570,7 @@ contract VaultManagerUnitTest is Test {
         vm.prank(processorRole);
         bytes[] memory results = vaultManager.processor(targets, values, data);
 
-        assertEq(vault.processAccountingCalls(), 1);
+        assertEq(vault.processAccountingCalls(), 2);
         assertEq(vault.totalBaseAssets(), 105e18);
         assertEq(vault.totalAssets(), 105e18);
         assertEq(vault.totalSupply(), 95e18);

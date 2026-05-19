@@ -90,22 +90,24 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// INITIALIZER ////
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /** @custom:oz-upgrades-unsafe-allow constructor */
     constructor() {
         _disableInitializers();
     }
 
-    /// @notice Initializes the VaultManager contract.
-    /// @param _vault The address of the vault contract.
-    /// @param defaultAdmin The address to be granted DEFAULT_ADMIN_ROLE.
-    /// @param bufferManager The address to be granted BUFFER_MANAGER_ROLE.
-    /// @param providerManager The address to be granted PROVIDER_MANAGER_ROLE.
-    /// @param assetAdder The address to be granted ASSET_ADDER_ROLE.
-    /// @param assetDeleter The address to be granted ASSET_DELETER_ROLE.
-    /// @param assetWithdrawer The address to be granted ASSET_WITHDRAWER_ROLE.
-    /// @param totalAssetsModeManager The address to be granted TOTAL_ASSETS_MODE_MANAGER_ROLE.
-    /// @param hooksManager The address to be granted HOOKS_MANAGER_ROLE.
-    /// @param processorManager The address to be granted PROCESSOR_ROLE.
+    /**
+     * @notice Initializes the VaultManager contract.
+     * @param _vault The address of the vault contract.
+     * @param defaultAdmin The address to be granted DEFAULT_ADMIN_ROLE.
+     * @param bufferManager The address to be granted BUFFER_MANAGER_ROLE.
+     * @param providerManager The address to be granted PROVIDER_MANAGER_ROLE.
+     * @param assetAdder The address to be granted ASSET_ADDER_ROLE.
+     * @param assetDeleter The address to be granted ASSET_DELETER_ROLE.
+     * @param assetWithdrawer The address to be granted ASSET_WITHDRAWER_ROLE.
+     * @param totalAssetsModeManager The address to be granted TOTAL_ASSETS_MODE_MANAGER_ROLE.
+     * @param hooksManager The address to be granted HOOKS_MANAGER_ROLE.
+     * @param processorManager The address to be granted PROCESSOR_ROLE.
+     */
     function initialize(
         address _vault,
         address defaultAdmin,
@@ -135,17 +137,21 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// BUFFER ////
 
-    /// @notice Set the current buffer in the vault.
-    /// @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
-    /// @param _buffer The buffer address to set as current.
+    /**
+     * @notice Set the current buffer in the vault.
+     * @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
+     * @param _buffer The buffer address to set as current.
+     */
     function setCurrentBuffer(address _buffer) public onlyRole(BUFFER_MANAGER_ROLE) {
         setCurrentBuffer(_buffer, false);
     }
 
-    /// @notice Set the current buffer in the vault.
-    /// @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
-    /// @param _buffer The buffer address to set as current.
-    /// @param skipIsAssetCheck Whether to skip the vault asset membership check.
+    /**
+     * @notice Set the current buffer in the vault.
+     * @dev Only callable by BUFFER_MANAGER_ROLE. Performs all validation here.
+     * @param _buffer The buffer address to set as current.
+     * @param skipIsAssetCheck Whether to skip the vault asset membership check.
+     */
     function setCurrentBuffer(address _buffer, bool skipIsAssetCheck) public onlyRole(BUFFER_MANAGER_ROLE) {
         // Check that _buffer is a valid vault asset
         if (!skipIsAssetCheck && !_isVaultAsset(_buffer)) revert NotVaultAsset(_buffer);
@@ -160,16 +166,20 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         vault.setBuffer(_buffer);
     }
 
-    /// @notice Checks if an address is a valid vault asset.
-    /// @param asset The address to check.
-    /// @return True if the address is a valid asset, false otherwise.
+    /**
+     * @notice Checks if an address is a valid vault asset.
+     * @param asset The address to check.
+     * @return True if the address is a valid asset, false otherwise.
+     */
     function _isVaultAsset(address asset) public view returns (bool) {
         return vault.hasAsset(asset);
     }
 
-    /// @notice Checks if an address is a valid ERC4626 asset for the vault.
-    /// @param _buffer The address to check.
-    /// @return True if the address is a valid ERC4626 asset, false otherwise.
+    /**
+     * @notice Checks if an address is a valid ERC4626 asset for the vault.
+     * @param _buffer The address to check.
+     * @return True if the address is a valid ERC4626 asset, false otherwise.
+     */
     function _erc4626AssetMatchesVaultAsset(address _buffer) public view returns (bool) {
         try IERC4626(_buffer).asset() returns (address bufferAsset) {
             return bufferAsset == vault.asset();
@@ -346,12 +356,14 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// PROCESSOR ////
 
-    /// @notice Execute a batch of processor calls on the vault.
-    /// @dev In cached-accounting mode, syncs accounting before and after execution.
-    /// @param _targets The target addresses for each call.
-    /// @param _values The ETH values to send with each call.
-    /// @param _data The calldata payload for each call.
-    /// @return results The return data for each processor call.
+    /**
+     * @notice Execute a batch of processor calls on the vault.
+     * @dev In cached-accounting mode, syncs accounting before and after execution.
+     * @param _targets The target addresses for each call.
+     * @param _values The ETH values to send with each call.
+     * @param _data The calldata payload for each call.
+     * @return results The return data for each processor call.
+     */
     function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
         public
         onlyRole(PROCESSOR_ROLE)
@@ -388,10 +400,12 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         // assuming there was no revert condition.
     }
 
-    /// @notice Compute the absolute percentage delta between two values.
-    /// @param beforeValue The baseline value before a change.
-    /// @param afterValue The value after a change.
-    /// @return The absolute delta scaled by `RATIO_DENOMINATOR`.
+    /**
+     * @notice Compute the absolute percentage delta between two values.
+     * @param beforeValue The baseline value before a change.
+     * @param afterValue The value after a change.
+     * @return The absolute delta scaled by `RATIO_DENOMINATOR`.
+     */
     function _ratioDelta(uint256 beforeValue, uint256 afterValue) internal pure returns (uint256) {
         if (beforeValue == afterValue) return 0;
 
@@ -403,9 +417,11 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// ALWAYS COMPUTE TOTAL ASSETS ////
 
-    /// @notice Toggle the vault's always-compute accounting mode.
-    /// @dev Enabling always-compute requires hooks to be disabled.
-    /// @param _alwaysComputeTotalAssets The desired accounting mode.
+    /**
+     * @notice Toggle the vault's always-compute accounting mode.
+     * @dev Enabling always-compute requires hooks to be disabled.
+     * @param _alwaysComputeTotalAssets The desired accounting mode.
+     */
     function setAlwaysComputeTotalAssets(bool _alwaysComputeTotalAssets)
         external
         onlyRole(TOTAL_ASSETS_MODE_MANAGER_ROLE)
@@ -434,9 +450,11 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// HOOKS ////
 
-    /// @notice Set the hooks contract on the vault.
-    /// @dev Requires cached-accounting mode so pre/post accounting invariants are meaningful.
-    /// @param _hooks The hooks contract to install, or `address(0)` to clear hooks.
+    /**
+     * @notice Set the hooks contract on the vault.
+     * @dev Requires cached-accounting mode so pre/post accounting invariants are meaningful.
+     * @param _hooks The hooks contract to install, or `address(0)` to clear hooks.
+     */
     function setHooks(address _hooks) external onlyRole(HOOKS_MANAGER_ROLE) {
         if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
 
@@ -463,8 +481,10 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// CONFIGURATION ////
 
-    /// @notice Set the maximum allowed processor delta ratio.
-    /// @param _maxProcessorDeltaRatio The new delta ratio scaled by `RATIO_DENOMINATOR`.
+    /**
+     * @notice Set the maximum allowed processor delta ratio.
+     * @param _maxProcessorDeltaRatio The new delta ratio scaled by `RATIO_DENOMINATOR`.
+     */
     function setMaxProcessorDeltaRatio(uint256 _maxProcessorDeltaRatio) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_maxProcessorDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorDeltaRatio);
 
@@ -472,8 +492,10 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         maxProcessorDeltaRatio = _maxProcessorDeltaRatio;
     }
 
-    /// @notice Sort an array of unsigned integers in descending order in place.
-    /// @param values The array to sort.
+    /**
+     * @notice Sort an array of unsigned integers in descending order in place.
+     * @param values The array to sort.
+     */
     function _sortDescending(uint256[] memory values) internal pure {
         for (uint256 i = 1; i < values.length; ++i) {
             uint256 current = values[i];
@@ -492,11 +514,13 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// WITHDRAW ASSET ////
 
-    /// @notice Withdraw a vault asset using the receiver as the share owner.
-    /// @param asset_ The asset to withdraw.
-    /// @param assets The amount of the asset to withdraw.
-    /// @param receiver The asset recipient and share owner.
-    /// @return shares The number of shares burned by the vault.
+    /**
+     * @notice Withdraw a vault asset using the receiver as the share owner.
+     * @param asset_ The asset to withdraw.
+     * @param assets The amount of the asset to withdraw.
+     * @param receiver The asset recipient and share owner.
+     * @return shares The number of shares burned by the vault.
+     */
     function withdrawAsset(address asset_, uint256 assets, address receiver)
         external
         onlyRole(ASSET_WITHDRAWER_ROLE)
@@ -505,12 +529,14 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         return _withdrawAsset(asset_, assets, receiver, receiver);
     }
 
-    /// @notice Withdraw a vault asset on behalf of a specific share owner.
-    /// @param asset_ The asset to withdraw.
-    /// @param assets The amount of the asset to withdraw.
-    /// @param receiver The asset recipient.
-    /// @param owner The share owner whose shares are burned.
-    /// @return shares The number of shares burned by the vault.
+    /**
+     * @notice Withdraw a vault asset on behalf of a specific share owner.
+     * @param asset_ The asset to withdraw.
+     * @param assets The amount of the asset to withdraw.
+     * @param receiver The asset recipient.
+     * @param owner The share owner whose shares are burned.
+     * @return shares The number of shares burned by the vault.
+     */
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         external
         onlyRole(ASSET_WITHDRAWER_ROLE)

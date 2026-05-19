@@ -85,6 +85,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     bytes32 public constant TOTAL_ASSETS_MODE_MANAGER_ROLE = keccak256("TOTAL_ASSETS_MODE_MANAGER_ROLE");
     /// @notice Role identifier for hooks managers.
     bytes32 public constant HOOKS_MANAGER_ROLE = keccak256("HOOKS_MANAGER_ROLE");
+    /// @notice Role identifier for processor executors.
     bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
 
     //// INITIALIZER ////
@@ -345,6 +346,12 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// PROCESSOR ////
 
+    /// @notice Execute a batch of processor calls on the vault.
+    /// @dev In cached-accounting mode, syncs accounting before and after execution.
+    /// @param _targets The target addresses for each call.
+    /// @param _values The ETH values to send with each call.
+    /// @param _data The calldata payload for each call.
+    /// @return results The return data for each processor call.
     function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
         public
         onlyRole(PROCESSOR_ROLE)
@@ -381,6 +388,10 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         // assuming there was no revert condition.
     }
 
+    /// @notice Compute the absolute percentage delta between two values.
+    /// @param beforeValue The baseline value before a change.
+    /// @param afterValue The value after a change.
+    /// @return The absolute delta scaled by `RATIO_DENOMINATOR`.
     function _ratioDelta(uint256 beforeValue, uint256 afterValue) internal pure returns (uint256) {
         if (beforeValue == afterValue) return 0;
 
@@ -392,6 +403,9 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// ALWAYS COMPUTE TOTAL ASSETS ////
 
+    /// @notice Toggle the vault's always-compute accounting mode.
+    /// @dev Enabling always-compute requires hooks to be disabled.
+    /// @param _alwaysComputeTotalAssets The desired accounting mode.
     function setAlwaysComputeTotalAssets(bool _alwaysComputeTotalAssets)
         external
         onlyRole(TOTAL_ASSETS_MODE_MANAGER_ROLE)
@@ -420,6 +434,9 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// HOOKS ////
 
+    /// @notice Set the hooks contract on the vault.
+    /// @dev Requires cached-accounting mode so pre/post accounting invariants are meaningful.
+    /// @param _hooks The hooks contract to install, or `address(0)` to clear hooks.
     function setHooks(address _hooks) external onlyRole(HOOKS_MANAGER_ROLE) {
         if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
 
@@ -446,6 +463,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// CONFIGURATION ////
 
+    /// @notice Set the maximum allowed processor delta ratio.
+    /// @param _maxProcessorDeltaRatio The new delta ratio scaled by `RATIO_DENOMINATOR`.
     function setMaxProcessorDeltaRatio(uint256 _maxProcessorDeltaRatio) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_maxProcessorDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorDeltaRatio);
 
@@ -453,6 +472,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         maxProcessorDeltaRatio = _maxProcessorDeltaRatio;
     }
 
+    /// @notice Sort an array of unsigned integers in descending order in place.
+    /// @param values The array to sort.
     function _sortDescending(uint256[] memory values) internal pure {
         for (uint256 i = 1; i < values.length; ++i) {
             uint256 current = values[i];
@@ -471,6 +492,11 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     //// WITHDRAW ASSET ////
 
+    /// @notice Withdraw a vault asset using the receiver as the share owner.
+    /// @param asset_ The asset to withdraw.
+    /// @param assets The amount of the asset to withdraw.
+    /// @param receiver The asset recipient and share owner.
+    /// @return shares The number of shares burned by the vault.
     function withdrawAsset(address asset_, uint256 assets, address receiver)
         external
         onlyRole(ASSET_WITHDRAWER_ROLE)
@@ -479,15 +505,26 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         return _withdrawAsset(asset_, assets, receiver, receiver);
     }
 
-    
+    /// @notice Withdraw a vault asset on behalf of a specific share owner.
+    /// @param asset_ The asset to withdraw.
+    /// @param assets The amount of the asset to withdraw.
+    /// @param receiver The asset recipient.
+    /// @param owner The share owner whose shares are burned.
+    /// @return shares The number of shares burned by the vault.
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
-    external
-    onlyRole(ASSET_WITHDRAWER_ROLE)
-    returns (uint256 shares)
+        external
+        onlyRole(ASSET_WITHDRAWER_ROLE)
+        returns (uint256 shares)
     {
         return _withdrawAsset(asset_, assets, receiver, owner);
     }
 
+    /// @notice Internal withdraw helper that forwards to the vault and conditionally syncs accounting.
+    /// @param asset_ The asset to withdraw.
+    /// @param assets The amount of the asset to withdraw.
+    /// @param receiver The asset recipient.
+    /// @param owner The share owner whose shares are burned.
+    /// @return shares The number of shares burned by the vault.
     function _withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         internal
         returns (uint256 shares)

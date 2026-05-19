@@ -430,7 +430,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
         IHooksManagedVault(address(vault)).setHooks(_hooks);
 
-        // alwaysComputeTotalAssets is true, so processAccounting is not called.
+        // alwaysComputeTotalAssets is false, so processAccounting is called.
         vault.processAccounting();
         uint256 afterTotalBaseAssets = vault.totalBaseAssets();
         uint256 afterTotalSupply = vault.totalSupply();
@@ -493,6 +493,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         returns (uint256 shares)
     {
         shares = vault.withdrawAsset(asset_, assets, receiver, owner);
-        vault.processAccounting();
+        if (!vault.alwaysComputeTotalAssets()) {
+            vault.processAccounting();
+        }
     }
 }

@@ -33,6 +33,14 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
     uint256 public constant RATIO_DENOMINATOR = 1e18;
 
+    /// @custom:storage-location erc7201:yieldnest.storage.VaultManager
+    struct VaultManagerStorage {
+        IVault vault;
+        bool isStrategyManaged;
+        uint256 maxProcessorBaseAssetsDeltaRatio;
+        uint256 maxProcessorSupplyDeltaRatio;
+    }
+
     //// ERRORS ////
 
     /// @notice Thrown when the buffer is not a valid asset in the vault.
@@ -75,13 +83,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     event ProcessorMaxBaseAssetsDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
     event ProcessorMaxSupplyDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
 
-    //// STATE ////
-
-    IVault public vault;
-    bool public isStrategyManaged;
-    uint256 public maxProcessorBaseAssetsDeltaRatio;
-    uint256 public maxProcessorSupplyDeltaRatio;
-
     //// ROLES ////
 
     /// @notice Role identifier for buffer managers.
@@ -106,6 +107,29 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     /** @custom:oz-upgrades-unsafe-allow constructor */
     constructor() {
         _disableInitializers();
+    }
+
+    function _getVaultManagerStorage() internal pure returns (VaultManagerStorage storage $) {
+        assembly {
+            // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.VaultManager")) - 1)) & ~bytes32(uint256(0xff))
+            $.slot := 0x4ee6fd4281980a6f17143263df94113ac1b3537a4cb7994a4310a0a99380a400
+        }
+    }
+
+    function vault() public view returns (IVault) {
+        return _getVaultManagerStorage().vault;
+    }
+
+    function isStrategyManaged() public view returns (bool) {
+        return _getVaultManagerStorage().isStrategyManaged;
+    }
+
+    function maxProcessorBaseAssetsDeltaRatio() public view returns (uint256) {
+        return _getVaultManagerStorage().maxProcessorBaseAssetsDeltaRatio;
+    }
+
+    function maxProcessorSupplyDeltaRatio() public view returns (uint256) {
+        return _getVaultManagerStorage().maxProcessorSupplyDeltaRatio;
     }
 
     /**
@@ -135,8 +159,45 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     ) external initializer {
         __AccessControl_init();
 
-        vault = IVault(_vault);
-        isStrategyManaged = _supportsStrategyVersion(_vault);
+        _setManagedVault(_vault);
+        _grantManagerRoles(
+            defaultAdmin,
+            bufferManager,
+            providerManager,
+            assetAdder,
+            assetDeleter,
+            assetWithdrawer,
+            totalAssetsModeManager,
+            hooksManager,
+            processorManager
+        );
+        _setDefaultProcessorRatios();
+    }
+
+    //// BUFFER ////
+
+    modifier onlyManagedStrategy() {
+        if (!isStrategyManaged()) revert ManagedContractNotStrategy(address(vault()));
+        _;
+    }
+
+    function _setManagedVault(address managedVault) internal {
+        VaultManagerStorage storage $ = _getVaultManagerStorage();
+        $.vault = IVault(managedVault);
+        $.isStrategyManaged = _supportsStrategyVersion(managedVault);
+    }
+
+    function _grantManagerRoles(
+        address defaultAdmin,
+        address bufferManager,
+        address providerManager,
+        address assetAdder,
+        address assetDeleter,
+        address assetWithdrawer,
+        address totalAssetsModeManager,
+        address hooksManager,
+        address processorManager
+    ) internal {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BUFFER_MANAGER_ROLE, bufferManager);
         _grantRole(PROVIDER_MANAGER_ROLE, providerManager);
@@ -146,15 +207,12 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         _grantRole(TOTAL_ASSETS_MODE_MANAGER_ROLE, totalAssetsModeManager);
         _grantRole(HOOKS_MANAGER_ROLE, hooksManager);
         _grantRole(PROCESSOR_ROLE, processorManager);
-        maxProcessorBaseAssetsDeltaRatio = RATIO_DENOMINATOR;
-        maxProcessorSupplyDeltaRatio = RATIO_DENOMINATOR;
     }
 
-    //// BUFFER ////
-
-    modifier onlyManagedStrategy() {
-        if (!isStrategyManaged) revert ManagedContractNotStrategy(address(vault));
-        _;
+    function _setDefaultProcessorRatios() internal {
+        VaultManagerStorage storage $ = _getVaultManagerStorage();
+        $.maxProcessorBaseAssetsDeltaRatio = RATIO_DENOMINATOR;
+        $.maxProcessorSupplyDeltaRatio = RATIO_DENOMINATOR;
     }
 
     /**
@@ -179,11 +237,11 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         // Check that _buffer is a valid ERC4626 asset for the vault
         if (!_erc4626AssetMatchesVaultAsset(_buffer)) revert ERC4626AssetMismatch(_buffer);
 
-        try IStrategy(_buffer).maxWithdraw(address(vault)) returns (uint256) {} catch {
+        try IStrategy(_buffer).maxWithdraw(address(vault())) returns (uint256) {} catch {
             revert BufferMaxWithdrawCheckFailed(_buffer);
         }
 
-        vault.setBuffer(_buffer);
+        vault().setBuffer(_buffer);
     }
 
     /**
@@ -192,7 +250,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
      * @return True if the address is a valid asset, false otherwise.
      */
     function _isVaultAsset(address asset) public view returns (bool) {
-        return vault.hasAsset(asset);
+        return vault().hasAsset(asset);
     }
 
     /**
@@ -202,7 +260,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
      */
     function _erc4626AssetMatchesVaultAsset(address _buffer) public view returns (bool) {
         try IERC4626(_buffer).asset() returns (address bufferAsset) {
-            return bufferAsset == vault.asset();
+            return bufferAsset == vault().asset();
         } catch {
             return false;
         }
@@ -218,13 +276,13 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
      * @param _provider The provider address to set.
      */
     function setProvider(address _provider) public onlyRole(PROVIDER_MANAGER_ROLE) {
-        address[] memory assets = vault.getAssets();
-        address currentProvider = vault.provider();
+        address[] memory assets = vault().getAssets();
+        address currentProvider = vault().provider();
 
         // Check that all assets have a defined rate as defined by provider using getAssets
         for (uint256 i = 0; i < assets.length; ++i) {
             address assetAddr = assets[i];
-            if (vault.getAsset(assetAddr).active) {
+            if (vault().getAsset(assetAddr).active) {
                 // Assume provider has a getRate(address) function that reverts or returns 0 if not defined
                 try IProvider(_provider).getRate(assetAddr) returns (uint256 rate) {
                     if (rate == 0) revert ProviderRateNotDefined(assetAddr);
@@ -237,7 +295,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         // Check that the rates of the base asset and default asset have not changed
         {
             address baseAsset = assets[0];
-            address defaultAsset = vault.asset();
+            address defaultAsset = vault().asset();
 
             uint256 beforeBaseAssetRate = IProvider(currentProvider).getRate(baseAsset);
             uint256 beforeDefaultAssetRate = IProvider(currentProvider).getRate(defaultAsset);
@@ -254,19 +312,19 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         }
 
         // Process accounting to ensure totalBaseAssets is updated
-        if (!vault.alwaysComputeTotalAssets()) {
-            vault.processAccounting();
+        if (!vault().alwaysComputeTotalAssets()) {
+            vault().processAccounting();
         }
 
         // Get totalBaseAssets before changing provider from a fresh accounting snapshot
-        uint256 beforeBaseAssets = vault.totalBaseAssets();
+        uint256 beforeBaseAssets = vault().totalBaseAssets();
 
-        vault.setProvider(_provider);
+        vault().setProvider(_provider);
 
         // Get totalBaseAssets after changing provider, using computeTotalAssets (virtual recompute)
         // This is an optimization to avoid calling processAccounting again.
         // If the virtual result is different, the call must revert.
-        uint256 afterBaseAssets = vault.computeTotalAssets();
+        uint256 afterBaseAssets = vault().computeTotalAssets();
 
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
@@ -286,25 +344,25 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     function addAssets(address[] memory _assets, bool[] memory _active) public onlyRole(ASSET_ADDER_ROLE) {
         if (_assets.length != _active.length) revert LengthMismatch();
 
-        if (!vault.alwaysComputeTotalAssets()) {
-            vault.processAccounting();
+        if (!vault().alwaysComputeTotalAssets()) {
+            vault().processAccounting();
         }
 
         // Get totalBaseAssets before changing provider
-        uint256 beforeBaseAssets = vault.totalBaseAssets();
+        uint256 beforeBaseAssets = vault().totalBaseAssets();
 
         for (uint256 i = 0; i < _assets.length; ++i) {
             // Check that the provider returns a rate > 0 for the asset before adding
-            try IProvider(vault.provider()).getRate(_assets[i]) returns (uint256 rate) {
+            try IProvider(vault().provider()).getRate(_assets[i]) returns (uint256 rate) {
                 if (rate == 0) revert ProviderRateNotDefined(_assets[i]);
             } catch {
                 revert ProviderRateNotDefined(_assets[i]);
             }
-            vault.addAsset(_assets[i], _active[i]);
+            vault().addAsset(_assets[i], _active[i]);
         }
 
         // Get totalBaseAssets after changing provider, using computeTotalAssets (forces recompute)
-        uint256 afterBaseAssets = vault.computeTotalAssets();
+        uint256 afterBaseAssets = vault().computeTotalAssets();
 
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
@@ -334,7 +392,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
      */
     function deleteAssets(address[] memory _assets) public onlyRole(ASSET_DELETER_ROLE) {
         uint256[] memory indexes = new uint256[](_assets.length);
-        address currentBuffer = vault.buffer();
+        address currentBuffer = vault().buffer();
 
 
         for (uint256 i = 0; i < _assets.length; ++i) {
@@ -347,24 +405,24 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
                 if (asset == _assets[j]) revert DuplicateAsset(asset);
             }
 
-            indexes[i] = vault.getAsset(asset).index;
+            indexes[i] = vault().getAsset(asset).index;
         }
 
         _sortDescending(indexes);
 
-        if (!vault.alwaysComputeTotalAssets()) {
-            vault.processAccounting();
+        if (!vault().alwaysComputeTotalAssets()) {
+            vault().processAccounting();
         }
 
         // Get totalBaseAssets before deleting asset
-        uint256 beforeBaseAssets = vault.totalBaseAssets();
+        uint256 beforeBaseAssets = vault().totalBaseAssets();
 
         for (uint256 i = 0; i < indexes.length; ++i) {
-            vault.deleteAsset(indexes[i]);
+            vault().deleteAsset(indexes[i]);
         }
 
         // Get totalBaseAssets after deleting asset, using computeTotalAssets (forces virtual recompute)
-        uint256 afterBaseAssets = vault.computeTotalAssets();
+        uint256 afterBaseAssets = vault().computeTotalAssets();
 
         if (beforeBaseAssets != afterBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeBaseAssets, afterBaseAssets);
@@ -391,28 +449,28 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     {
         if (_targets.length != _values.length || _targets.length != _data.length) revert LengthMismatch();
 
-        if (!vault.alwaysComputeTotalAssets()) {
-            vault.processAccounting();
+        if (!vault().alwaysComputeTotalAssets()) {
+            vault().processAccounting();
         }
 
-        uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
-        uint256 beforeTotalSupply = vault.totalSupply();
+        uint256 beforeTotalBaseAssets = vault().totalBaseAssets();
+        uint256 beforeTotalSupply = vault().totalSupply();
 
-        results = vault.processor(_targets, _values, _data);
+        results = vault().processor(_targets, _values, _data);
 
         // trigger recomputation since deltas are very likely
-        if (!vault.alwaysComputeTotalAssets()) {
-            vault.processAccounting();
+        if (!vault().alwaysComputeTotalAssets()) {
+            vault().processAccounting();
         }
 
-        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
-        uint256 afterTotalSupply = vault.totalSupply();
+        uint256 afterTotalBaseAssets = vault().totalBaseAssets();
+        uint256 afterTotalSupply = vault().totalSupply();
 
-        if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorBaseAssetsDeltaRatio) {
+        if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorBaseAssetsDeltaRatio()) {
             revert TotalBaseAssetsDeltaExceeded(beforeTotalBaseAssets, afterTotalBaseAssets);
         }
 
-        if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorSupplyDeltaRatio) {
+        if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorSupplyDeltaRatio()) {
             revert TotalSupplyDeltaExceeded(beforeTotalSupply, afterTotalSupply);
         }
 
@@ -446,22 +504,22 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         external
         onlyRole(TOTAL_ASSETS_MODE_MANAGER_ROLE)
     {
-        bool wasAlwaysComputeTotalAssets = vault.alwaysComputeTotalAssets();
+        bool wasAlwaysComputeTotalAssets = vault().alwaysComputeTotalAssets();
         if (wasAlwaysComputeTotalAssets == _alwaysComputeTotalAssets) {
             return;
         }
 
-        if (_alwaysComputeTotalAssets && address(vault.hooks()) != address(0)) revert HooksMustBeDisabled();
+        if (_alwaysComputeTotalAssets && address(vault().hooks()) != address(0)) revert HooksMustBeDisabled();
 
         if (!wasAlwaysComputeTotalAssets && _alwaysComputeTotalAssets) {
-            vault.processAccounting();
+            vault().processAccounting();
         }
 
-        uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
+        uint256 beforeTotalBaseAssets = vault().totalBaseAssets();
 
-        IAlwaysComputeTotalAssetsVault(address(vault)).setAlwaysComputeTotalAssets(_alwaysComputeTotalAssets);
+        IAlwaysComputeTotalAssetsVault(address(vault())).setAlwaysComputeTotalAssets(_alwaysComputeTotalAssets);
 
-        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
+        uint256 afterTotalBaseAssets = vault().totalBaseAssets();
 
         if (beforeTotalBaseAssets != afterTotalBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeTotalBaseAssets, afterTotalBaseAssets);
@@ -476,19 +534,19 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
      * @param _hooks The hooks contract to install, or `address(0)` to clear hooks.
      */
     function setHooks(address _hooks) external onlyRole(HOOKS_MANAGER_ROLE) {
-        if (vault.alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
+        if (vault().alwaysComputeTotalAssets()) revert AlwaysComputeTotalAssetsMustBeDisabled();
 
         // alwaysComputeTotalAssets is false, so processAccounting is called.
-        vault.processAccounting();
-        uint256 beforeTotalBaseAssets = vault.totalBaseAssets();
-        uint256 beforeTotalSupply = vault.totalSupply();
+        vault().processAccounting();
+        uint256 beforeTotalBaseAssets = vault().totalBaseAssets();
+        uint256 beforeTotalSupply = vault().totalSupply();
 
-        IHooksManagedVault(address(vault)).setHooks(_hooks);
+        IHooksManagedVault(address(vault())).setHooks(_hooks);
 
         // alwaysComputeTotalAssets is false, so processAccounting is called.
-        vault.processAccounting();
-        uint256 afterTotalBaseAssets = vault.totalBaseAssets();
-        uint256 afterTotalSupply = vault.totalSupply();
+        vault().processAccounting();
+        uint256 afterTotalBaseAssets = vault().totalBaseAssets();
+        uint256 afterTotalSupply = vault().totalSupply();
 
         if (beforeTotalBaseAssets != afterTotalBaseAssets) {
             revert TotalBaseAssetsMismatch(beforeTotalBaseAssets, afterTotalBaseAssets);
@@ -514,9 +572,9 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         }
 
         emit ProcessorMaxBaseAssetsDeltaRatioSet(
-            maxProcessorBaseAssetsDeltaRatio, _maxProcessorBaseAssetsDeltaRatio
+            maxProcessorBaseAssetsDeltaRatio(), _maxProcessorBaseAssetsDeltaRatio
         );
-        maxProcessorBaseAssetsDeltaRatio = _maxProcessorBaseAssetsDeltaRatio;
+        _getVaultManagerStorage().maxProcessorBaseAssetsDeltaRatio = _maxProcessorBaseAssetsDeltaRatio;
     }
 
     /**
@@ -529,8 +587,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     {
         if (_maxProcessorSupplyDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorSupplyDeltaRatio);
 
-        emit ProcessorMaxSupplyDeltaRatioSet(maxProcessorSupplyDeltaRatio, _maxProcessorSupplyDeltaRatio);
-        maxProcessorSupplyDeltaRatio = _maxProcessorSupplyDeltaRatio;
+        emit ProcessorMaxSupplyDeltaRatioSet(maxProcessorSupplyDeltaRatio(), _maxProcessorSupplyDeltaRatio);
+        _getVaultManagerStorage().maxProcessorSupplyDeltaRatio = _maxProcessorSupplyDeltaRatio;
     }
 
     /**
@@ -572,7 +630,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         onlyManagedStrategy
     {
         if (!_isVaultAsset(asset_)) revert NotVaultAsset(asset_);
-        IAssetWithdrawableManagedVault(address(vault)).setAssetWithdrawable(asset_, withdrawable_);
+        IAssetWithdrawableManagedVault(address(vault())).setAssetWithdrawable(asset_, withdrawable_);
     }
 
     /**
@@ -616,9 +674,9 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         internal
         returns (uint256 shares)
     {
-        shares = vault.withdrawAsset(asset_, assets, receiver, owner);
-        if (!vault.alwaysComputeTotalAssets()) {
-            vault.processAccounting();
+        shares = vault().withdrawAsset(asset_, assets, receiver, owner);
+        if (!vault().alwaysComputeTotalAssets()) {
+            vault().processAccounting();
         }
     }
 

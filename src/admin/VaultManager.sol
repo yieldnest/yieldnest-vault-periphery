@@ -611,10 +611,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         }
     }
 
-    //// SET ASSET WITHDRAWABLE ////
-
-    // TODO: implement with check for asset
-
     //// WITHDRAW ASSET ////
 
     /**

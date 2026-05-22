@@ -622,6 +622,19 @@ contract VaultManagerUnitTest is Test {
         assertEq(vault.totalAssets(), 10 ether);
     }
 
+    function testSetAlwaysComputeTotalAssetsRevertsOnNoOp() public {
+        vm.prank(totalAssetsModeManagerRole);
+        vm.expectRevert(VaultManager.NoOp.selector);
+        vaultManager.setAlwaysComputeTotalAssets(false);
+
+        vm.prank(totalAssetsModeManagerRole);
+        vaultManager.setAlwaysComputeTotalAssets(true);
+
+        vm.prank(totalAssetsModeManagerRole);
+        vm.expectRevert(VaultManager.NoOp.selector);
+        vaultManager.setAlwaysComputeTotalAssets(true);
+    }
+
     function testSetAlwaysComputeTotalAssetsRevertsWhenHooksAreConfigured() public {
         vault.setHooks(address(new LocalNoopHooks(address(vault))));
 

@@ -75,6 +75,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     error HooksMustBeDisabled();
     /// @notice Thrown when alwaysComputeTotalAssets must be disabled for the requested operation.
     error AlwaysComputeTotalAssetsMustBeDisabled();
+    /// @notice Thrown when a requested configuration change would not modify state.
+    error NoOp();
     /// @notice Thrown when a strategy-only operation is attempted on a non-strategy managed contract.
     error ManagedContractNotStrategy(address managedContract);
 
@@ -506,7 +508,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     {
         bool wasAlwaysComputeTotalAssets = vault().alwaysComputeTotalAssets();
         if (wasAlwaysComputeTotalAssets == _alwaysComputeTotalAssets) {
-            return;
+            revert NoOp();
         }
 
         if (_alwaysComputeTotalAssets && address(vault().hooks()) != address(0)) revert HooksMustBeDisabled();

@@ -17,6 +17,14 @@ interface IHooksManagedVault {
     function setHooks(address hooks_) external;
 }
 
+interface IAssetWithdrawableManagedVault {
+    function setAssetWithdrawable(address asset_, bool withdrawable_) external;
+}
+
+interface IStrategyVersioned {
+    function STRATEGY_VERSION() external view returns (string memory);
+}
+
 /// @title VaultManager
 /// @notice Contract for managing Admin functions for a Vault, with role-based access control.
 /// @notice Each wrapper function performs additional checks to ensure vault state is consistent.
@@ -59,6 +67,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     error HooksMustBeDisabled();
     /// @notice Thrown when alwaysComputeTotalAssets must be disabled for the requested operation.
     error AlwaysComputeTotalAssetsMustBeDisabled();
+    /// @notice Thrown when a strategy-only operation is attempted on a non-strategy managed contract.
+    error ManagedContractNotStrategy(address managedContract);
 
     //// EVENTS ////
 
@@ -68,6 +78,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     //// STATE ////
 
     IVault public vault;
+    bool public isStrategyManaged;
     uint256 public maxProcessorBaseAssetsDeltaRatio;
     uint256 public maxProcessorSupplyDeltaRatio;
 
@@ -125,6 +136,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         __AccessControl_init();
 
         vault = IVault(_vault);
+        isStrategyManaged = _supportsStrategyVersion(_vault);
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BUFFER_MANAGER_ROLE, bufferManager);
         _grantRole(PROVIDER_MANAGER_ROLE, providerManager);
@@ -139,6 +151,11 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     }
 
     //// BUFFER ////
+
+    modifier onlyManagedStrategy() {
+        if (!isStrategyManaged) revert ManagedContractNotStrategy(address(vault));
+        _;
+    }
 
     /**
      * @notice Set the current buffer in the vault.
@@ -543,6 +560,22 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     //// WITHDRAW ASSET ////
 
     /**
+     * @notice Set whether an existing managed asset is withdrawable.
+     * @dev Only callable by ASSET_ADDER_ROLE. Intended for strategy instances that expose per-asset
+     *      withdrawability controls. The asset must already exist on the managed contract.
+     * @param asset_ The managed asset whose withdrawability flag will be updated.
+     * @param withdrawable_ The new withdrawability value.
+     */
+    function setAssetWithdrawable(address asset_, bool withdrawable_)
+        external
+        onlyRole(ASSET_ADDER_ROLE)
+        onlyManagedStrategy
+    {
+        if (!_isVaultAsset(asset_)) revert NotVaultAsset(asset_);
+        IAssetWithdrawableManagedVault(address(vault)).setAssetWithdrawable(asset_, withdrawable_);
+    }
+
+    /**
      * @notice Withdraw a vault asset using the receiver as the share owner.
      * @param asset_ The asset to withdraw.
      * @param assets The amount of the asset to withdraw.
@@ -586,6 +619,14 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         shares = vault.withdrawAsset(asset_, assets, receiver, owner);
         if (!vault.alwaysComputeTotalAssets()) {
             vault.processAccounting();
+        }
+    }
+
+    function _supportsStrategyVersion(address managedContract) internal view returns (bool) {
+        try IStrategyVersioned(managedContract).STRATEGY_VERSION() returns (string memory version) {
+            return bytes(version).length != 0;
+        } catch {
+            return false;
         }
     }
 }

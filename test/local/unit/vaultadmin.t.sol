@@ -2,228 +2,79 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
+
 import {VaultManager} from "src/admin/VaultManager.sol";
+import {Vault} from "lib/yieldnest-vault/src/Vault.sol";
+import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {IHooks} from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
+import {IValidator} from "lib/yieldnest-vault/src/interface/IValidator.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {ERC4626} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
+import {MockStrategy} from "lib/yieldnest-vault/test/unit/mocks/MockStrategy.sol";
 import {TransparentUpgradeableProxy} from
     "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-// Use the AssetParams struct from IVault interface, as per file_context_1
-struct AssetParams {
-    uint256 index;
-    bool active;
-    uint8 decimals;
-}
+contract LocalWETH9 {
+    string public constant name = "Wrapped Ether";
+    string public constant symbol = "WETH";
+    uint8 public constant decimals = 18;
 
-interface IVaultMock {
-    function getAsset(address) external view returns (AssetParams memory);
-    function asset() external view returns (address);
-    function setBuffer(address) external;
-    function hasAsset(address) external view returns (bool);
-}
+    event Approval(address indexed src, address indexed guy, uint256 wad);
+    event Transfer(address indexed src, address indexed dst, uint256 wad);
+    event Deposit(address indexed dst, uint256 wad);
+    event Withdrawal(address indexed src, uint256 wad);
 
-contract VaultMock is IVaultMock {
-    mapping(address => AssetParams) public assets;
-    address public override asset;
-    address public currentBuffer;
-    address[] public allAssets;
-    address public provider;
-    address public lastProcessorTarget;
-    uint256 public lastProcessorValue;
-    bytes public lastProcessorCallData;
-    address public lastWithdrawAsset;
-    uint256 public lastWithdrawAssets;
-    address public lastWithdrawReceiver;
-    address public lastWithdrawOwner;
-    uint256 public nextWithdrawShares = 1e18;
-    uint256 public processAccountingCalls;
-    uint256 public totalAssetsValue = 1e18;
-    uint256 public totalSupplyValue = 1e18;
-    uint256 public nextTotalAssetsValue = 1e18;
-    uint256 public nextTotalSupplyValue = 1e18;
-    uint256 public cachedTotalBaseAssetsValue = 1e18;
-    uint256 public computedTotalBaseAssetsValue = 1e18;
-    uint256 public nextComputedTotalBaseAssetsValue = 1e18;
-    bool public alwaysComputeTotalAssetsEnabled;
-    address public hooksAddress;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
 
-    function setAsset(address _addr, uint8 _decimals) external {
-        assets[_addr] = AssetParams({index: allAssets.length, active: true, decimals: _decimals});
-        allAssets.push(_addr);
+    receive() external payable {
+        deposit();
     }
 
-    function getAsset(address _addr) external view override returns (AssetParams memory) {
-        return assets[_addr];
+    function deposit() public payable {
+        balanceOf[msg.sender] += msg.value;
+        emit Deposit(msg.sender, msg.value);
     }
 
-    function setAssetAddress(address _asset) external {
-        asset = _asset;
+    function withdraw(uint256 wad) public {
+        require(balanceOf[msg.sender] >= wad, "insufficient balance");
+        balanceOf[msg.sender] -= wad;
+        payable(msg.sender).transfer(wad);
+        emit Withdrawal(msg.sender, wad);
     }
 
-    function setProvider(address _provider) external {
-        provider = _provider;
+    function totalSupply() public view returns (uint256) {
+        return address(this).balance;
     }
 
-    function setBuffer(address _buffer) external override {
-        currentBuffer = _buffer;
+    function approve(address guy, uint256 wad) public returns (bool) {
+        allowance[msg.sender][guy] = wad;
+        emit Approval(msg.sender, guy, wad);
+        return true;
     }
 
-    function buffer() external view returns (address) {
-        return currentBuffer;
+    function transfer(address dst, uint256 wad) public returns (bool) {
+        return transferFrom(msg.sender, dst, wad);
     }
 
-    function getAssets() external view returns (address[] memory) {
-        return allAssets;
-    }
+    function transferFrom(address src, address dst, uint256 wad) public returns (bool) {
+        require(balanceOf[src] >= wad, "insufficient balance");
 
-    function hasAsset(address _asset) external view returns (bool) {
-        if (allAssets.length == 0) return false;
-        uint256 index = assets[_asset].index;
-        return index < allAssets.length && allAssets[index] == _asset;
-    }
-
-    function totalBaseAssets() external view returns (uint256) {
-        return alwaysComputeTotalAssetsEnabled ? computedTotalBaseAssetsValue : cachedTotalBaseAssetsValue;
-    }
-
-    function computeTotalAssets() external view returns (uint256) {
-        return computedTotalBaseAssetsValue;
-    }
-
-    function alwaysComputeTotalAssets() external view returns (bool) {
-        return alwaysComputeTotalAssetsEnabled;
-    }
-
-    function totalAssets() external view returns (uint256) {
-        return totalAssetsValue;
-    }
-
-    function totalSupply() external view returns (uint256) {
-        return totalSupplyValue;
-    }
-
-    function hooks() external view returns (address) {
-        return hooksAddress;
-    }
-
-    function setAccountingSnapshot(uint256 _totalAssets, uint256 _totalSupply) external {
-        totalAssetsValue = _totalAssets;
-        totalSupplyValue = _totalSupply;
-        nextTotalAssetsValue = _totalAssets;
-        nextTotalSupplyValue = _totalSupply;
-        cachedTotalBaseAssetsValue = _totalAssets;
-        computedTotalBaseAssetsValue = _totalAssets;
-        nextComputedTotalBaseAssetsValue = _totalAssets;
-    }
-
-    function setNextAccountingSnapshot(uint256 _totalAssets, uint256 _totalSupply) external {
-        nextTotalAssetsValue = _totalAssets;
-        nextTotalSupplyValue = _totalSupply;
-    }
-
-    function setBaseAssetsSnapshot(uint256 _cachedTotalBaseAssets, uint256 _computedTotalBaseAssets) external {
-        cachedTotalBaseAssetsValue = _cachedTotalBaseAssets;
-        computedTotalBaseAssetsValue = _computedTotalBaseAssets;
-        nextComputedTotalBaseAssetsValue = _computedTotalBaseAssets;
-    }
-
-    function setNextBaseAssetsSnapshot(uint256 _computedTotalBaseAssets) external {
-        nextComputedTotalBaseAssetsValue = _computedTotalBaseAssets;
-    }
-
-    function setHooks(address _hooks) external {
-        hooksAddress = _hooks;
-        totalAssetsValue = nextTotalAssetsValue;
-        totalSupplyValue = nextTotalSupplyValue;
-        computedTotalBaseAssetsValue = nextComputedTotalBaseAssetsValue;
-    }
-
-    function addAsset(address _addr, bool _active) external {
-        assets[_addr] = AssetParams({index: allAssets.length, active: _active, decimals: 18});
-        allAssets.push(_addr);
-    }
-
-    function deleteAsset(uint256 _index) external {
-        uint256 lastIndex = allAssets.length - 1;
-        address assetToDelete = allAssets[_index];
-        address lastAsset = allAssets[lastIndex];
-
-        if (_index != lastIndex) {
-            allAssets[_index] = lastAsset;
-            assets[lastAsset].index = _index;
+        if (src != msg.sender && allowance[src][msg.sender] != type(uint256).max) {
+            require(allowance[src][msg.sender] >= wad, "insufficient allowance");
+            allowance[src][msg.sender] -= wad;
         }
 
-        allAssets.pop();
-        delete assets[assetToDelete];
-    }
-
-    function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
-        external
-        returns (bytes[] memory results)
-    {
-        lastProcessorTarget = _targets[0];
-        lastProcessorValue = _values[0];
-        lastProcessorCallData = _data[0];
-        totalAssetsValue = nextTotalAssetsValue;
-        totalSupplyValue = nextTotalSupplyValue;
-        computedTotalBaseAssetsValue = nextComputedTotalBaseAssetsValue;
-        results = new bytes[](_targets.length);
-        for (uint256 i = 0; i < _targets.length; ++i) {
-            results[i] = abi.encode(_targets[i], _values[i], _data[i]);
-        }
-    }
-
-    function setNextWithdrawShares(uint256 _nextWithdrawShares) external {
-        nextWithdrawShares = _nextWithdrawShares;
-    }
-
-    function withdrawAsset(address asset_, uint256 assetAmount, address receiver, address owner)
-        external
-        returns (uint256)
-    {
-        lastWithdrawAsset = asset_;
-        lastWithdrawAssets = assetAmount;
-        lastWithdrawReceiver = receiver;
-        lastWithdrawOwner = owner;
-        return nextWithdrawShares;
-    }
-
-    function processAccounting() external {
-        processAccountingCalls += 1;
-        cachedTotalBaseAssetsValue = computedTotalBaseAssetsValue;
-    }
-
-    function setAlwaysComputeTotalAssets(bool _alwaysComputeTotalAssets) external {
-        alwaysComputeTotalAssetsEnabled = _alwaysComputeTotalAssets;
-        totalAssetsValue = nextTotalAssetsValue;
-        if (!_alwaysComputeTotalAssets) {
-            cachedTotalBaseAssetsValue = computedTotalBaseAssetsValue;
-        }
+        balanceOf[src] -= wad;
+        balanceOf[dst] += wad;
+        emit Transfer(src, dst, wad);
+        return true;
     }
 }
 
-contract ERC4626Mock {
-    address public asset_;
-    bool public revertOnMaxWithdraw;
-
-    constructor(address _asset) {
-        asset_ = _asset;
-    }
-
-    function asset() external view returns (address) {
-        return asset_;
-    }
-
-    function setRevertOnMaxWithdraw(bool _revertOnMaxWithdraw) external {
-        revertOnMaxWithdraw = _revertOnMaxWithdraw;
-    }
-
-    function maxWithdraw(address) external view returns (uint256) {
-        if (revertOnMaxWithdraw) revert();
-        return 0;
-    }
-}
-
-contract ProviderMock is IProvider {
+contract LocalProvider is IProvider {
     mapping(address => uint256) public rates;
 
     function setRate(address asset_, uint256 rate_) external {
@@ -235,161 +86,308 @@ contract ProviderMock is IProvider {
     }
 }
 
-contract VaultManagerUnitTest is Test {
-    VaultManager vaultManager;
-    VaultMock vault;
-    address admin = address(0xA1);
-    address bufferManagerRole = address(0xB1);
-    address providerManagerRole = address(0xC1);
-    address assetAdderRole = address(0xD1);
-    address assetDeleterRole = address(0xE1);
-    address assetWithdrawerRole = address(0xF1);
-    address totalAssetsModeManagerRole = address(0xF2);
-    address hooksManagerRole = address(0xF3);
-    address processorRole = address(0xF4);
+contract LocalToken is ERC20 {
+    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {
+        _mint(msg.sender, 1_000_000 ether);
+    }
+}
 
-    address asset1 = address(0x1001);
-    address asset2 = address(0x1002);
+contract LocalERC4626Asset is ERC20, ERC4626 {
+    bool public revertOnMaxWithdraw;
 
-    ERC4626Mock erc4626_1;
-    ERC4626Mock erc4626_2;
-    ProviderMock provider;
-    ProviderMock newProvider;
+    constructor(IERC20 asset_, string memory name_, string memory symbol_) ERC20(name_, symbol_) ERC4626(asset_) {}
 
-    function _deployVaultManager() internal returns (VaultManager) {
-        VaultManager implementation = new VaultManager();
-        bytes memory initData = abi.encodeCall(
-            VaultManager.initialize,
-            (
-                address(vault),
-                admin,
-                bufferManagerRole,
-                providerManagerRole,
-                assetAdderRole,
-                assetDeleterRole,
-                assetWithdrawerRole,
-                totalAssetsModeManagerRole,
-                hooksManagerRole,
-                processorRole
-            )
-        );
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), admin, initData);
-        return VaultManager(address(proxy));
+    function decimals() public pure override(ERC20, ERC4626) returns (uint8) {
+        return 18;
     }
 
+    function setRevertOnMaxWithdraw(bool shouldRevert_) external {
+        revertOnMaxWithdraw = shouldRevert_;
+    }
+
+    function maxWithdraw(address owner) public view override returns (uint256) {
+        if (revertOnMaxWithdraw) revert("maxWithdraw failed");
+        return super.maxWithdraw(owner);
+    }
+}
+
+contract LocalNoopTarget {
+    function ping(uint256 value) external pure returns (uint256) {
+        return value + 1;
+    }
+}
+
+abstract contract LocalHooksBase is IHooks {
+    string internal _hookName;
+    Config internal _config;
+    IVault public immutable VAULT;
+
+    constructor(address vault_, string memory hookName_, Config memory config_) {
+        VAULT = IVault(vault_);
+        _hookName = hookName_;
+        _config = config_;
+    }
+
+    function name() external view override returns (string memory) {
+        return _hookName;
+    }
+
+    function setConfig(Config memory config_) external override {
+        _config = config_;
+    }
+
+    function getConfig() external view override returns (Config memory) {
+        return _config;
+    }
+
+    function beforeDeposit(DepositParams memory) external virtual override {}
+    function afterDeposit(DepositParams memory) external virtual override {}
+    function beforeMint(MintParams memory) external virtual override {}
+    function afterMint(MintParams memory) external virtual override {}
+    function beforeRedeem(RedeemParams memory) external virtual override {}
+    function afterRedeem(RedeemParams memory) external virtual override {}
+    function beforeWithdraw(WithdrawParams memory) external virtual override {}
+    function afterWithdraw(WithdrawParams memory) external virtual override {}
+    function beforeProcessAccounting(BeforeProcessAccountingParams memory) external virtual override {}
+    function afterProcessAccounting(AfterProcessAccountingParams memory) external virtual override {}
+}
+
+contract LocalNoopHooks is LocalHooksBase {
+    constructor(address vault_)
+        LocalHooksBase(
+            vault_,
+            "LocalNoopHooks",
+            IHooks.Config({
+                beforeDeposit: false,
+                afterDeposit: false,
+                beforeMint: false,
+                afterMint: false,
+                beforeRedeem: false,
+                afterRedeem: false,
+                beforeWithdraw: false,
+                afterWithdraw: false,
+                beforeProcessAccounting: false,
+                afterProcessAccounting: false
+            })
+        )
+    {}
+}
+
+contract LocalBeforeAccountingTransferHook is LocalHooksBase {
+    IERC20 public immutable token;
+    uint256 public immutable amount;
+
+    constructor(address vault_, address token_, uint256 amount_)
+        LocalHooksBase(
+            vault_,
+            "LocalBeforeAccountingTransferHook",
+            IHooks.Config({
+                beforeDeposit: false,
+                afterDeposit: false,
+                beforeMint: false,
+                afterMint: false,
+                beforeRedeem: false,
+                afterRedeem: false,
+                beforeWithdraw: false,
+                afterWithdraw: false,
+                beforeProcessAccounting: true,
+                afterProcessAccounting: false
+            })
+        )
+    {
+        token = IERC20(token_);
+        amount = amount_;
+    }
+
+    function beforeProcessAccounting(BeforeProcessAccountingParams memory) external override {
+        if (msg.sender != address(VAULT)) revert CallerNotVault();
+        token.transfer(address(VAULT), amount);
+    }
+}
+
+contract LocalAfterAccountingMintHook is LocalHooksBase {
+    address public immutable recipient;
+    uint256 public immutable sharesToMint;
+    uint256 public immutable mintOnCallNumber;
+    uint256 public callCount;
+
+    constructor(address vault_, address recipient_, uint256 sharesToMint_, uint256 mintOnCallNumber_)
+        LocalHooksBase(
+            vault_,
+            "LocalAfterAccountingMintHook",
+            IHooks.Config({
+                beforeDeposit: false,
+                afterDeposit: false,
+                beforeMint: false,
+                afterMint: false,
+                beforeRedeem: false,
+                afterRedeem: false,
+                beforeWithdraw: false,
+                afterWithdraw: false,
+                beforeProcessAccounting: false,
+                afterProcessAccounting: true
+            })
+        )
+    {
+        recipient = recipient_;
+        sharesToMint = sharesToMint_;
+        mintOnCallNumber = mintOnCallNumber_;
+    }
+
+    function afterProcessAccounting(AfterProcessAccountingParams memory) external override {
+        if (msg.sender != address(VAULT)) revert CallerNotVault();
+        callCount += 1;
+        if (callCount == mintOnCallNumber) {
+            VAULT.mintShares(recipient, sharesToMint);
+        }
+    }
+}
+
+contract VaultManagerUnitTest is Test {
+    VaultManager internal vaultManager;
+    Vault internal vault;
+    LocalWETH9 internal weth;
+    LocalProvider internal provider;
+    LocalProvider internal newProvider;
+    LocalERC4626Asset internal bufferAsset;
+    LocalERC4626Asset internal syntheticAsset1;
+    LocalERC4626Asset internal syntheticAsset2;
+    LocalNoopTarget internal noopTarget;
+
+    address internal admin = address(0xA1);
+    address internal bufferManagerRole = address(0xB1);
+    address internal providerManagerRole = address(0xC1);
+    address internal assetAdderRole = address(0xD1);
+    address internal assetDeleterRole = address(0xE1);
+    address internal assetWithdrawerRole = address(0xF1);
+    address internal totalAssetsModeManagerRole = address(0xF2);
+    address internal hooksManagerRole = address(0xF3);
+    address internal processorRole = address(0xF4);
+    address internal alice = address(0xAA);
+    address internal sink = address(0xBB);
+
     function setUp() public {
-        vault = new VaultMock();
-        vault.setAssetAddress(asset1);
-        vault.setAccountingSnapshot(1e18, 1e18);
-        provider = new ProviderMock();
-        newProvider = new ProviderMock();
+        weth = new LocalWETH9();
+        provider = new LocalProvider();
+        newProvider = new LocalProvider();
+        bufferAsset = new LocalERC4626Asset(IERC20(address(weth)), "Buffer Asset", "BUF");
+        syntheticAsset1 = new LocalERC4626Asset(IERC20(address(weth)), "Synthetic Asset 1", "SYN1");
+        syntheticAsset2 = new LocalERC4626Asset(IERC20(address(weth)), "Synthetic Asset 2", "SYN2");
+        noopTarget = new LocalNoopTarget();
 
-        // Set up ERC4626 mocks with correct asset
-        erc4626_1 = new ERC4626Mock(asset1);
-        erc4626_2 = new ERC4626Mock(asset1);
+        _setProviderRates(provider);
+        _setProviderRates(newProvider);
 
-        // Set up vault assets
-        vault.setAsset(address(erc4626_1), 18);
-        vault.setAsset(address(erc4626_2), 18);
-        provider.setRate(address(erc4626_1), 1e18);
-        provider.setRate(address(erc4626_2), 1e18);
-        newProvider.setRate(address(erc4626_1), 1e18);
-        newProvider.setRate(address(erc4626_2), 1e18);
+        vault = _deployVault(0);
+        vaultManager = _deployVaultManager(address(vault));
+
+        vm.startPrank(admin);
+        vault.grantRole(vault.PROVIDER_MANAGER_ROLE(), admin);
+        vault.grantRole(vault.ASSET_MANAGER_ROLE(), admin);
+        vault.grantRole(vault.UNPAUSER_ROLE(), admin);
+        vault.grantRole(vault.PROCESSOR_MANAGER_ROLE(), admin);
+        vault.grantRole(vault.HOOKS_MANAGER_ROLE(), admin);
+
+        vault.grantRole(vault.PROVIDER_MANAGER_ROLE(), address(vaultManager));
+        vault.grantRole(vault.BUFFER_MANAGER_ROLE(), address(vaultManager));
+        vault.grantRole(vault.ASSET_MANAGER_ROLE(), address(vaultManager));
+        vault.grantRole(vault.PROCESSOR_ROLE(), address(vaultManager));
+        vault.grantRole(vault.ASSET_WITHDRAWER_ROLE(), address(vaultManager));
+        vault.grantRole(vault.HOOKS_MANAGER_ROLE(), address(vaultManager));
+
+        vault.grantRole(vault.PROCESSOR_MANAGER_ROLE(), address(this));
+        vault.grantRole(vault.HOOKS_MANAGER_ROLE(), address(this));
+
         vault.setProvider(address(provider));
+        vault.addAsset(address(weth), true);
+        vault.addAsset(address(bufferAsset), true);
+        vault.addAsset(address(syntheticAsset1), true);
+        vault.addAsset(address(syntheticAsset2), true);
+        vault.unpause();
+        vm.stopPrank();
 
-        vaultManager = _deployVaultManager();
+        _setNoopRule(noopTarget);
+        _setTransferRule(address(weth), sink);
     }
 
     function testSetCurrentBuffer() public {
         vm.startPrank(bufferManagerRole);
+        vaultManager.setCurrentBuffer(address(bufferAsset));
+        assertEq(vault.buffer(), address(bufferAsset));
 
-        // Valid buffer
-        vaultManager.setCurrentBuffer(address(erc4626_1));
-        assertEq(vault.currentBuffer(), address(erc4626_1), "currentBuffer should be set to erc4626_1");
-
-        // Revert if not vault asset
-        address nonAsset = address(0xbeef331);
+        address nonAsset = address(new LocalERC4626Asset(IERC20(address(weth)), "External", "EXT"));
         vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, nonAsset));
         vaultManager.setCurrentBuffer(nonAsset);
 
-        // Revert if ERC4626 asset mismatch
-        ERC4626Mock wrongERC4626 = new ERC4626Mock(asset2);
-        vault.setAsset(address(wrongERC4626), 18);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.ERC4626AssetMismatch.selector, address(wrongERC4626)));
-        vaultManager.setCurrentBuffer(address(wrongERC4626));
-
+        LocalERC4626Asset wrongUnderlying =
+            new LocalERC4626Asset(IERC20(address(new LocalToken("Other", "OTH"))), "Wrong", "WRONG");
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.ERC4626AssetMismatch.selector, address(wrongUnderlying)));
+        vaultManager.setCurrentBuffer(address(wrongUnderlying), true);
         vm.stopPrank();
     }
 
     function testSetCurrentBufferSkipIsAssetCheck() public {
-        ERC4626Mock externalBuffer = new ERC4626Mock(asset1);
+        LocalERC4626Asset externalBuffer = new LocalERC4626Asset(IERC20(address(weth)), "External", "EXT");
 
         vm.prank(bufferManagerRole);
         vaultManager.setCurrentBuffer(address(externalBuffer), true);
 
-        assertEq(vault.currentBuffer(), address(externalBuffer));
+        assertEq(vault.buffer(), address(externalBuffer));
     }
 
     function testSetCurrentBufferRevertsWhenMaxWithdrawProbeFails() public {
-        erc4626_1.setRevertOnMaxWithdraw(true);
+        bufferAsset.setRevertOnMaxWithdraw(true);
 
         vm.prank(bufferManagerRole);
         vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.BufferMaxWithdrawCheckFailed.selector, address(erc4626_1))
+            abi.encodeWithSelector(VaultManager.BufferMaxWithdrawCheckFailed.selector, address(bufferAsset))
         );
-        vaultManager.setCurrentBuffer(address(erc4626_1));
+        vaultManager.setCurrentBuffer(address(bufferAsset));
     }
 
     function testRolesAreDecoupledPerOperation() public {
         vm.prank(bufferManagerRole);
-        vaultManager.setCurrentBuffer(address(erc4626_1));
-        assertEq(vault.currentBuffer(), address(erc4626_1));
+        vaultManager.setCurrentBuffer(address(bufferAsset));
+        assertEq(vault.buffer(), address(bufferAsset));
 
         vm.prank(providerManagerRole);
         vaultManager.setProvider(address(provider));
         assertEq(vault.provider(), address(provider));
 
-        address newAsset = address(0x2001);
-        provider.setRate(newAsset, 1e18);
+        LocalERC4626Asset addedAsset = new LocalERC4626Asset(IERC20(address(weth)), "Added Asset", "ADDED");
+        provider.setRate(address(addedAsset), 1e18);
         address[] memory assetsToAdd = new address[](1);
         bool[] memory activeFlags = new bool[](1);
-        assetsToAdd[0] = newAsset;
+        assetsToAdd[0] = address(addedAsset);
         activeFlags[0] = true;
 
         vm.prank(assetAdderRole);
         vaultManager.addAssets(assetsToAdd, activeFlags);
-        assertEq(vault.getAssets().length, 3);
+        assertTrue(vault.hasAsset(address(addedAsset)));
 
         vm.prank(assetDeleterRole);
-        vaultManager.deleteAsset(newAsset);
-        assertEq(vault.getAssets().length, 2);
+        vaultManager.deleteAsset(address(addedAsset));
+        assertFalse(vault.hasAsset(address(addedAsset)));
 
-        vault.setNextWithdrawShares(42e18);
+        _depositSyntheticAsset(syntheticAsset1, alice, 10 ether);
+        _approveManagerShares(alice);
+        uint256 aliceSharesBefore = vault.balanceOf(alice);
 
         vm.prank(assetWithdrawerRole);
-        uint256 shares = vaultManager.withdrawAsset(asset1, 10e18, address(0x4001));
-        assertEq(shares, 42e18);
-        assertEq(vault.lastWithdrawAsset(), asset1);
-        assertEq(vault.lastWithdrawAssets(), 10e18);
-        assertEq(vault.lastWithdrawReceiver(), address(0x4001));
-        assertEq(vault.lastWithdrawOwner(), address(0x4001));
-        assertEq(vault.processAccountingCalls(), 4);
+        uint256 burnedShares = vaultManager.withdrawAsset(address(syntheticAsset1), 5 ether, alice);
+        assertGt(burnedShares, 0);
+        assertLt(vault.balanceOf(alice), aliceSharesBefore);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
         bytes[] memory data = new bytes[](1);
-        targets[0] = address(0x3001);
-        values[0] = 1;
-        data[0] = hex"1234";
+        targets[0] = address(noopTarget);
+        data[0] = abi.encodeWithSignature("ping(uint256)", 41);
 
         vm.prank(processorRole);
         bytes[] memory results = vaultManager.processor(targets, values, data);
-        assertEq(vault.lastProcessorTarget(), targets[0]);
-        assertEq(vault.lastProcessorValue(), values[0]);
-        assertEq(vault.lastProcessorCallData(), data[0]);
-        assertEq(vault.processAccountingCalls(), 6);
         assertEq(results.length, 1);
-        assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
+        assertEq(abi.decode(results[0], (uint256)), 42);
 
         vm.prank(bufferManagerRole);
         vm.expectRevert();
@@ -401,7 +399,7 @@ contract VaultManagerUnitTest is Test {
 
         vm.prank(assetAdderRole);
         vm.expectRevert();
-        vaultManager.deleteAsset(address(erc4626_1));
+        vaultManager.deleteAsset(address(syntheticAsset1));
 
         vm.prank(assetDeleterRole);
         vm.expectRevert();
@@ -409,65 +407,89 @@ contract VaultManagerUnitTest is Test {
 
         vm.prank(processorRole);
         vm.expectRevert();
-        vaultManager.withdrawAsset(asset1, 1e18, address(0x5001));
+        vaultManager.withdrawAsset(address(syntheticAsset1), 1 ether, alice);
     }
 
     function testSetProviderSyncsAccountingBeforeComparingTotals() public {
-        vault.setBaseAssetsSnapshot(100e18, 110e18);
-        vault.setNextBaseAssetsSnapshot(110e18);
+        _mintWeth(address(this), 10 ether);
+        weth.transfer(address(vault), 10 ether);
+        assertEq(vault.totalBaseAssets(), 0);
+        assertEq(vault.computeTotalAssets(), 10 ether);
 
         vm.prank(providerManagerRole);
         vaultManager.setProvider(address(newProvider));
 
         assertEq(vault.provider(), address(newProvider));
-        assertEq(vault.processAccountingCalls(), 1);
-        assertEq(vault.totalBaseAssets(), 110e18);
+        assertEq(vault.totalBaseAssets(), 10 ether);
     }
 
     function testSetProviderRevertsWhenBaseAssetRateChanges() public {
-        newProvider.setRate(address(erc4626_1), 2e18);
+        newProvider.setRate(address(weth), 2e18);
 
         vm.prank(providerManagerRole);
         vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(erc4626_1), 1e18, 2e18)
+            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(weth), 1e18, 2e18)
         );
         vaultManager.setProvider(address(newProvider));
     }
 
-    function testSetProviderRevertsWhenDefaultAssetRateChanges() public {
-        vault.setAssetAddress(address(erc4626_2));
-        newProvider.setRate(address(erc4626_2), 2e18);
+    function testSetProviderRevertsWhenDefaultAssetRateChangesOnDistinctDefaultVault() public {
+        LocalWETH9 altWeth = new LocalWETH9();
+        LocalERC4626Asset altBaseAsset = new LocalERC4626Asset(IERC20(address(altWeth)), "Base Asset", "BASE");
+        LocalProvider altProvider = new LocalProvider();
+        LocalProvider altNewProvider = new LocalProvider();
+        altProvider.setRate(address(altBaseAsset), 1e18);
+        altProvider.setRate(address(altWeth), 1e18);
+        altNewProvider.setRate(address(altBaseAsset), 1e18);
+        altNewProvider.setRate(address(altWeth), 2e18);
+
+        Vault altVault = _deployVault(1);
+        VaultManager altManager = _deployVaultManager(address(altVault));
+
+        vm.startPrank(admin);
+        altVault.grantRole(altVault.PROVIDER_MANAGER_ROLE(), admin);
+        altVault.grantRole(altVault.ASSET_MANAGER_ROLE(), admin);
+        altVault.grantRole(altVault.UNPAUSER_ROLE(), admin);
+        altVault.grantRole(altVault.PROVIDER_MANAGER_ROLE(), address(altManager));
+        altVault.grantRole(altVault.ASSET_MANAGER_ROLE(), address(altManager));
+        altVault.setProvider(address(altProvider));
+        altVault.addAsset(address(altBaseAsset), true);
+        altVault.addAsset(address(altWeth), true);
+        altVault.unpause();
+        vm.stopPrank();
 
         vm.prank(providerManagerRole);
         vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(erc4626_2), 1e18, 2e18)
+            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(altWeth), 1e18, 2e18)
         );
-        vaultManager.setProvider(address(newProvider));
+        altManager.setProvider(address(altNewProvider));
     }
 
     function testDeleteAssetRevertsForBuffer() public {
         vm.prank(bufferManagerRole);
-        vaultManager.setCurrentBuffer(address(erc4626_1));
+        vaultManager.setCurrentBuffer(address(bufferAsset));
 
         vm.prank(assetDeleterRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.CannotDeleteBufferAsset.selector, address(erc4626_1)));
-        vaultManager.deleteAsset(address(erc4626_1));
+        vm.expectRevert(
+            abi.encodeWithSelector(VaultManager.CannotDeleteBufferAsset.selector, address(bufferAsset))
+        );
+        vaultManager.deleteAsset(address(bufferAsset));
     }
 
     function testDeleteAssetsRevertsForDuplicates() public {
         address[] memory assetsToDelete = new address[](2);
-        assetsToDelete[0] = address(erc4626_1);
-        assetsToDelete[1] = address(erc4626_1);
+        assetsToDelete[0] = address(syntheticAsset1);
+        assetsToDelete[1] = address(syntheticAsset1);
 
         vm.prank(assetDeleterRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.DuplicateAsset.selector, address(erc4626_1)));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.DuplicateAsset.selector, address(syntheticAsset1)));
         vaultManager.deleteAssets(assetsToDelete);
     }
 
     function testAddAssetsRevertsOnLengthMismatch() public {
         address[] memory assetsToAdd = new address[](1);
         bool[] memory activeFlags = new bool[](0);
-        assetsToAdd[0] = address(0x2001);
+        assetsToAdd[0] = address(new LocalERC4626Asset(IERC20(address(weth)), "New", "NEW"));
 
         vm.prank(assetAdderRole);
         vm.expectRevert(VaultManager.LengthMismatch.selector);
@@ -478,8 +500,8 @@ contract VaultManagerUnitTest is Test {
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](0);
         bytes[] memory data = new bytes[](1);
-        targets[0] = address(0x3001);
-        data[0] = hex"1234";
+        targets[0] = address(noopTarget);
+        data[0] = abi.encodeWithSignature("ping(uint256)", 1);
 
         vm.prank(processorRole);
         vm.expectRevert(VaultManager.LengthMismatch.selector);
@@ -509,112 +531,99 @@ contract VaultManagerUnitTest is Test {
     }
 
     function testProcessorRevertsWhenTotalAssetsDeltaExceeded() public {
+        _depositWethIntoVault(alice, 100 ether);
+
         vm.prank(admin);
         vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
-
-        vault.setAccountingSnapshot(100e18, 100e18);
-        vault.setBaseAssetsSnapshot(100e18, 100e18);
-        vault.setNextBaseAssetsSnapshot(107e18);
-        vault.setNextAccountingSnapshot(107e18, 100e18);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
         bytes[] memory data = new bytes[](1);
-        targets[0] = address(0x3001);
-        data[0] = hex"1234";
+        targets[0] = address(weth);
+        data[0] = abi.encodeWithSignature("transfer(address,uint256)", sink, 7 ether);
 
         vm.prank(processorRole);
         vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.TotalBaseAssetsDeltaExceeded.selector, 100e18, 107e18)
+            abi.encodeWithSelector(VaultManager.TotalBaseAssetsDeltaExceeded.selector, 100 ether, 93 ether)
         );
         vaultManager.processor(targets, values, data);
     }
 
     function testProcessorRevertsWhenTotalSupplyDeltaExceeded() public {
+        _depositWethIntoVault(alice, 100 ether);
+
+        LocalAfterAccountingMintHook mintHook = new LocalAfterAccountingMintHook(address(vault), alice, 7 ether, 2);
+        vm.prank(admin);
+        vault.setHooks(address(mintHook));
+
         vm.prank(admin);
         vaultManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
-
-        vault.setAccountingSnapshot(100e18, 100e18);
-        vault.setBaseAssetsSnapshot(100e18, 100e18);
-        vault.setNextBaseAssetsSnapshot(100e18);
-        vault.setNextAccountingSnapshot(100e18, 107e18);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
         bytes[] memory data = new bytes[](1);
-        targets[0] = address(0x3001);
-        data[0] = hex"1234";
+        targets[0] = address(noopTarget);
+        data[0] = abi.encodeWithSignature("ping(uint256)", 1);
 
         vm.prank(processorRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyDeltaExceeded.selector, 100e18, 107e18));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyDeltaExceeded.selector, 100 ether, 107 ether));
         vaultManager.processor(targets, values, data);
     }
 
     function testProcessorAllowsConfiguredDeltaForAssetsAndSupply() public {
+        _depositWethIntoVault(alice, 100 ether);
+
         vm.prank(admin);
         vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
         vm.prank(admin);
         vaultManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
 
-        vault.setAccountingSnapshot(100e18, 100e18);
-        vault.setBaseAssetsSnapshot(100e18, 100e18);
-        vault.setNextBaseAssetsSnapshot(105e18);
-        vault.setNextAccountingSnapshot(105e18, 95e18);
-
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
         bytes[] memory data = new bytes[](1);
-        targets[0] = address(0x3001);
-        data[0] = hex"1234";
+        targets[0] = address(weth);
+        data[0] = abi.encodeWithSignature("transfer(address,uint256)", sink, 5 ether);
 
         vm.prank(processorRole);
         bytes[] memory results = vaultManager.processor(targets, values, data);
 
-        assertEq(vault.processAccountingCalls(), 2);
-        assertEq(vault.totalBaseAssets(), 105e18);
-        assertEq(vault.totalAssets(), 105e18);
-        assertEq(vault.totalSupply(), 95e18);
+        assertEq(vault.totalBaseAssets(), 95 ether);
+        assertEq(vault.totalAssets(), 95 ether);
+        assertEq(vault.totalSupply(), 100 ether);
         assertEq(results.length, 1);
-        assertEq(results[0], abi.encode(targets[0], values[0], data[0]));
+        assertEq(abi.decode(results[0], (bool)), true);
+        assertEq(weth.balanceOf(sink), 5 ether);
     }
 
     function testSetAlwaysComputeTotalAssets() public {
-        vm.prank(totalAssetsModeManagerRole);
-        vaultManager.setAlwaysComputeTotalAssets(true);
-
-        assertTrue(vault.alwaysComputeTotalAssetsEnabled());
-        assertEq(vault.processAccountingCalls(), 1);
-    }
-
-    function testSetAlwaysComputeTotalAssetsSyncsAccountingBeforeEnablingAlwaysCompute() public {
-        vault.setBaseAssetsSnapshot(100e18, 110e18);
+        _mintWeth(address(this), 10 ether);
+        weth.transfer(address(vault), 10 ether);
 
         vm.prank(totalAssetsModeManagerRole);
         vaultManager.setAlwaysComputeTotalAssets(true);
 
-        assertTrue(vault.alwaysComputeTotalAssetsEnabled());
-        assertEq(vault.processAccountingCalls(), 1);
-        assertEq(vault.totalBaseAssets(), 110e18);
+        assertTrue(vault.alwaysComputeTotalAssets());
+        assertEq(vault.totalBaseAssets(), 10 ether);
     }
 
     function testSetAlwaysComputeTotalAssetsDisablesWithoutChangingVisibleTotals() public {
+        _mintWeth(address(this), 10 ether);
+        weth.transfer(address(vault), 10 ether);
+
         vm.prank(totalAssetsModeManagerRole);
         vaultManager.setAlwaysComputeTotalAssets(true);
-
-        vault.setAccountingSnapshot(100e18, 100e18);
-        vault.setBaseAssetsSnapshot(100e18, 100e18);
-        vault.setNextAccountingSnapshot(100e18, 100e18);
+        assertEq(vault.totalBaseAssets(), 10 ether);
 
         vm.prank(totalAssetsModeManagerRole);
         vaultManager.setAlwaysComputeTotalAssets(false);
 
-        assertFalse(vault.alwaysComputeTotalAssetsEnabled());
-        assertEq(vault.totalBaseAssets(), 100e18);
-        assertEq(vault.totalAssets(), 100e18);
+        assertFalse(vault.alwaysComputeTotalAssets());
+        assertEq(vault.totalBaseAssets(), 10 ether);
+        assertEq(vault.totalAssets(), 10 ether);
     }
 
     function testSetAlwaysComputeTotalAssetsRevertsWhenHooksAreConfigured() public {
-        vault.setHooks(address(0xBEEF));
+        vault.setHooks(address(new LocalNoopHooks(address(vault))));
 
         vm.prank(totalAssetsModeManagerRole);
         vm.expectRevert(VaultManager.HooksMustBeDisabled.selector);
@@ -622,69 +631,245 @@ contract VaultManagerUnitTest is Test {
     }
 
     function testSetHooks() public {
-        vm.prank(hooksManagerRole);
-        vaultManager.setHooks(address(0xBEEF));
+        LocalNoopHooks hook = new LocalNoopHooks(address(vault));
 
-        assertEq(vault.hooks(), address(0xBEEF));
-        assertEq(vault.processAccountingCalls(), 2);
+        vm.prank(hooksManagerRole);
+        vaultManager.setHooks(address(hook));
+
+        assertEq(address(vault.hooks()), address(hook));
     }
 
     function testSetHooksRevertsWhenAlwaysComputeTotalAssetsEnabled() public {
         vm.prank(totalAssetsModeManagerRole);
         vaultManager.setAlwaysComputeTotalAssets(true);
+        assertTrue(vault.alwaysComputeTotalAssets());
+        LocalNoopHooks hook = new LocalNoopHooks(address(vault));
 
         vm.prank(hooksManagerRole);
         vm.expectRevert(VaultManager.AlwaysComputeTotalAssetsMustBeDisabled.selector);
-        vaultManager.setHooks(address(0xBEEF));
+        vaultManager.setHooks(address(hook));
     }
 
     function testSetHooksRevertsOnTotalBaseAssetsMismatch() public {
-        vault.setAccountingSnapshot(100e18, 100e18);
-        vault.setBaseAssetsSnapshot(100e18, 100e18);
-        vault.setNextBaseAssetsSnapshot(120e18);
-        vault.setNextAccountingSnapshot(120e18, 100e18);
+        LocalBeforeAccountingTransferHook hook =
+            new LocalBeforeAccountingTransferHook(address(vault), address(weth), 1 ether);
+        _mintWeth(address(this), 1 ether);
+        weth.transfer(address(hook), 1 ether);
 
         vm.prank(hooksManagerRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalBaseAssetsMismatch.selector, 100e18, 120e18));
-        vaultManager.setHooks(address(0xBEEF));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalBaseAssetsMismatch.selector, 0, 1 ether));
+        vaultManager.setHooks(address(hook));
     }
 
     function testSetHooksRevertsOnTotalSupplyMismatch() public {
-        vault.setAccountingSnapshot(100e18, 100e18);
-        vault.setBaseAssetsSnapshot(100e18, 100e18);
-        vault.setNextBaseAssetsSnapshot(100e18);
-        vault.setNextAccountingSnapshot(100e18, 120e18);
+        LocalAfterAccountingMintHook hook = new LocalAfterAccountingMintHook(address(vault), alice, 1 ether, 1);
 
         vm.prank(hooksManagerRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyMismatch.selector, 100e18, 120e18));
-        vaultManager.setHooks(address(0xBEEF));
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyMismatch.selector, 0, 1 ether));
+        vaultManager.setHooks(address(hook));
     }
 
     function testWithdrawAssetUsesReceiverAsOwnerAndProcessesAccounting() public {
-        vault.setNextWithdrawShares(7e18);
+        _depositSyntheticAsset(syntheticAsset1, alice, 7 ether);
+        _approveManagerShares(alice);
+        uint256 aliceSharesBefore = vault.balanceOf(alice);
 
         vm.prank(assetWithdrawerRole);
-        uint256 shares = vaultManager.withdrawAsset(asset1, 5e18, address(0xBEEF));
+        uint256 burnedShares = vaultManager.withdrawAsset(address(syntheticAsset1), 5 ether, alice);
 
-        assertEq(shares, 7e18);
-        assertEq(vault.lastWithdrawAsset(), asset1);
-        assertEq(vault.lastWithdrawAssets(), 5e18);
-        assertEq(vault.lastWithdrawReceiver(), address(0xBEEF));
-        assertEq(vault.lastWithdrawOwner(), address(0xBEEF));
-        assertEq(vault.processAccountingCalls(), 1);
+        assertGt(burnedShares, 0);
+        assertEq(syntheticAsset1.balanceOf(alice), 5 ether);
+        assertLt(vault.balanceOf(alice), aliceSharesBefore);
+        assertEq(vault.totalBaseAssets(), 2 ether);
     }
 
     function testWithdrawAssetWithExplicitOwnerProcessesAccounting() public {
-        vault.setNextWithdrawShares(9e18);
+        _depositSyntheticAsset(syntheticAsset2, alice, 9 ether);
+        _approveManagerShares(alice);
+        uint256 aliceSharesBefore = vault.balanceOf(alice);
 
         vm.prank(assetWithdrawerRole);
-        uint256 shares = vaultManager.withdrawAsset(asset1, 6e18, address(0xCAFE), address(0xD00D));
+        uint256 burnedShares = vaultManager.withdrawAsset(address(syntheticAsset2), 6 ether, sink, alice);
 
-        assertEq(shares, 9e18);
-        assertEq(vault.lastWithdrawAsset(), asset1);
-        assertEq(vault.lastWithdrawAssets(), 6e18);
-        assertEq(vault.lastWithdrawReceiver(), address(0xCAFE));
-        assertEq(vault.lastWithdrawOwner(), address(0xD00D));
-        assertEq(vault.processAccountingCalls(), 1);
+        assertGt(burnedShares, 0);
+        assertEq(syntheticAsset2.balanceOf(sink), 6 ether);
+        assertLt(vault.balanceOf(alice), aliceSharesBefore);
+        assertEq(vault.totalBaseAssets(), 3 ether);
+    }
+
+    function testSetAssetWithdrawableRevertsForNonStrategyManager() public {
+        vm.prank(assetAdderRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.ManagedContractNotStrategy.selector, address(vault)));
+        vaultManager.setAssetWithdrawable(address(weth), true);
+    }
+
+    function _deployVault(uint256 defaultAssetIndex_) internal returns (Vault deployedVault) {
+        Vault implementation = new Vault();
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), admin, "");
+        deployedVault = Vault(payable(address(proxy)));
+
+        vm.prank(admin);
+        deployedVault.initialize(admin, "Local Vault", "LVLT", 18, 0, false, false, defaultAssetIndex_);
+    }
+
+    function _deployVaultManager(address vault_) internal returns (VaultManager manager) {
+        VaultManager implementation = new VaultManager();
+        bytes memory initData = abi.encodeCall(
+            VaultManager.initialize,
+            (
+                vault_,
+                admin,
+                bufferManagerRole,
+                providerManagerRole,
+                assetAdderRole,
+                assetDeleterRole,
+                assetWithdrawerRole,
+                totalAssetsModeManagerRole,
+                hooksManagerRole,
+                processorRole
+            )
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), admin, initData);
+        manager = VaultManager(address(proxy));
+    }
+
+    function _setProviderRates(LocalProvider provider_) internal {
+        provider_.setRate(address(weth), 1e18);
+        provider_.setRate(address(bufferAsset), 1e18);
+        provider_.setRate(address(syntheticAsset1), 1e18);
+        provider_.setRate(address(syntheticAsset2), 1e18);
+    }
+
+    function _setNoopRule(LocalNoopTarget target) internal {
+        bytes4 functionSig = bytes4(keccak256("ping(uint256)"));
+        IVault.ParamRule[] memory paramRules = new IVault.ParamRule[](1);
+        paramRules[0] =
+            IVault.ParamRule({paramType: IVault.ParamType.UINT256, isArray: false, allowList: new address[](0)});
+
+        IVault.FunctionRule memory rule =
+            IVault.FunctionRule({isActive: true, paramRules: paramRules, validator: IValidator(address(0))});
+
+        vault.setProcessorRule(address(target), functionSig, rule);
+    }
+
+    function _setTransferRule(address token, address recipient) internal {
+        bytes4 functionSig = bytes4(keccak256("transfer(address,uint256)"));
+        IVault.ParamRule[] memory paramRules = new IVault.ParamRule[](2);
+
+        address[] memory allowList = new address[](1);
+        allowList[0] = recipient;
+
+        paramRules[0] = IVault.ParamRule({paramType: IVault.ParamType.ADDRESS, isArray: false, allowList: allowList});
+        paramRules[1] =
+            IVault.ParamRule({paramType: IVault.ParamType.UINT256, isArray: false, allowList: new address[](0)});
+
+        IVault.FunctionRule memory rule =
+            IVault.FunctionRule({isActive: true, paramRules: paramRules, validator: IValidator(address(0))});
+
+        vault.setProcessorRule(token, functionSig, rule);
+    }
+
+    function _mintWeth(address account, uint256 amount) internal {
+        vm.deal(account, amount);
+        vm.prank(account);
+        weth.deposit{value: amount}();
+    }
+
+    function _depositWethIntoVault(address depositor, uint256 amount) internal {
+        _mintWeth(depositor, amount);
+        vm.startPrank(depositor);
+        weth.approve(address(vault), amount);
+        vault.deposit(amount, depositor);
+        vm.stopPrank();
+    }
+
+    function _depositSyntheticAsset(LocalERC4626Asset asset_, address depositor, uint256 amount) internal {
+        _mintWeth(depositor, amount);
+
+        vm.startPrank(depositor);
+        weth.approve(address(asset_), amount);
+        asset_.deposit(amount, depositor);
+        asset_.approve(address(vault), amount);
+        vault.depositAsset(address(asset_), amount, depositor);
+        vm.stopPrank();
+    }
+
+    function _approveManagerShares(address owner) internal {
+        vm.prank(owner);
+        vault.approve(address(vaultManager), type(uint256).max);
+    }
+}
+
+contract VaultManagerStrategyUnitTest is Test {
+    VaultManager internal vaultManager;
+    MockStrategy internal strategy;
+    LocalWETH9 internal weth;
+    LocalProvider internal provider;
+
+    address internal admin = address(0xA1);
+    address internal assetAdderRole = address(0xD1);
+
+    function setUp() public {
+        weth = new LocalWETH9();
+        provider = new LocalProvider();
+        provider.setRate(address(weth), 1e18);
+
+        MockStrategy strategyImplementation = new MockStrategy();
+        TransparentUpgradeableProxy strategyProxy =
+            new TransparentUpgradeableProxy(address(strategyImplementation), admin, "");
+        strategy = MockStrategy(payable(address(strategyProxy)));
+
+        vm.startPrank(admin);
+        strategy.initialize("Mock Strategy", "MS", admin, true, 0);
+        strategy.grantRole(strategy.PROVIDER_MANAGER_ROLE(), admin);
+        strategy.grantRole(strategy.ASSET_MANAGER_ROLE(), admin);
+        strategy.setProvider(address(provider));
+        strategy.addAsset(address(weth), true);
+        strategy.setAssetWithdrawable(address(weth), true);
+        vm.stopPrank();
+
+        VaultManager managerImplementation = new VaultManager();
+        bytes memory initData = abi.encodeCall(
+            VaultManager.initialize,
+            (
+                address(strategy),
+                admin,
+                admin,
+                admin,
+                assetAdderRole,
+                admin,
+                admin,
+                admin,
+                admin,
+                admin
+            )
+        );
+        TransparentUpgradeableProxy proxy =
+            new TransparentUpgradeableProxy(address(managerImplementation), admin, initData);
+        vaultManager = VaultManager(address(proxy));
+
+        vm.startPrank(admin);
+        strategy.grantRole(strategy.ASSET_MANAGER_ROLE(), address(vaultManager));
+        vm.stopPrank();
+    }
+
+    function testSetAssetWithdrawableForExistingAsset() public {
+        address strategyAsset = address(strategy.asset());
+
+        assertTrue(vaultManager.isStrategyManaged(), "manager should detect strategy target");
+        assertTrue(strategy.getAssetWithdrawable(strategyAsset), "default strategy asset should start true");
+
+        vm.prank(assetAdderRole);
+        vaultManager.setAssetWithdrawable(strategyAsset, false);
+
+        assertFalse(strategy.getAssetWithdrawable(strategyAsset), "withdrawable should be updated");
+    }
+
+    function testSetAssetWithdrawableRevertsForUnknownAsset() public {
+        address unknownAsset = address(0x1234);
+
+        vm.prank(assetAdderRole);
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, unknownAsset));
+        vaultManager.setAssetWithdrawable(unknownAsset, true);
     }
 }

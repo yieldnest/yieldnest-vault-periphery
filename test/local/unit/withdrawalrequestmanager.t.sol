@@ -1,0 +1,187 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.24;
+
+import "forge-std/Test.sol";
+import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
+
+contract MockWithdrawAssetVault is ERC20 {
+    uint256 public burnMultiplier = 1;
+
+    constructor() ERC20("ynToken", "ynT") {}
+
+    function mint(address account, uint256 amount) external {
+        _mint(account, amount);
+    }
+
+    function setBurnMultiplier(uint256 burnMultiplier_) external {
+        burnMultiplier = burnMultiplier_;
+    }
+
+    function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares)
+    {
+        shares = assets * burnMultiplier;
+        _burn(owner, shares);
+        ERC20(asset_).transfer(receiver, assets);
+    }
+}
+
+contract WithdrawalAssetMock is ERC20 {
+    constructor() ERC20("Asset", "AST") {}
+
+    function mint(address account, uint256 amount) external {
+        _mint(account, amount);
+    }
+}
+
+contract WithdrawalRequestManagerTest is Test {
+    WithdrawalRequestManager manager;
+    MockWithdrawAssetVault ynToken;
+    WithdrawalAssetMock asset;
+
+    address admin = address(0xA11CE);
+    address fulfiller = address(0xF0111);
+    address configurationManager = address(0xC0F16);
+    address pauser = address(0xAA05E);
+    address user = address(0xB0B);
+    uint256 minimumAmountToLock = 1 ether;
+
+    function setUp() public {
+        ynToken = new MockWithdrawAssetVault();
+        asset = new WithdrawalAssetMock();
+
+        WithdrawalRequestManager implementation = new WithdrawalRequestManager();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(implementation),
+            abi.encodeCall(
+                WithdrawalRequestManager.initialize,
+                (address(ynToken), admin, fulfiller, configurationManager, pauser, minimumAmountToLock)
+            )
+        );
+        manager = WithdrawalRequestManager(address(proxy));
+
+        ynToken.mint(user, 100 ether);
+        asset.mint(address(ynToken), 100 ether);
+
+        vm.prank(user);
+        ynToken.approve(address(manager), type(uint256).max);
+    }
+
+    function testRequestWithdrawalTransfersTokenAndRecordsRequest() public {
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit WithdrawalRequestManager.WithdrawalRequested(1, user, address(ynToken), 10 ether);
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether);
+
+        assertEq(id, 1);
+        assertEq(manager.nextRequestId(), 2);
+        assertEq(ynToken.balanceOf(user), 90 ether);
+        assertEq(ynToken.balanceOf(address(manager)), 10 ether);
+
+        (address owner, uint256 amountLocked) = manager.requests(id);
+        assertEq(owner, user);
+        assertEq(amountLocked, 10 ether);
+    }
+
+    function testRequestWithdrawalRevertsBelowMinimumAmount() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                WithdrawalRequestManager.AmountBelowMinimum.selector, minimumAmountToLock - 1, minimumAmountToLock
+            )
+        );
+        vm.prank(user);
+        manager.requestWithdrawal(minimumAmountToLock - 1);
+    }
+
+    function testSetMinimumAmountToLockRequiresConfigurationManagerRole() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user, manager.CONFIGURATION_MANAGER_ROLE()
+            )
+        );
+        vm.prank(user);
+        manager.setMinimumAmountToLock(2 ether);
+    }
+
+    function testSetMinimumAmountToLockUpdatesMinimum() public {
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit WithdrawalRequestManager.MinimumAmountToLockUpdated(minimumAmountToLock, 2 ether);
+
+        vm.prank(configurationManager);
+        manager.setMinimumAmountToLock(2 ether);
+
+        assertEq(manager.minimumAmountToLock(), 2 ether);
+    }
+
+    function testPausePreventsRequestWithdrawal() public {
+        vm.prank(pauser);
+        manager.pause();
+
+        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
+        vm.prank(user);
+        manager.requestWithdrawal(10 ether);
+    }
+
+    function testPauseRequiresPauserRole() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user, manager.PAUSER_ROLE()
+            )
+        );
+        vm.prank(user);
+        manager.pause();
+    }
+
+    function testFulfillWithdrawalRequestBurnsLockedTokenAndSubtractsBurnedAmount() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether);
+
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit WithdrawalRequestManager.WithdrawalRequestFulfilled(
+            id, user, address(ynToken), address(asset), 4 ether, 4 ether, 6 ether
+        );
+
+        vm.prank(fulfiller);
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+
+        assertEq(amountBurned, 4 ether);
+        assertEq(ynToken.balanceOf(address(manager)), 6 ether);
+        assertEq(asset.balanceOf(address(manager)), 4 ether);
+
+        (, uint256 amountLocked) = manager.requests(id);
+        assertEq(amountLocked, 6 ether);
+    }
+
+    function testFulfillWithdrawalRequestRequiresFulfillerRole() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, user, manager.FULFILLER_ROLE()
+            )
+        );
+        vm.prank(user);
+        manager.fulfillWithdrawalRequest(id, address(asset), 1 ether);
+    }
+
+    function testFulfillWithdrawalRequestRevertsWhenBurnExceedsLockedAmount() public {
+        ynToken.mint(address(manager), 20 ether);
+        ynToken.setBurnMultiplier(2);
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(WithdrawalRequestManager.InsufficientLockedAmount.selector, id, 10 ether, 12 ether)
+        );
+        vm.prank(fulfiller);
+        manager.fulfillWithdrawalRequest(id, address(asset), 6 ether);
+    }
+}

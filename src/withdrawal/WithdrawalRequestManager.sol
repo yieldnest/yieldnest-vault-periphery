@@ -104,22 +104,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         _grantRole(PAUSER_ROLE, pauser);
     }
 
-    function token() public view returns (IWithdrawAssetVault) {
-        return _getWithdrawalRequestManagerStorage().token;
-    }
-
-    function minimumAmountToLock() public view returns (uint256) {
-        return _getWithdrawalRequestManagerStorage().minimumAmountToLock;
-    }
-
-    function nextRequestId() public view returns (uint256) {
-        return _getWithdrawalRequestManagerStorage().nextRequestId;
-    }
-
-    function requests(uint256 id) public view returns (address owner, uint256 amountLocked) {
-        WithdrawalRequest storage request = _getWithdrawalRequestManagerStorage().requests[id];
-        return (request.owner, request.amountLocked);
-    }
+    // --- Configuration ---
 
     function setMinimumAmountToLock(uint256 minimumAmountToLock_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
@@ -129,13 +114,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         emit MinimumAmountToLockUpdated(oldMinimumAmountToLock, minimumAmountToLock_);
     }
 
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(PAUSER_ROLE) {
-        _unpause();
-    }
+    // --- Requests ---
 
     /// @notice Locks yn-tokens in this contract and creates a withdrawal request.
     /// @param amount Amount of configured yn-token shares to lock.
@@ -153,6 +132,8 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
         emit WithdrawalRequested(id, msg.sender, address($.token), amount);
     }
+
+    // --- Fulfillment ---
 
     /// @notice Fulfils part or all of a request by withdrawing an asset from the configured yn-token.
     /// @param id Request id to fulfil.
@@ -200,5 +181,34 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         emit WithdrawalRequestFulfilled(
             id, request.owner, address($.token), asset, assetsWithdrawn, amountBurned, request.amountLocked
         );
+    }
+
+    // --- Getters ---
+
+    function token() public view returns (IWithdrawAssetVault) {
+        return _getWithdrawalRequestManagerStorage().token;
+    }
+
+    function minimumAmountToLock() public view returns (uint256) {
+        return _getWithdrawalRequestManagerStorage().minimumAmountToLock;
+    }
+
+    function nextRequestId() public view returns (uint256) {
+        return _getWithdrawalRequestManagerStorage().nextRequestId;
+    }
+
+    function requests(uint256 id) public view returns (address owner, uint256 amountLocked) {
+        WithdrawalRequest storage request = _getWithdrawalRequestManagerStorage().requests[id];
+        return (request.owner, request.amountLocked);
+    }
+
+    // --- Pause ---
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
     }
 }

@@ -171,7 +171,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         WithdrawalRequest storage request = $.requests[id];
         if (request.owner == address(0)) revert RequestNotFound(id);
 
-        uint256 assets = convertLockedAmountToAssets(asset, request.amountLocked);
+        uint256 assets = convertToAssets(asset, request.amountLocked);
         (amountBurned, assetsWithdrawn) = _fulfillWithdrawalRequest(id, asset, assets);
     }
 
@@ -218,7 +218,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         );
     }
 
-    function convertLockedAmountToAssets(address asset, uint256 amountLocked) public view returns (uint256 assets) {
+    function convertToAssets(address asset, uint256 amountLocked) public view returns (uint256 assets) {
         IWithdrawAssetVault token_ = _getWithdrawalRequestManagerStorage().token;
         uint256 totalSupply = token_.totalSupply();
         uint256 totalBaseAssets = token_.totalBaseAssets();

@@ -197,9 +197,8 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         return _getWithdrawalRequestManagerStorage().nextRequestId;
     }
 
-    function requests(uint256 id) public view returns (address owner, uint256 amountLocked) {
-        WithdrawalRequest storage request = _getWithdrawalRequestManagerStorage().requests[id];
-        return (request.owner, request.amountLocked);
+    function requests(uint256 id) public view returns (WithdrawalRequest memory) {
+        return _getWithdrawalRequestManagerStorage().requests[id];
     }
 
     // --- Pause ---

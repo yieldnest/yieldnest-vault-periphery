@@ -96,9 +96,9 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(ynToken.balanceOf(user), 90 ether);
         assertEq(ynToken.balanceOf(address(manager)), 10 ether);
 
-        (address owner, uint256 amountLocked) = manager.requests(id);
-        assertEq(owner, user);
-        assertEq(amountLocked, 10 ether);
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        assertEq(request.owner, user);
+        assertEq(request.amountLocked, 10 ether);
     }
 
     function testRequestWithdrawalRevertsBelowMinimumAmount() public {
@@ -167,8 +167,8 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(asset.balanceOf(address(manager)), 0);
         assertEq(asset.balanceOf(user), 4 ether);
 
-        (, uint256 amountLocked) = manager.requests(id);
-        assertEq(amountLocked, 6 ether);
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        assertEq(request.amountLocked, 6 ether);
     }
 
     function testFulfillWithdrawalRequestUsesActualBalanceDeltaInsteadOfReturnValue() public {
@@ -182,8 +182,8 @@ contract WithdrawalRequestManagerTest is Test {
 
         assertEq(amountBurned, 4 ether);
 
-        (, uint256 amountLocked) = manager.requests(id);
-        assertEq(amountLocked, 6 ether);
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        assertEq(request.amountLocked, 6 ether);
         assertEq(asset.balanceOf(address(manager)), 0);
         assertEq(asset.balanceOf(user), 4 ether);
     }

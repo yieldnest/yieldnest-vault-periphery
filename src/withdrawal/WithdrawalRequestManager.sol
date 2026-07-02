@@ -41,6 +41,8 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     error RequestNotFound(uint256 id);
     error InsufficientLockedAmount(uint256 id, uint256 amountLocked, uint256 amountBurned);
     error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
+    error InvalidAssetBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
+    error UnexpectedAssetsWithdrawn(uint256 expectedAssets, uint256 actualAssets);
 
     event WithdrawalRequested(uint256 indexed id, address indexed owner, address indexed token, uint256 amountLocked);
     event WithdrawalRequestFulfilled(
@@ -169,20 +171,34 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         WithdrawalRequest storage request = $.requests[id];
         if (request.owner == address(0)) revert RequestNotFound(id);
 
-        uint256 balanceBefore = $.token.balanceOf(address(this));
-        $.token.withdrawAsset(asset, assets, address(this), address(this));
-        uint256 balanceAfter = $.token.balanceOf(address(this));
-        if (balanceAfter > balanceBefore) revert InvalidTokenBalanceChange(balanceBefore, balanceAfter);
+        uint256 tokenBalanceBefore = $.token.balanceOf(address(this));
+        uint256 assetBalanceBefore = IERC20(asset).balanceOf(address(this));
 
-        amountBurned = balanceBefore - balanceAfter;
+        $.token.withdrawAsset(asset, assets, address(this), address(this));
+
+        uint256 tokenBalanceAfter = $.token.balanceOf(address(this));
+        if (tokenBalanceAfter > tokenBalanceBefore) {
+            revert InvalidTokenBalanceChange(tokenBalanceBefore, tokenBalanceAfter);
+        }
+
+        uint256 assetBalanceAfter = IERC20(asset).balanceOf(address(this));
+        if (assetBalanceAfter < assetBalanceBefore) {
+            revert InvalidAssetBalanceChange(assetBalanceBefore, assetBalanceAfter);
+        }
+
+        amountBurned = tokenBalanceBefore - tokenBalanceAfter;
         if (amountBurned > request.amountLocked) {
             revert InsufficientLockedAmount(id, request.amountLocked, amountBurned);
         }
 
+        uint256 assetsWithdrawn = assetBalanceAfter - assetBalanceBefore;
+        if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
+
         request.amountLocked -= amountBurned;
+        IERC20(asset).safeTransfer(request.owner, assetsWithdrawn);
 
         emit WithdrawalRequestFulfilled(
-            id, request.owner, address($.token), asset, assets, amountBurned, request.amountLocked
+            id, request.owner, address($.token), asset, assetsWithdrawn, amountBurned, request.amountLocked
         );
     }
 }

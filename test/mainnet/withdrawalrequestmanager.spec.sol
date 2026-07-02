@@ -71,6 +71,23 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(vault.totalSupply(), totalSupplyBefore - burnedShares);
     }
 
+    function test_withdrawalManager_fulfillsMaxWETHWithdrawal() public {
+        uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 10 ether);
+        uint256 requestId = _requestWithdrawal(requester, depositedShares);
+
+        uint256 requesterAssetBalanceBefore = IERC20(MC.WETH).balanceOf(requester);
+
+        vm.prank(fulfiller);
+        (uint256 burnedShares, uint256 assetsWithdrawn) = manager.fulfillWithdrawalRequestMax(requestId, MC.WETH);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        assertEq(IERC20(MC.WETH).balanceOf(requester) - requesterAssetBalanceBefore, assetsWithdrawn);
+        assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
+        assertGt(assetsWithdrawn, 0);
+        assertGt(burnedShares, 0);
+        assertLt(request.amountLocked, depositedShares);
+    }
+
     function test_withdrawalManager_fulfillsMultiAssetWithdrawal(
         uint256 assetIndex,
         uint256 depositAmount,

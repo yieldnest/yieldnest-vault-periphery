@@ -10,6 +10,7 @@ import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.
 
 contract MockWithdrawAssetVault is ERC20 {
     uint256 public burnMultiplier = 1;
+    uint256 public returnAmountOffset;
 
     constructor() ERC20("ynToken", "ynT") {}
 
@@ -21,6 +22,10 @@ contract MockWithdrawAssetVault is ERC20 {
         burnMultiplier = burnMultiplier_;
     }
 
+    function setReturnAmountOffset(uint256 returnAmountOffset_) external {
+        returnAmountOffset = returnAmountOffset_;
+    }
+
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         external
         returns (uint256 shares)
@@ -28,6 +33,8 @@ contract MockWithdrawAssetVault is ERC20 {
         shares = assets * burnMultiplier;
         _burn(owner, shares);
         ERC20(asset_).transfer(receiver, assets);
+
+        shares += returnAmountOffset;
     }
 }
 
@@ -153,6 +160,21 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(amountBurned, 4 ether);
         assertEq(ynToken.balanceOf(address(manager)), 6 ether);
         assertEq(asset.balanceOf(address(manager)), 4 ether);
+
+        (, uint256 amountLocked) = manager.requests(id);
+        assertEq(amountLocked, 6 ether);
+    }
+
+    function testFulfillWithdrawalRequestUsesActualBalanceDeltaInsteadOfReturnValue() public {
+        ynToken.setReturnAmountOffset(100 ether);
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether);
+
+        vm.prank(fulfiller);
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+
+        assertEq(amountBurned, 4 ether);
 
         (, uint256 amountLocked) = manager.requests(id);
         assertEq(amountLocked, 6 ether);

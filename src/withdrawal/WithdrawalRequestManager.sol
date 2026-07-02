@@ -40,6 +40,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     error AmountBelowMinimum(uint256 amount, uint256 minimumAmountToLock);
     error RequestNotFound(uint256 id);
     error InsufficientLockedAmount(uint256 id, uint256 amountLocked, uint256 amountBurned);
+    error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
 
     event WithdrawalRequested(uint256 indexed id, address indexed owner, address indexed token, uint256 amountLocked);
     event WithdrawalRequestFulfilled(
@@ -168,7 +169,12 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         WithdrawalRequest storage request = $.requests[id];
         if (request.owner == address(0)) revert RequestNotFound(id);
 
-        amountBurned = $.token.withdrawAsset(asset, assets, address(this), address(this));
+        uint256 balanceBefore = $.token.balanceOf(address(this));
+        $.token.withdrawAsset(asset, assets, address(this), address(this));
+        uint256 balanceAfter = $.token.balanceOf(address(this));
+        if (balanceAfter > balanceBefore) revert InvalidTokenBalanceChange(balanceBefore, balanceAfter);
+
+        amountBurned = balanceBefore - balanceAfter;
         if (amountBurned > request.amountLocked) {
             revert InsufficientLockedAmount(id, request.amountLocked, amountBurned);
         }

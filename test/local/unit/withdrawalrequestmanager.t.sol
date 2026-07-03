@@ -13,6 +13,7 @@ contract MockWithdrawAssetVault is ERC20 {
     uint256 public burnMultiplier = 1;
     uint256 public returnAmountOffset;
     uint256 public transferShortfall;
+    uint256 public processAccountingCalls;
 
     constructor() ERC20("ynToken", "ynT") {}
 
@@ -57,6 +58,10 @@ contract MockWithdrawAssetVault is ERC20 {
 
     function getRate(address) external pure returns (uint256) {
         return 1 ether;
+    }
+
+    function processAccounting() external {
+        processAccountingCalls++;
     }
 }
 
@@ -190,6 +195,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(ynToken.balanceOf(address(manager)), 6 ether);
         assertEq(asset.balanceOf(address(manager)), 0);
         assertEq(asset.balanceOf(user), 4 ether);
+        assertEq(ynToken.processAccountingCalls(), 1);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         assertEq(request.amountLocked, 6 ether);

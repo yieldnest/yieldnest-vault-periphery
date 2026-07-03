@@ -19,6 +19,7 @@ interface IWithdrawAssetVault is IERC20 {
     function totalBaseAssets() external view returns (uint256);
     function provider() external view returns (address);
     function getAsset(address asset_) external view returns (IVault.AssetParams memory);
+    function processAccounting() external;
 }
 
 /// @title WithdrawalRequestManager
@@ -217,6 +218,8 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
         request.amountLocked -= amountBurned;
         IERC20(asset).safeTransfer(request.owner, assetsWithdrawn);
+
+        $.token.processAccounting();
 
         emit WithdrawalRequestFulfilled(
             id, request.owner, address($.token), asset, assetsWithdrawn, amountBurned, request.amountLocked

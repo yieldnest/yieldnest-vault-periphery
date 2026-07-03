@@ -110,6 +110,8 @@ contract WithdrawalRequestManagerTest is Test {
 
         assertEq(id, 1);
         assertEq(manager.nextRequestId(), 2);
+        assertTrue(manager.requestExists(id));
+        assertFalse(manager.requestExists(id + 1));
         assertEq(ynToken.balanceOf(user), 90 ether);
         assertEq(ynToken.balanceOf(address(manager)), 10 ether);
 

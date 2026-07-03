@@ -169,7 +169,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
         WithdrawalRequest storage request = $.requests[id];
-        if (request.owner == address(0)) revert RequestNotFound(id);
+        if (!requestExists(id)) revert RequestNotFound(id);
 
         uint256 assets = convertToAssets(asset, request.amountLocked);
         (amountBurned, assetsWithdrawn) = _fulfillWithdrawalRequest(id, asset, assets);
@@ -183,7 +183,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
         WithdrawalRequest storage request = $.requests[id];
-        if (request.owner == address(0)) revert RequestNotFound(id);
+        if (!requestExists(id)) revert RequestNotFound(id);
 
         if (assets == 0) revert ZeroAmount();
 
@@ -245,6 +245,10 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
     function requests(uint256 id) public view returns (WithdrawalRequest memory) {
         return _getWithdrawalRequestManagerStorage().requests[id];
+    }
+
+    function requestExists(uint256 id) public view returns (bool) {
+        return _getWithdrawalRequestManagerStorage().requests[id].owner != address(0);
     }
 
     // --- Pause ---

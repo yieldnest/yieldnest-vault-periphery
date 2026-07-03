@@ -177,6 +177,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         // underpriced, requesters can receive more real value than the burned shares represent, diluting
         // remaining depositors. Inventory limits and operator diligence mitigate, but do not remove, this risk.
         // Assumes asset withdrawals from the configured yn-token are feeless.
+        // Rounds down so max fulfilment does not intentionally request assets requiring more shares than are locked.
         uint256 assets = convertToAssets(asset, request.amountLocked);
         (amountBurned, assetsWithdrawn) = _fulfillWithdrawalRequest(id, asset, assets);
     }

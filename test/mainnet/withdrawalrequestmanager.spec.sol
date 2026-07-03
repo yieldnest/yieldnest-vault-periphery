@@ -90,6 +90,26 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertLt(request.amountLocked, depositedShares);
     }
 
+    function test_withdrawalManager_fulfillMaxDoesNotBurnMoreThanLockedShares(uint256 assetIndex, uint256 depositAmount)
+        public
+    {
+        address[3] memory assets = [MC.WETH, MC.WSTETH, MC.WOETH];
+        address asset = assets[bound(assetIndex, 0, assets.length - 1)];
+        depositAmount = bound(depositAmount, 5 ether, 100 ether);
+
+        uint256 depositedShares = _depositIntoYnETHx(asset, requester, depositAmount);
+        uint256 requestId = _requestWithdrawal(requester, depositedShares);
+        uint256 maxAssets = manager.convertToAssets(asset, depositedShares);
+
+        vm.prank(fulfiller);
+        (uint256 burnedShares, uint256 assetsWithdrawn) = manager.fulfillWithdrawalRequestMax(requestId, asset);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        assertEq(assetsWithdrawn, maxAssets);
+        assertLe(burnedShares, depositedShares);
+        assertEq(request.amountLocked, depositedShares - burnedShares);
+    }
+
     function test_withdrawalManager_convertToAssetsForLiveYnETHx(uint256 assetIndex, uint256 shares) public view {
         address[3] memory assets = [MC.WETH, MC.WSTETH, MC.WOETH];
         address asset = assets[bound(assetIndex, 0, assets.length - 1)];

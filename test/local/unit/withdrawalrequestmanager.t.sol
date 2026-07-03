@@ -150,6 +150,11 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(manager.minimumAmountToLock(), 2 ether);
     }
 
+    function testConvertToAssets() public view {
+        assertEq(manager.convertToAssets(address(asset), 0), 0);
+        assertEq(manager.convertToAssets(address(asset), 10 ether), 10 ether);
+    }
+
     function testPausePreventsRequestWithdrawal() public {
         vm.prank(pauser);
         manager.pause();

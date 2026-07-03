@@ -76,16 +76,29 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
         uint256 requesterAssetBalanceBefore = IERC20(MC.WETH).balanceOf(requester);
+        uint256 maxAssets = manager.convertToAssets(MC.WETH, depositedShares);
+        assertGt(maxAssets, 0);
 
         vm.prank(fulfiller);
         (uint256 burnedShares, uint256 assetsWithdrawn) = manager.fulfillWithdrawalRequestMax(requestId, MC.WETH);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        assertEq(assetsWithdrawn, maxAssets);
         assertEq(IERC20(MC.WETH).balanceOf(requester) - requesterAssetBalanceBefore, assetsWithdrawn);
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
-        assertGt(assetsWithdrawn, 0);
         assertGt(burnedShares, 0);
         assertLt(request.amountLocked, depositedShares);
+    }
+
+    function test_withdrawalManager_convertToAssetsForLiveYnETHx(uint256 assetIndex, uint256 shares) public view {
+        address[3] memory assets = [MC.WETH, MC.WSTETH, MC.WOETH];
+        address asset = assets[bound(assetIndex, 0, assets.length - 1)];
+        shares = bound(shares, 1e15, 100 ether);
+
+        uint256 assetsForShares = manager.convertToAssets(asset, shares);
+
+        assertGt(assetsForShares, 0);
+        assertLe(assetsForShares, type(uint128).max);
     }
 
     function test_withdrawalManager_fulfillsMultiAssetWithdrawal(
@@ -212,6 +225,8 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         vm.stopPrank();
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        assertTrue(manager.requestExists(requestId));
+        assertFalse(manager.requestExists(requestId + 1));
         assertEq(request.owner, owner);
         assertEq(request.amountLocked, amount);
         assertEq(IERC20(address(vault)).balanceOf(address(manager)), amount);

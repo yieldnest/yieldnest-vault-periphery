@@ -156,6 +156,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     }
 
     /// @notice Fulfils as much of a request as possible for a given asset using the currently locked shares.
+    /// @dev Requests store only shares, and the fulfiller chooses the withdrawal asset at fulfilment.
     /// @param id Request id to fulfil.
     /// @param asset Asset to withdraw from the yn-token.
     /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
@@ -171,6 +172,10 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         WithdrawalRequest storage request = $.requests[id];
         if (!requestExists(id)) revert RequestNotFound(id);
 
+        // Asset pricing depends on provider/oracle rates, which may be stale or incorrect. If an asset is
+        // underpriced, requesters can receive more real value than the burned shares represent, diluting
+        // remaining depositors. Inventory limits and operator diligence mitigate, but do not remove, this risk.
+        // Assumes asset withdrawals from the configured yn-token are feeless.
         uint256 assets = convertToAssets(asset, request.amountLocked);
         (amountBurned, assetsWithdrawn) = _fulfillWithdrawalRequest(id, asset, assets);
     }

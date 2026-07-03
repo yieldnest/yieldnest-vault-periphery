@@ -218,37 +218,53 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         );
     }
 
-    function convertToAssets(address asset, uint256 amountLocked) public view returns (uint256 assets) {
-        IWithdrawAssetVault token_ = _getWithdrawalRequestManagerStorage().token;
-        uint256 totalSupply = token_.totalSupply();
-        uint256 totalBaseAssets = token_.totalBaseAssets();
-        uint256 baseAssets = amountLocked.mulDiv(totalBaseAssets + 1, totalSupply + 1, Math.Rounding.Floor);
+    // --- Views ---
 
-        IVault.AssetParams memory assetParams = token_.getAsset(asset);
-        uint256 rate = IProvider(token_.provider()).getRate(asset);
-        assets = baseAssets.mulDiv(10 ** assetParams.decimals, rate, Math.Rounding.Floor);
-    }
-
-    // --- Getters ---
-
+    /// @notice Returns the configured yn-token handled by this manager.
+    /// @return The configured yn-token.
     function token() public view returns (IWithdrawAssetVault) {
         return _getWithdrawalRequestManagerStorage().token;
     }
 
+    /// @notice Returns the minimum yn-token share amount required to open a request.
+    /// @return The minimum amount to lock.
     function minimumAmountToLock() public view returns (uint256) {
         return _getWithdrawalRequestManagerStorage().minimumAmountToLock;
     }
 
+    /// @notice Returns the next withdrawal request id to be assigned.
+    /// @return The next request id.
     function nextRequestId() public view returns (uint256) {
         return _getWithdrawalRequestManagerStorage().nextRequestId;
     }
 
+    /// @notice Returns a withdrawal request by id.
+    /// @param id Request id to query.
+    /// @return The stored withdrawal request.
     function requests(uint256 id) public view returns (WithdrawalRequest memory) {
         return _getWithdrawalRequestManagerStorage().requests[id];
     }
 
+    /// @notice Returns whether a withdrawal request exists.
+    /// @param id Request id to query.
+    /// @return True if the request exists.
     function requestExists(uint256 id) public view returns (bool) {
         return _getWithdrawalRequestManagerStorage().requests[id].owner != address(0);
+    }
+
+    /// @notice Converts yn-token shares into the maximum amount of a given asset withdrawable from the configured token.
+    /// @param asset Asset to convert into.
+    /// @param shares Amount of yn-token shares to convert.
+    /// @return assets Amount of `asset` represented by `shares`.
+    function convertToAssets(address asset, uint256 shares) public view returns (uint256 assets) {
+        IWithdrawAssetVault token_ = _getWithdrawalRequestManagerStorage().token;
+        uint256 totalSupply = token_.totalSupply();
+        uint256 totalBaseAssets = token_.totalBaseAssets();
+        uint256 baseAssets = shares.mulDiv(totalBaseAssets + 1, totalSupply + 1, Math.Rounding.Floor);
+
+        IVault.AssetParams memory assetParams = token_.getAsset(asset);
+        uint256 rate = IProvider(token_.provider()).getRate(asset);
+        assets = baseAssets.mulDiv(10 ** assetParams.decimals, rate, Math.Rounding.Floor);
     }
 
     // --- Pause ---

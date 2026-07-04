@@ -8,6 +8,7 @@ import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol"
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Bag} from "src/withdrawal/Bag.sol";
+import {BagMaker} from "src/withdrawal/BagMaker.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
 
 contract MockWithdrawAssetVault is ERC20 {
@@ -78,6 +79,8 @@ contract WithdrawalRequestManagerTest is Test {
     WithdrawalRequestManager manager;
     MockWithdrawAssetVault ynToken;
     WithdrawalAssetMock asset;
+    Bag bagImplementation;
+    BagMaker bagMaker;
 
     address admin = address(0xA11CE);
     address fulfiller = address(0xF0111);
@@ -89,16 +92,29 @@ contract WithdrawalRequestManagerTest is Test {
     function setUp() public {
         ynToken = new MockWithdrawAssetVault();
         asset = new WithdrawalAssetMock();
+        bagImplementation = new Bag();
+        bagMaker = new BagMaker(address(bagImplementation), admin, admin, admin);
 
         WithdrawalRequestManager implementation = new WithdrawalRequestManager();
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),
             abi.encodeCall(
                 WithdrawalRequestManager.initialize,
-                (address(ynToken), admin, fulfiller, configurationManager, pauser, minimumAmountToLock)
+                (
+                    address(ynToken),
+                    admin,
+                    fulfiller,
+                    configurationManager,
+                    pauser,
+                    address(bagMaker),
+                    minimumAmountToLock
+                )
             )
         );
         manager = WithdrawalRequestManager(address(proxy));
+        bytes32 bagCreatorRole = bagMaker.BAG_CREATOR_ROLE();
+        vm.prank(admin);
+        bagMaker.grantRole(bagCreatorRole, address(manager));
 
         ynToken.mint(user, 100 ether);
         asset.mint(address(ynToken), 100 ether);
@@ -116,6 +132,7 @@ contract WithdrawalRequestManagerTest is Test {
 
         assertEq(id, 1);
         assertEq(manager.nextRequestId(), 2);
+        assertEq(address(manager.bagMaker()), address(bagMaker));
         assertTrue(manager.requestExists(id));
         assertFalse(manager.requestExists(id + 1));
         assertEq(ynToken.balanceOf(user), 90 ether);
@@ -126,6 +143,24 @@ contract WithdrawalRequestManagerTest is Test {
         assertTrue(request.bag != address(0));
         assertEq(Bag(request.bag).ownerOf(Bag(request.bag).TOKEN_ID()), user);
         assertEq(request.amountLocked, 10 ether);
+    }
+
+    function testBagMakerRequiresCreatorRole() public {
+        bytes32 bagCreatorRole = bagMaker.BAG_CREATOR_ROLE();
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, bagCreatorRole)
+        );
+        vm.prank(user);
+        bagMaker.createBag(user);
+    }
+
+    function testBagMakerUpgradesImplementation() public {
+        Bag newImplementation = new Bag();
+
+        vm.prank(admin);
+        bagMaker.upgradeImplementation(address(newImplementation));
+
+        assertEq(bagMaker.implementation(), address(newImplementation));
     }
 
     function testBagClaimRequiresBagOwner() public {

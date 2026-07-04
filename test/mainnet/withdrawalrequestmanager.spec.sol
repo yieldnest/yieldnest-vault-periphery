@@ -17,6 +17,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
     BaseVault public vault;
     WithdrawalRequestManager public manager;
     Bag public bagImplementation;
+    BaseBeaconMaker public beaconMakerImplementation;
     BaseBeaconMaker public beaconMaker;
 
     address public requester;
@@ -35,7 +36,12 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         pauser = makeAddr("pauser");
 
         bagImplementation = new Bag();
-        beaconMaker = new BaseBeaconMaker(address(bagImplementation), ADMIN, ADMIN, ADMIN);
+        beaconMakerImplementation = new BaseBeaconMaker();
+        ERC1967Proxy beaconMakerProxy = new ERC1967Proxy(
+            address(beaconMakerImplementation),
+            abi.encodeCall(BaseBeaconMaker.initialize, (address(bagImplementation), ADMIN, ADMIN, ADMIN))
+        );
+        beaconMaker = BaseBeaconMaker(address(beaconMakerProxy));
 
         WithdrawalRequestManager implementation = new WithdrawalRequestManager();
         ERC1967Proxy proxy = new ERC1967Proxy(

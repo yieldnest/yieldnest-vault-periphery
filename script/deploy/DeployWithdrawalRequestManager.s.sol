@@ -15,9 +15,11 @@ contract DeployWithdrawalRequestManager is Script {
 
     MainnetActors public actors;
     Bag public bagImplementation;
+    BaseBeaconMaker public beaconMakerImplementation;
     BaseBeaconMaker public beaconMaker;
     WithdrawalRequestManager public implementation;
     WithdrawalRequestManager public withdrawalRequestManager;
+    ERC1967Proxy public beaconMakerProxy;
     ERC1967Proxy public proxy;
 
     address public deployer;
@@ -41,10 +43,17 @@ contract DeployWithdrawalRequestManager is Script {
         vm.startBroadcast();
 
         uint256 nonce = vm.getNonce(deployer);
-        predictedProxy = vm.computeCreateAddress(deployer, nonce + 3);
+        predictedProxy = vm.computeCreateAddress(deployer, nonce + 4);
 
         bagImplementation = new Bag();
-        beaconMaker = new BaseBeaconMaker(address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin);
+        beaconMakerImplementation = new BaseBeaconMaker();
+        beaconMakerProxy = new ERC1967Proxy(
+            address(beaconMakerImplementation),
+            abi.encodeCall(
+                BaseBeaconMaker.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
+            )
+        );
+        beaconMaker = BaseBeaconMaker(address(beaconMakerProxy));
         implementation = new WithdrawalRequestManager();
         proxy = new ERC1967Proxy(
             address(implementation),
@@ -80,7 +89,9 @@ contract DeployWithdrawalRequestManager is Script {
     function saveDeployment() internal {
         vm.serializeAddress(label(), "implementation", address(implementation));
         vm.serializeAddress(label(), "bagImplementation", address(bagImplementation));
+        vm.serializeAddress(label(), "beaconMakerImplementation", address(beaconMakerImplementation));
         vm.serializeAddress(label(), "beaconMaker", address(beaconMaker));
+        vm.serializeAddress(label(), "beaconMakerProxy", address(beaconMakerProxy));
         vm.serializeAddress(label(), "beacon", beaconMaker.beacon());
         vm.serializeAddress(label(), "proxy", address(proxy));
         vm.serializeAddress(label(), "predictedProxy", predictedProxy);

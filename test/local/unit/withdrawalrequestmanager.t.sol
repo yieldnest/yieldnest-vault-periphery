@@ -80,6 +80,7 @@ contract WithdrawalRequestManagerTest is Test {
     MockWithdrawAssetVault ynToken;
     WithdrawalAssetMock asset;
     Bag bagImplementation;
+    BaseBeaconMaker beaconMakerImplementation;
     BaseBeaconMaker beaconMaker;
 
     address admin = address(0xA11CE);
@@ -93,7 +94,12 @@ contract WithdrawalRequestManagerTest is Test {
         ynToken = new MockWithdrawAssetVault();
         asset = new WithdrawalAssetMock();
         bagImplementation = new Bag();
-        beaconMaker = new BaseBeaconMaker(address(bagImplementation), admin, admin, admin);
+        beaconMakerImplementation = new BaseBeaconMaker();
+        ERC1967Proxy beaconMakerProxy = new ERC1967Proxy(
+            address(beaconMakerImplementation),
+            abi.encodeCall(BaseBeaconMaker.initialize, (address(bagImplementation), admin, admin, admin))
+        );
+        beaconMaker = BaseBeaconMaker(address(beaconMakerProxy));
 
         WithdrawalRequestManager implementation = new WithdrawalRequestManager();
         ERC1967Proxy proxy = new ERC1967Proxy(

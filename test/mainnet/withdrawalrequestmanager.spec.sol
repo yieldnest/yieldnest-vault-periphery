@@ -9,6 +9,7 @@ import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
+import {Bag} from "src/withdrawal/Bag.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
 
 contract WithdrawalRequestManagerMainnetTest is Test, Actors {
@@ -56,7 +57,6 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 10 ether);
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
-        uint256 requesterAssetBalanceBefore = IERC20(MC.WETH).balanceOf(requester);
         uint256 managerShareBalanceBefore = IERC20(address(vault)).balanceOf(address(manager));
         uint256 totalSupplyBefore = vault.totalSupply();
 
@@ -64,18 +64,22 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         uint256 burnedShares = manager.fulfillWithdrawalRequest(requestId, MC.WETH, 2 ether);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
-        assertEq(IERC20(MC.WETH).balanceOf(requester) - requesterAssetBalanceBefore, 2 ether);
+        assertEq(IERC20(MC.WETH).balanceOf(request.bag), 2 ether);
+        assertEq(IERC20(MC.WETH).balanceOf(requester), 0);
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
         assertEq(IERC20(address(vault)).balanceOf(address(manager)), managerShareBalanceBefore - burnedShares);
         assertEq(request.amountLocked, depositedShares - burnedShares);
         assertEq(vault.totalSupply(), totalSupplyBefore - burnedShares);
+
+        vm.prank(requester);
+        assertEq(Bag(request.bag).claim(MC.WETH, requester), 2 ether);
+        assertEq(IERC20(MC.WETH).balanceOf(requester), 2 ether);
     }
 
     function test_withdrawalManager_fulfillsMaxWETHWithdrawal() public {
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 10 ether);
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
-        uint256 requesterAssetBalanceBefore = IERC20(MC.WETH).balanceOf(requester);
         uint256 maxAssets = manager.convertToAssets(MC.WETH, depositedShares);
         assertGt(maxAssets, 0);
 
@@ -84,10 +88,15 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
         assertEq(assetsWithdrawn, maxAssets);
-        assertEq(IERC20(MC.WETH).balanceOf(requester) - requesterAssetBalanceBefore, assetsWithdrawn);
+        assertEq(IERC20(MC.WETH).balanceOf(request.bag), assetsWithdrawn);
+        assertEq(IERC20(MC.WETH).balanceOf(requester), 0);
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
         assertGt(burnedShares, 0);
         assertLt(request.amountLocked, depositedShares);
+
+        vm.prank(requester);
+        assertEq(Bag(request.bag).claim(MC.WETH, requester), assetsWithdrawn);
+        assertEq(IERC20(MC.WETH).balanceOf(requester), assetsWithdrawn);
     }
 
     function test_withdrawalManager_fulfillMaxDoesNotBurnMoreThanLockedShares(uint256 assetIndex, uint256 depositAmount)
@@ -135,18 +144,22 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         uint256 depositedShares = _depositIntoYnETHx(asset, requester, depositAmount);
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
-        uint256 requesterAssetBalanceBefore = IERC20(asset).balanceOf(requester);
         uint256 managerAssetBalanceBefore = IERC20(asset).balanceOf(address(manager));
 
         vm.prank(fulfiller);
         uint256 burnedShares = manager.fulfillWithdrawalRequest(requestId, asset, withdrawAmount);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
-        assertEq(IERC20(asset).balanceOf(requester) - requesterAssetBalanceBefore, withdrawAmount);
+        assertEq(IERC20(asset).balanceOf(request.bag), withdrawAmount);
+        assertEq(IERC20(asset).balanceOf(requester), 0);
         assertEq(IERC20(asset).balanceOf(address(manager)), managerAssetBalanceBefore);
         assertEq(request.owner, requester);
         assertEq(request.amountLocked, depositedShares - burnedShares);
         assertGt(burnedShares, 0);
+
+        vm.prank(requester);
+        assertEq(Bag(request.bag).claim(asset, requester), withdrawAmount);
+        assertEq(IERC20(asset).balanceOf(requester), withdrawAmount);
     }
 
     function test_withdrawalManager_fulfillsPartialWithdrawals(uint256 firstWithdraw, uint256 secondWithdraw) public {
@@ -168,8 +181,13 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
 
         WithdrawalRequestManager.WithdrawalRequest memory requestAfterSecond = manager.requests(requestId);
         assertEq(requestAfterSecond.amountLocked, depositedShares - firstBurned - secondBurned);
-        assertEq(IERC20(MC.WETH).balanceOf(requester), firstWithdraw + secondWithdraw);
+        assertEq(IERC20(MC.WETH).balanceOf(requestAfterSecond.bag), firstWithdraw + secondWithdraw);
+        assertEq(IERC20(MC.WETH).balanceOf(requester), 0);
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
+
+        vm.prank(requester);
+        assertEq(Bag(requestAfterSecond.bag).claim(MC.WETH, requester), firstWithdraw + secondWithdraw);
+        assertEq(IERC20(MC.WETH).balanceOf(requester), firstWithdraw + secondWithdraw);
     }
 
     function test_withdrawalManager_revertsWhenFulfillmentWouldBurnMoreThanLocked() public {
@@ -248,6 +266,8 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertTrue(manager.requestExists(requestId));
         assertFalse(manager.requestExists(requestId + 1));
         assertEq(request.owner, owner);
+        assertTrue(request.bag != address(0));
+        assertEq(Bag(request.bag).ownerOf(Bag(request.bag).TOKEN_ID()), owner);
         assertEq(request.amountLocked, amount);
         assertEq(IERC20(address(vault)).balanceOf(address(manager)), amount);
     }

@@ -7,6 +7,7 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {Bag} from "src/withdrawal/Bag.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
 
 contract MockWithdrawAssetVault is ERC20 {
@@ -107,8 +108,8 @@ contract WithdrawalRequestManagerTest is Test {
     }
 
     function testRequestWithdrawalTransfersTokenAndRecordsRequest() public {
-        vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequestManager.WithdrawalRequested(1, user, address(ynToken), 10 ether);
+        vm.expectEmit(true, true, true, false, address(manager));
+        emit WithdrawalRequestManager.WithdrawalRequested(1, user, address(ynToken), address(0), 10 ether);
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether);
@@ -122,7 +123,27 @@ contract WithdrawalRequestManagerTest is Test {
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         assertEq(request.owner, user);
+        assertTrue(request.bag != address(0));
+        assertEq(Bag(request.bag).ownerOf(Bag(request.bag).TOKEN_ID()), user);
         assertEq(request.amountLocked, 10 ether);
+    }
+
+    function testBagClaimRequiresBagOwner() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        asset.mint(request.bag, 4 ether);
+
+        vm.expectRevert(abi.encodeWithSelector(Bag.NotBagOwner.selector, address(this)));
+        Bag(request.bag).claim(address(asset), user);
+
+        vm.prank(user);
+        uint256 amountClaimed = Bag(request.bag).claim(address(asset), user);
+
+        assertEq(amountClaimed, 4 ether);
+        assertEq(asset.balanceOf(user), 4 ether);
+        assertEq(asset.balanceOf(request.bag), 0);
     }
 
     function testRequestWithdrawalRevertsBelowMinimumAmount() public {
@@ -194,11 +215,17 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(amountBurned, 4 ether);
         assertEq(ynToken.balanceOf(address(manager)), 6 ether);
         assertEq(asset.balanceOf(address(manager)), 0);
-        assertEq(asset.balanceOf(user), 4 ether);
         assertEq(ynToken.processAccountingCalls(), 1);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        assertEq(asset.balanceOf(request.bag), 4 ether);
+        assertEq(asset.balanceOf(user), 0);
         assertEq(request.amountLocked, 6 ether);
+
+        vm.prank(user);
+        assertEq(Bag(request.bag).claim(address(asset), user), 4 ether);
+        assertEq(asset.balanceOf(user), 4 ether);
+        assertEq(asset.balanceOf(request.bag), 0);
     }
 
     function testFulfillWithdrawalRequestMaxWithdrawsMaxAssetsForLockedShares() public {
@@ -215,10 +242,15 @@ contract WithdrawalRequestManagerTest is Test {
 
         assertEq(amountBurned, 10 ether);
         assertEq(assetsWithdrawn, 10 ether);
-        assertEq(asset.balanceOf(user), 10 ether);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        assertEq(asset.balanceOf(request.bag), 10 ether);
+        assertEq(asset.balanceOf(user), 0);
         assertEq(request.amountLocked, 0);
+
+        vm.prank(user);
+        assertEq(Bag(request.bag).claim(address(asset), user), 10 ether);
+        assertEq(asset.balanceOf(user), 10 ether);
     }
 
     function testFulfillWithdrawalRequestUsesActualBalanceDeltaInsteadOfReturnValue() public {
@@ -235,7 +267,8 @@ contract WithdrawalRequestManagerTest is Test {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         assertEq(request.amountLocked, 6 ether);
         assertEq(asset.balanceOf(address(manager)), 0);
-        assertEq(asset.balanceOf(user), 4 ether);
+        assertEq(asset.balanceOf(request.bag), 4 ether);
+        assertEq(asset.balanceOf(user), 0);
     }
 
     function testFulfillWithdrawalRequestRevertsWhenAssetsWithdrawnMismatchExpected() public {

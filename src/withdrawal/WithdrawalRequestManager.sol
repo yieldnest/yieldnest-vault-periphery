@@ -11,6 +11,7 @@ import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contra
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {Bag} from "src/withdrawal/Bag.sol";
 
 interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -32,6 +33,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
     struct WithdrawalRequest {
         address owner;
+        address bag;
         uint256 amountLocked;
     }
 
@@ -52,7 +54,9 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     error InvalidAssetBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
     error UnexpectedAssetsWithdrawn(uint256 expectedAssets, uint256 actualAssets);
 
-    event WithdrawalRequested(uint256 indexed id, address indexed owner, address indexed token, uint256 amountLocked);
+    event WithdrawalRequested(
+        uint256 indexed id, address indexed owner, address indexed token, address bag, uint256 amountLocked
+    );
     event WithdrawalRequestFulfilled(
         uint256 indexed id,
         address indexed owner,
@@ -134,11 +138,12 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
         id = $.nextRequestId++;
-        $.requests[id] = WithdrawalRequest({owner: msg.sender, amountLocked: amount});
+        Bag bag = new Bag(msg.sender);
+        $.requests[id] = WithdrawalRequest({owner: msg.sender, bag: address(bag), amountLocked: amount});
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
 
-        emit WithdrawalRequested(id, msg.sender, address($.token), amount);
+        emit WithdrawalRequested(id, msg.sender, address($.token), address(bag), amount);
     }
 
     // --- Fulfillment ---
@@ -146,7 +151,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     /// @notice Fulfils part or all of a request by withdrawing an asset from the configured yn-token.
     /// @param id Request id to fulfil.
     /// @param asset Asset to withdraw from the yn-token.
-    /// @param assets Amount of `asset` to withdraw to this contract.
+    /// @param assets Amount of `asset` to withdraw to the request bag.
     /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
     function fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
         external
@@ -161,7 +166,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     /// @param id Request id to fulfil.
     /// @param asset Asset to withdraw from the yn-token.
     /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
-    /// @return assetsWithdrawn Amount of `asset` transferred to the request owner.
+    /// @return assetsWithdrawn Amount of `asset` transferred to the request bag.
     function fulfillWithdrawalRequestMax(uint256 id, address asset)
         external
         onlyRole(FULFILLER_ROLE)
@@ -194,17 +199,18 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
         if (assets == 0) revert ZeroAmount();
 
+        address bag = request.bag;
         uint256 tokenBalanceBefore = $.token.balanceOf(address(this));
-        uint256 assetBalanceBefore = IERC20(asset).balanceOf(address(this));
+        uint256 assetBalanceBefore = IERC20(asset).balanceOf(bag);
 
-        $.token.withdrawAsset(asset, assets, address(this), address(this));
+        $.token.withdrawAsset(asset, assets, bag, address(this));
 
         uint256 tokenBalanceAfter = $.token.balanceOf(address(this));
         if (tokenBalanceAfter > tokenBalanceBefore) {
             revert InvalidTokenBalanceChange(tokenBalanceBefore, tokenBalanceAfter);
         }
 
-        uint256 assetBalanceAfter = IERC20(asset).balanceOf(address(this));
+        uint256 assetBalanceAfter = IERC20(asset).balanceOf(bag);
         if (assetBalanceAfter < assetBalanceBefore) {
             revert InvalidAssetBalanceChange(assetBalanceBefore, assetBalanceAfter);
         }
@@ -218,7 +224,6 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
 
         request.amountLocked -= amountBurned;
-        IERC20(asset).safeTransfer(request.owner, assetsWithdrawn);
 
         $.token.processAccounting();
 

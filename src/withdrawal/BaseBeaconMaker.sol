@@ -7,7 +7,7 @@ import {UpgradeableBeacon} from "lib/openzeppelin-contracts/contracts/proxy/beac
 
 /// @title BaseBeaconMaker
 /// @notice Shared beacon proxy factory and implementation upgrade manager.
-abstract contract BaseBeaconMaker is AccessControl {
+contract BaseBeaconMaker is AccessControl {
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
     bytes32 public constant IMPLEMENTATION_MANAGER_ROLE = keccak256("IMPLEMENTATION_MANAGER_ROLE");
 
@@ -33,7 +33,10 @@ abstract contract BaseBeaconMaker is AccessControl {
         _beacon = new UpgradeableBeacon(implementation_, address(this));
     }
 
-    function _create(bytes memory initData) internal returns (address proxy) {
+    /// @notice Creates a new beacon proxy initialized with arbitrary call data.
+    /// @param initData Initialization call data for the implementation.
+    /// @return proxy New proxy address.
+    function create(bytes calldata initData) external onlyRole(CREATOR_ROLE) returns (address proxy) {
         proxy = address(new BeaconProxy(address(_beacon), initData));
 
         emit ProxyCreated(proxy);

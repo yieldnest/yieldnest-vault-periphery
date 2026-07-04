@@ -10,14 +10,14 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {Bag} from "src/withdrawal/Bag.sol";
-import {BagMaker} from "src/withdrawal/BagMaker.sol";
+import {BaseBeaconMaker} from "src/withdrawal/BaseBeaconMaker.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
 
 contract WithdrawalRequestManagerMainnetTest is Test, Actors {
     BaseVault public vault;
     WithdrawalRequestManager public manager;
     Bag public bagImplementation;
-    BagMaker public bagMaker;
+    BaseBeaconMaker public beaconMaker;
 
     address public requester;
     address public fulfiller;
@@ -35,7 +35,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         pauser = makeAddr("pauser");
 
         bagImplementation = new Bag();
-        bagMaker = new BagMaker(address(bagImplementation), ADMIN, ADMIN, ADMIN);
+        beaconMaker = new BaseBeaconMaker(address(bagImplementation), ADMIN, ADMIN, ADMIN);
 
         WithdrawalRequestManager implementation = new WithdrawalRequestManager();
         ERC1967Proxy proxy = new ERC1967Proxy(
@@ -48,16 +48,16 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
                     fulfiller,
                     configurationManager,
                     pauser,
-                    address(bagMaker),
+                    address(beaconMaker),
                     MINIMUM_AMOUNT_TO_LOCK
                 )
             )
         );
         manager = WithdrawalRequestManager(address(proxy));
 
-        bytes32 bagCreatorRole = bagMaker.BAG_CREATOR_ROLE();
+        bytes32 creatorRole = beaconMaker.CREATOR_ROLE();
         vm.prank(ADMIN);
-        bagMaker.grantRole(bagCreatorRole, address(manager));
+        beaconMaker.grantRole(creatorRole, address(manager));
 
         vm.startPrank(ADMIN);
         vault.grantRole(vault.ASSET_WITHDRAWER_ROLE(), address(manager));
@@ -283,7 +283,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
         assertTrue(manager.requestExists(requestId));
         assertFalse(manager.requestExists(requestId + 1));
-        assertEq(address(manager.bagMaker()), address(bagMaker));
+        assertEq(address(manager.beaconMaker()), address(beaconMaker));
         assertEq(request.owner, owner);
         assertTrue(request.bag != address(0));
         assertEq(Bag(request.bag).ownerOf(Bag(request.bag).TOKEN_ID()), owner);

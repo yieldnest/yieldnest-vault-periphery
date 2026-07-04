@@ -11,9 +11,10 @@ import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contra
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {Bag} from "src/withdrawal/Bag.sol";
 
-interface IBagMaker {
-    function createBag(address owner) external returns (address bag);
+interface IBeaconMaker {
+    function create(bytes calldata initData) external returns (address proxy);
 }
 
 interface IWithdrawAssetVault is IERC20 {
@@ -43,7 +44,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
     struct WithdrawalRequestManagerStorage {
         IWithdrawAssetVault token;
-        IBagMaker bagMaker;
+        IBeaconMaker beaconMaker;
         uint256 minimumAmountToLock;
         uint256 nextRequestId;
         mapping(uint256 id => WithdrawalRequest request) requests;
@@ -97,12 +98,12 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         address fulfiller,
         address configurationManager,
         address pauser,
-        address bagMaker_,
+        address beaconMaker_,
         uint256 minimumAmountToLock_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || fulfiller == address(0)
-                || configurationManager == address(0) || pauser == address(0) || bagMaker_ == address(0)
+                || configurationManager == address(0) || pauser == address(0) || beaconMaker_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -112,7 +113,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
         $.token = IWithdrawAssetVault(token_);
-        $.bagMaker = IBagMaker(bagMaker_);
+        $.beaconMaker = IBeaconMaker(beaconMaker_);
         $.minimumAmountToLock = minimumAmountToLock_;
         $.nextRequestId = 1;
 
@@ -144,7 +145,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
         id = $.nextRequestId++;
-        address bag = $.bagMaker.createBag(msg.sender);
+        address bag = $.beaconMaker.create(abi.encodeCall(Bag.initialize, (msg.sender)));
         $.requests[id] = WithdrawalRequest({owner: msg.sender, bag: bag, amountLocked: amount});
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
@@ -246,10 +247,10 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         return _getWithdrawalRequestManagerStorage().token;
     }
 
-    /// @notice Returns the BagMaker used to create request bags.
-    /// @return The BagMaker contract.
-    function bagMaker() public view returns (IBagMaker) {
-        return _getWithdrawalRequestManagerStorage().bagMaker;
+    /// @notice Returns the beacon maker used to create request bags.
+    /// @return The beacon maker contract.
+    function beaconMaker() public view returns (IBeaconMaker) {
+        return _getWithdrawalRequestManagerStorage().beaconMaker;
     }
 
     /// @notice Returns the minimum yn-token share amount required to open a request.

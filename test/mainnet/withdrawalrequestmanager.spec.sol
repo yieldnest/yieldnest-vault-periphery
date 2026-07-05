@@ -11,15 +11,15 @@ import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/withdrawal/Bag.sol";
-import {BaseBeaconMaker} from "src/withdrawal/BaseBeaconMaker.sol";
+import {BeaconProxyFactory} from "src/withdrawal/BeaconProxyFactory.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
 
 contract WithdrawalRequestManagerMainnetTest is Test, Actors {
     BaseVault public vault;
     WithdrawalRequestManager public manager;
     Bag public bagImplementation;
-    BaseBeaconMaker public beaconMakerImplementation;
-    BaseBeaconMaker public beaconMaker;
+    BeaconProxyFactory public beaconMakerImplementation;
+    BeaconProxyFactory public beaconMaker;
 
     address public requester;
     address public fulfiller;
@@ -37,12 +37,12 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         pauser = makeAddr("pauser");
 
         bagImplementation = new Bag();
-        beaconMakerImplementation = new BaseBeaconMaker();
+        beaconMakerImplementation = new BeaconProxyFactory();
         ERC1967Proxy beaconMakerProxy = new ERC1967Proxy(
             address(beaconMakerImplementation),
-            abi.encodeCall(BaseBeaconMaker.initialize, (address(bagImplementation), ADMIN, ADMIN, ADMIN))
+            abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), ADMIN, ADMIN, ADMIN))
         );
-        beaconMaker = BaseBeaconMaker(address(beaconMakerProxy));
+        beaconMaker = BeaconProxyFactory(address(beaconMakerProxy));
 
         WithdrawalRequestManager implementation = new WithdrawalRequestManager();
         ERC1967Proxy proxy = new ERC1967Proxy(

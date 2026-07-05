@@ -9,7 +9,7 @@ import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contra
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/withdrawal/Bag.sol";
-import {BaseBeaconMaker} from "src/withdrawal/BaseBeaconMaker.sol";
+import {BeaconProxyFactory} from "src/withdrawal/BeaconProxyFactory.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
 
 contract MockWithdrawAssetVault is ERC20 {
@@ -81,8 +81,8 @@ contract WithdrawalRequestManagerTest is Test {
     MockWithdrawAssetVault ynToken;
     WithdrawalAssetMock asset;
     Bag bagImplementation;
-    BaseBeaconMaker beaconMakerImplementation;
-    BaseBeaconMaker beaconMaker;
+    BeaconProxyFactory beaconMakerImplementation;
+    BeaconProxyFactory beaconMaker;
 
     address admin = address(0xA11CE);
     address fulfiller = address(0xF0111);
@@ -96,12 +96,12 @@ contract WithdrawalRequestManagerTest is Test {
         ynToken = new MockWithdrawAssetVault();
         asset = new WithdrawalAssetMock();
         bagImplementation = new Bag();
-        beaconMakerImplementation = new BaseBeaconMaker();
+        beaconMakerImplementation = new BeaconProxyFactory();
         ERC1967Proxy beaconMakerProxy = new ERC1967Proxy(
             address(beaconMakerImplementation),
-            abi.encodeCall(BaseBeaconMaker.initialize, (address(bagImplementation), admin, admin, admin))
+            abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), admin, admin, admin))
         );
-        beaconMaker = BaseBeaconMaker(address(beaconMakerProxy));
+        beaconMaker = BeaconProxyFactory(address(beaconMakerProxy));
 
         WithdrawalRequestManager implementation = new WithdrawalRequestManager();
         ERC1967Proxy proxy = new ERC1967Proxy(

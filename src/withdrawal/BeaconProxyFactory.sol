@@ -8,14 +8,14 @@ import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/pr
 import {BeaconProxy} from "lib/openzeppelin-contracts/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "lib/openzeppelin-contracts/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
-/// @title BaseBeaconMaker
+/// @title BeaconProxyFactory
 /// @notice Shared beacon proxy factory and implementation upgrade manager.
-contract BaseBeaconMaker is Initializable, AccessControlUpgradeable {
+contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
     bytes32 public constant IMPLEMENTATION_MANAGER_ROLE = keccak256("IMPLEMENTATION_MANAGER_ROLE");
 
     /// @custom:storage-location erc7201:yieldnest.storage.base_beacon_maker
-    struct BaseBeaconMakerStorage {
+    struct BeaconProxyFactoryStorage {
         UpgradeableBeacon beacon;
     }
 
@@ -25,12 +25,12 @@ contract BaseBeaconMaker is Initializable, AccessControlUpgradeable {
     event ImplementationUpgraded(address indexed previousImplementation, address indexed newImplementation);
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.base_beacon_maker")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant BaseBeaconMakerStorageLocation =
+    bytes32 private constant BeaconProxyFactoryStorageLocation =
         0xe4e9b5977ec8c1e8a7f1ef970796fa212a6082e4e0e770d85816b6d74cca3a00;
 
-    function _getBaseBeaconMakerStorage() private pure returns (BaseBeaconMakerStorage storage $) {
+    function _getBeaconProxyFactoryStorage() private pure returns (BeaconProxyFactoryStorage storage $) {
         assembly {
-            $.slot := BaseBeaconMakerStorageLocation
+            $.slot := BeaconProxyFactoryStorageLocation
         }
     }
 
@@ -56,14 +56,14 @@ contract BaseBeaconMaker is Initializable, AccessControlUpgradeable {
         _grantRole(CREATOR_ROLE, creator);
         _grantRole(IMPLEMENTATION_MANAGER_ROLE, implementationManager);
 
-        _getBaseBeaconMakerStorage().beacon = new UpgradeableBeacon(implementation_, address(this));
+        _getBeaconProxyFactoryStorage().beacon = new UpgradeableBeacon(implementation_, address(this));
     }
 
     /// @notice Creates a new beacon proxy initialized with arbitrary call data.
     /// @param initData Initialization call data for the implementation.
     /// @return proxy New proxy address.
     function create(bytes calldata initData) external onlyRole(CREATOR_ROLE) returns (address proxy) {
-        proxy = address(new BeaconProxy(address(_getBaseBeaconMakerStorage().beacon), initData));
+        proxy = address(new BeaconProxy(address(_getBeaconProxyFactoryStorage().beacon), initData));
 
         emit ProxyCreated(proxy);
     }
@@ -73,7 +73,7 @@ contract BaseBeaconMaker is Initializable, AccessControlUpgradeable {
     function upgradeImplementation(address newImplementation) external onlyRole(IMPLEMENTATION_MANAGER_ROLE) {
         if (newImplementation == address(0)) revert ZeroAddress();
 
-        UpgradeableBeacon beacon_ = _getBaseBeaconMakerStorage().beacon;
+        UpgradeableBeacon beacon_ = _getBeaconProxyFactoryStorage().beacon;
         address previousImplementation = beacon_.implementation();
         beacon_.upgradeTo(newImplementation);
 
@@ -83,12 +83,12 @@ contract BaseBeaconMaker is Initializable, AccessControlUpgradeable {
     /// @notice Returns the beacon used by created proxies.
     /// @return The beacon address.
     function beacon() public view returns (address) {
-        return address(_getBaseBeaconMakerStorage().beacon);
+        return address(_getBeaconProxyFactoryStorage().beacon);
     }
 
     /// @notice Returns the current implementation.
     /// @return The current implementation address.
     function implementation() public view returns (address) {
-        return _getBaseBeaconMakerStorage().beacon.implementation();
+        return _getBeaconProxyFactoryStorage().beacon.implementation();
     }
 }

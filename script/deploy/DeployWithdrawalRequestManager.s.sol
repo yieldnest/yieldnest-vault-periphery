@@ -7,7 +7,7 @@ import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {MainnetActors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {Bag} from "src/withdrawal/Bag.sol";
-import {BaseBeaconMaker} from "src/withdrawal/BaseBeaconMaker.sol";
+import {BeaconProxyFactory} from "src/withdrawal/BeaconProxyFactory.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
 
 contract DeployWithdrawalRequestManager is Script {
@@ -15,8 +15,8 @@ contract DeployWithdrawalRequestManager is Script {
 
     MainnetActors public actors;
     Bag public bagImplementation;
-    BaseBeaconMaker public beaconMakerImplementation;
-    BaseBeaconMaker public beaconMaker;
+    BeaconProxyFactory public beaconMakerImplementation;
+    BeaconProxyFactory public beaconMaker;
     WithdrawalRequestManager public implementation;
     WithdrawalRequestManager public withdrawalRequestManager;
     ERC1967Proxy public beaconMakerProxy;
@@ -46,14 +46,14 @@ contract DeployWithdrawalRequestManager is Script {
         predictedProxy = vm.computeCreateAddress(deployer, nonce + 4);
 
         bagImplementation = new Bag();
-        beaconMakerImplementation = new BaseBeaconMaker();
+        beaconMakerImplementation = new BeaconProxyFactory();
         beaconMakerProxy = new ERC1967Proxy(
             address(beaconMakerImplementation),
             abi.encodeCall(
-                BaseBeaconMaker.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
+                BeaconProxyFactory.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
             )
         );
-        beaconMaker = BaseBeaconMaker(address(beaconMakerProxy));
+        beaconMaker = BeaconProxyFactory(address(beaconMakerProxy));
         implementation = new WithdrawalRequestManager();
         proxy = new ERC1967Proxy(
             address(implementation),

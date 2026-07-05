@@ -17,6 +17,20 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
     string public constant VERSION = "0.1.0";
     uint256 public constant TOKEN_ID = 1;
 
+    /// @custom:storage-location erc7201:yieldnest.storage.bag
+    struct BagStorage {
+        uint256 id;
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.bag")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant BagStorageLocation = 0x071f3a4d16087e1e1f84c52c1bb778f9b193bf90b68ac0d666520edb595cf100;
+
+    function _getBagStorage() private pure returns (BagStorage storage $) {
+        assembly {
+            $.slot := BagStorageLocation
+        }
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -31,15 +45,21 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
 
     /// @notice Initializes the bag NFT and mints it to the owner.
     /// @param owner_ Initial owner of the bag NFT.
-    /// @param requestId Withdrawal request id represented by this bag.
-    function initialize(address owner_, uint256 requestId) external initializer {
+    /// @param id_ Withdrawal request id represented by this bag.
+    function initialize(address owner_, uint256 id_) external initializer {
         if (owner_ == address(0)) revert ZeroAddress();
 
-        string memory requestIdString = Strings.toString(requestId);
-        __ERC721_init(
-            string.concat("YieldNest Withdrawal Bag #", requestIdString), string.concat("ynBAG-", requestIdString)
-        );
+        _getBagStorage().id = id_;
+
+        string memory idString = Strings.toString(id_);
+        __ERC721_init(string.concat("YieldNest Withdrawal Bag #", idString), string.concat("ynBAG-", idString));
         _mint(owner_, TOKEN_ID);
+    }
+
+    /// @notice Returns the withdrawal request id represented by this bag.
+    /// @return The withdrawal request id.
+    function id() external view returns (uint256) {
+        return _getBagStorage().id;
     }
 
     /// @notice Claims this bag's full balance of an ERC20 asset.

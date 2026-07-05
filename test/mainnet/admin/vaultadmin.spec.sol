@@ -102,6 +102,18 @@ contract VaultManagerIntegrationTest is Test, Actors {
 
         vault.processAccounting();
         uint256 totalBaseAssetsBefore = vault.totalBaseAssets();
+        address[] memory assets = vault.getAssets();
+        address currentProvider = vault.provider();
+
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address asset = assets[i];
+            if (vault.getAsset(asset).decimals == 0) continue;
+
+            uint256 rate = IProvider(currentProvider).getRate(asset);
+            vm.mockCall(
+                address(newProvider), abi.encodeWithSelector(IProvider.getRate.selector, asset), abi.encode(rate)
+            );
+        }
 
         vm.prank(ADMIN);
         vaultManager.setProvider(address(newProvider));

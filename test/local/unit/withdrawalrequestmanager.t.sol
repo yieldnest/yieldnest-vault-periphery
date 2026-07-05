@@ -152,6 +152,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), user);
         assertEq(IBag(request.bag).name(), "YieldNest Withdrawal Bag #1");
         assertEq(IBag(request.bag).symbol(), "ynBAG-1");
+        assertEq(IBag(request.bag).id(), id);
         assertEq(request.amountLocked, 10 ether);
     }
 
@@ -181,6 +182,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(ynToken.balanceOf(address(manager)), 10 ether);
         assertEq(request.owner, request.bag);
         assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), receiver);
+        assertEq(IBag(request.bag).id(), id);
     }
 
     function testBeaconMakerRequiresCreatorRole() public {

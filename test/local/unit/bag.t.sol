@@ -57,6 +57,7 @@ contract BagTest is Test {
     function testInitializeMintsExpectedNFTMetadataAndConstants() public {
         assertEq(bag.VERSION(), "0.1.0");
         assertEq(bag.TOKEN_ID(), 1);
+        assertEq(bag.id(), requestId);
         assertEq(bag.name(), "YieldNest Withdrawal Bag #42");
         assertEq(bag.symbol(), "ynBAG-42");
         assertEq(bag.ownerOf(bag.TOKEN_ID()), owner);
@@ -70,6 +71,7 @@ contract BagTest is Test {
 
         assertEq(zeroIdBag.name(), "YieldNest Withdrawal Bag #0");
         assertEq(zeroIdBag.symbol(), "ynBAG-0");
+        assertEq(zeroIdBag.id(), 0);
         assertEq(zeroIdBag.ownerOf(zeroIdBag.TOKEN_ID()), owner);
     }
 

@@ -62,17 +62,19 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
         return _getBagStorage().id;
     }
 
-    /// @notice Claims this bag's full balance of an ERC20 asset.
+    /// @notice Claims an amount of an ERC20 asset from this bag.
     /// @param asset Asset to claim.
     /// @param recipient Receiver of the claimed asset.
+    /// @param amount Amount to claim.
     /// @return amount Amount claimed.
-    function claimERC20(address asset, address recipient) external onlyNFTOwner returns (uint256 amount) {
+    function claimERC20(address asset, address recipient, uint256 amount) external onlyNFTOwner returns (uint256) {
         if (asset == address(0) || recipient == address(0)) revert ZeroAddress();
 
-        amount = IERC20(asset).balanceOf(address(this));
         IERC20(asset).safeTransfer(recipient, amount);
 
         emit ERC20Claimed(msg.sender, recipient, asset, amount);
+
+        return amount;
     }
 
     /// @notice Claims an ERC721 token held by this bag.
@@ -87,15 +89,17 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
         emit ERC721Claimed(msg.sender, recipient, asset, tokenId);
     }
 
-    /// @notice Claims this bag's full native ETH balance.
+    /// @notice Claims an amount of native ETH from this bag.
     /// @param recipient Receiver of the claimed native ETH.
+    /// @param amount Amount to claim.
     /// @return amount Amount claimed.
-    function claimNative(address payable recipient) external onlyNFTOwner returns (uint256 amount) {
+    function claimNative(address payable recipient, uint256 amount) external onlyNFTOwner returns (uint256) {
         if (recipient == address(0)) revert ZeroAddress();
 
-        amount = address(this).balance;
         recipient.transfer(amount);
 
         emit NativeClaimed(msg.sender, recipient, amount);
+
+        return amount;
     }
 }

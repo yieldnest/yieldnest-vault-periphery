@@ -97,7 +97,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(vault.totalSupply(), totalSupplyBefore - burnedShares);
 
         vm.prank(requester);
-        assertEq(IBag(request.bag).claimERC20(MC.WETH, requester), 2 ether);
+        assertEq(IBag(request.bag).claimERC20(MC.WETH, requester, 2 ether), 2 ether);
         assertEq(IERC20(MC.WETH).balanceOf(requester), 2 ether);
     }
 
@@ -120,7 +120,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertLt(request.amountLocked, depositedShares);
 
         vm.prank(requester);
-        assertEq(IBag(request.bag).claimERC20(MC.WETH, requester), assetsWithdrawn);
+        assertEq(IBag(request.bag).claimERC20(MC.WETH, requester, assetsWithdrawn), assetsWithdrawn);
         assertEq(IERC20(MC.WETH).balanceOf(requester), assetsWithdrawn);
     }
 
@@ -183,7 +183,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertGt(burnedShares, 0);
 
         vm.prank(requester);
-        assertEq(IBag(request.bag).claimERC20(asset, requester), withdrawAmount);
+        assertEq(IBag(request.bag).claimERC20(asset, requester, withdrawAmount), withdrawAmount);
         assertEq(IERC20(asset).balanceOf(requester), withdrawAmount);
     }
 
@@ -211,7 +211,10 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
 
         vm.prank(requester);
-        assertEq(IBag(requestAfterSecond.bag).claimERC20(MC.WETH, requester), firstWithdraw + secondWithdraw);
+        assertEq(
+            IBag(requestAfterSecond.bag).claimERC20(MC.WETH, requester, firstWithdraw + secondWithdraw),
+            firstWithdraw + secondWithdraw
+        );
         assertEq(IERC20(MC.WETH).balanceOf(requester), firstWithdraw + secondWithdraw);
     }
 

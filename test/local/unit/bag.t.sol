@@ -90,29 +90,40 @@ contract BagTest is Test {
         bag.initialize(owner, requestId + 1);
     }
 
-    function testClaimERC20TransfersFullBalanceAndEmits() public {
+    function testClaimERC20TransfersSpecifiedAmountAndEmits() public {
         token.mint(address(bag), 12 ether);
 
         vm.expectEmit(true, true, true, true, address(bag));
-        emit IBag.ERC20Claimed(owner, recipient, address(token), 12 ether);
+        emit IBag.ERC20Claimed(owner, recipient, address(token), 5 ether);
 
         vm.prank(owner);
-        uint256 amount = bag.claimERC20(address(token), recipient);
+        uint256 amount = bag.claimERC20(address(token), recipient, 5 ether);
 
-        assertEq(amount, 12 ether);
-        assertEq(token.balanceOf(recipient), 12 ether);
-        assertEq(token.balanceOf(address(bag)), 0);
+        assertEq(amount, 5 ether);
+        assertEq(token.balanceOf(recipient), 5 ether);
+        assertEq(token.balanceOf(address(bag)), 7 ether);
     }
 
-    function testClaimERC20AllowsZeroBalanceClaim() public {
+    function testClaimERC20AllowsZeroAmountClaim() public {
+        token.mint(address(bag), 12 ether);
+
         vm.expectEmit(true, true, true, true, address(bag));
         emit IBag.ERC20Claimed(owner, recipient, address(token), 0);
 
         vm.prank(owner);
-        uint256 amount = bag.claimERC20(address(token), recipient);
+        uint256 amount = bag.claimERC20(address(token), recipient, 0);
 
         assertEq(amount, 0);
         assertEq(token.balanceOf(recipient), 0);
+        assertEq(token.balanceOf(address(bag)), 12 ether);
+    }
+
+    function testClaimERC20RevertsWhenAmountExceedsBalance() public {
+        token.mint(address(bag), 12 ether);
+
+        vm.expectRevert();
+        vm.prank(owner);
+        bag.claimERC20(address(token), recipient, 12 ether + 1);
     }
 
     function testClaimERC20RevertsWhenCallerIsNotNFTOwner() public {
@@ -120,17 +131,17 @@ contract BagTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, other));
         vm.prank(other);
-        bag.claimERC20(address(token), recipient);
+        bag.claimERC20(address(token), recipient, 1 ether);
     }
 
     function testClaimERC20RevertsForZeroAssetOrRecipient() public {
         vm.startPrank(owner);
 
         vm.expectRevert(IBag.ZeroAddress.selector);
-        bag.claimERC20(address(0), recipient);
+        bag.claimERC20(address(0), recipient, 1 ether);
 
         vm.expectRevert(IBag.ZeroAddress.selector);
-        bag.claimERC20(address(token), address(0));
+        bag.claimERC20(address(token), address(0), 1 ether);
 
         vm.stopPrank();
     }
@@ -144,10 +155,10 @@ contract BagTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, owner));
         vm.prank(owner);
-        bag.claimERC20(address(token), recipient);
+        bag.claimERC20(address(token), recipient, 1 ether);
 
         vm.prank(other);
-        uint256 amount = bag.claimERC20(address(token), recipient);
+        uint256 amount = bag.claimERC20(address(token), recipient, 12 ether);
 
         assertEq(amount, 12 ether);
         assertEq(token.balanceOf(recipient), 12 ether);
@@ -185,29 +196,40 @@ contract BagTest is Test {
         vm.stopPrank();
     }
 
-    function testClaimNativeTransfersFullBalanceAndEmits() public {
+    function testClaimNativeTransfersSpecifiedAmountAndEmits() public {
         vm.deal(address(bag), 3 ether);
         uint256 recipientBalanceBefore = recipient.balance;
 
         vm.expectEmit(true, true, true, true, address(bag));
-        emit IBag.NativeClaimed(owner, recipient, 3 ether);
+        emit IBag.NativeClaimed(owner, recipient, 1 ether);
 
         vm.prank(owner);
-        uint256 amount = bag.claimNative(payable(recipient));
+        uint256 amount = bag.claimNative(payable(recipient), 1 ether);
 
-        assertEq(amount, 3 ether);
-        assertEq(recipient.balance - recipientBalanceBefore, 3 ether);
-        assertEq(address(bag).balance, 0);
+        assertEq(amount, 1 ether);
+        assertEq(recipient.balance - recipientBalanceBefore, 1 ether);
+        assertEq(address(bag).balance, 2 ether);
     }
 
-    function testClaimNativeAllowsZeroBalanceClaim() public {
+    function testClaimNativeAllowsZeroAmountClaim() public {
+        vm.deal(address(bag), 3 ether);
+
         vm.expectEmit(true, true, true, true, address(bag));
         emit IBag.NativeClaimed(owner, recipient, 0);
 
         vm.prank(owner);
-        uint256 amount = bag.claimNative(payable(recipient));
+        uint256 amount = bag.claimNative(payable(recipient), 0);
 
         assertEq(amount, 0);
+        assertEq(address(bag).balance, 3 ether);
+    }
+
+    function testClaimNativeRevertsWhenAmountExceedsBalance() public {
+        vm.deal(address(bag), 3 ether);
+
+        vm.expectRevert();
+        vm.prank(owner);
+        bag.claimNative(payable(recipient), 3 ether + 1);
     }
 
     function testClaimNativeRevertsWhenCallerIsNotNFTOwner() public {
@@ -215,13 +237,13 @@ contract BagTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, other));
         vm.prank(other);
-        bag.claimNative(payable(recipient));
+        bag.claimNative(payable(recipient), 1 ether);
     }
 
     function testClaimNativeRevertsForZeroRecipient() public {
         vm.expectRevert(IBag.ZeroAddress.selector);
         vm.prank(owner);
-        bag.claimNative(payable(address(0)));
+        bag.claimNative(payable(address(0)), 1 ether);
     }
 
     function testClaimNativeRevertsWhenRecipientRejectsNativeTransfer() public {
@@ -230,7 +252,7 @@ contract BagTest is Test {
 
         vm.expectRevert(bytes("reject native"));
         vm.prank(owner);
-        bag.claimNative(payable(address(rejector)));
+        bag.claimNative(payable(address(rejector)), 1 ether);
     }
 
     function testReceiveAcceptsNativeETH() public {

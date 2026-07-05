@@ -15,7 +15,7 @@ interface IBag is IERC721Metadata {
     function TOKEN_ID() external view returns (uint256);
     function id() external view returns (uint256);
     function initialize(address owner_, uint256 id_) external;
-    function claimNative(address payable recipient) external returns (uint256 amount);
-    function claimERC20(address asset, address recipient) external returns (uint256 amount);
+    function claimNative(address payable recipient, uint256 amount) external returns (uint256);
+    function claimERC20(address asset, address recipient, uint256 amount) external returns (uint256);
     function claimERC721(address asset, address recipient, uint256 tokenId) external;
 }

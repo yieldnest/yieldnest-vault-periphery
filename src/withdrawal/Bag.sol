@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "lib/openzeppelin-contracts/contracts/utils/Address.sol";
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
@@ -13,6 +14,7 @@ import {IBag} from "src/interface/IBag.sol";
 /// @notice Per-request NFT container whose token owner can claim received assets.
 contract Bag is Initializable, ERC721Upgradeable, IBag {
     using SafeERC20 for IERC20;
+    using Address for address payable;
 
     string public constant VERSION = "0.1.0";
     uint256 public constant TOKEN_ID = 1;
@@ -96,7 +98,7 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
     function claimNative(address payable recipient, uint256 amount) external onlyNFTOwner returns (uint256) {
         if (recipient == address(0)) revert ZeroAddress();
 
-        recipient.transfer(amount);
+        recipient.sendValue(amount);
 
         emit NativeClaimed(msg.sender, recipient, amount);
 

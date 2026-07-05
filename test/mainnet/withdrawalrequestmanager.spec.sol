@@ -9,6 +9,7 @@ import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
+import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/withdrawal/Bag.sol";
 import {BaseBeaconMaker} from "src/withdrawal/BaseBeaconMaker.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
@@ -96,7 +97,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(vault.totalSupply(), totalSupplyBefore - burnedShares);
 
         vm.prank(requester);
-        assertEq(Bag(request.bag).claimERC20(MC.WETH, requester), 2 ether);
+        assertEq(IBag(request.bag).claimERC20(MC.WETH, requester), 2 ether);
         assertEq(IERC20(MC.WETH).balanceOf(requester), 2 ether);
     }
 
@@ -119,7 +120,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertLt(request.amountLocked, depositedShares);
 
         vm.prank(requester);
-        assertEq(Bag(request.bag).claimERC20(MC.WETH, requester), assetsWithdrawn);
+        assertEq(IBag(request.bag).claimERC20(MC.WETH, requester), assetsWithdrawn);
         assertEq(IERC20(MC.WETH).balanceOf(requester), assetsWithdrawn);
     }
 
@@ -182,7 +183,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertGt(burnedShares, 0);
 
         vm.prank(requester);
-        assertEq(Bag(request.bag).claimERC20(asset, requester), withdrawAmount);
+        assertEq(IBag(request.bag).claimERC20(asset, requester), withdrawAmount);
         assertEq(IERC20(asset).balanceOf(requester), withdrawAmount);
     }
 
@@ -210,7 +211,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
 
         vm.prank(requester);
-        assertEq(Bag(requestAfterSecond.bag).claimERC20(MC.WETH, requester), firstWithdraw + secondWithdraw);
+        assertEq(IBag(requestAfterSecond.bag).claimERC20(MC.WETH, requester), firstWithdraw + secondWithdraw);
         assertEq(IERC20(MC.WETH).balanceOf(requester), firstWithdraw + secondWithdraw);
     }
 
@@ -292,7 +293,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(address(manager.beaconMaker()), address(beaconMaker));
         assertEq(request.owner, owner);
         assertTrue(request.bag != address(0));
-        assertEq(Bag(request.bag).ownerOf(Bag(request.bag).TOKEN_ID()), owner);
+        assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), owner);
         assertEq(request.amountLocked, amount);
         assertEq(IERC20(address(vault)).balanceOf(address(manager)), amount);
     }

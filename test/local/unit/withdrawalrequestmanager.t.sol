@@ -7,6 +7,7 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/withdrawal/Bag.sol";
 import {BaseBeaconMaker} from "src/withdrawal/BaseBeaconMaker.sol";
 import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
@@ -147,9 +148,9 @@ contract WithdrawalRequestManagerTest is Test {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         assertEq(request.owner, user);
         assertTrue(request.bag != address(0));
-        assertEq(Bag(request.bag).ownerOf(Bag(request.bag).TOKEN_ID()), user);
-        assertEq(Bag(request.bag).name(), "YieldNest Withdrawal Bag #1");
-        assertEq(Bag(request.bag).symbol(), "ynBAG-1");
+        assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), user);
+        assertEq(IBag(request.bag).name(), "YieldNest Withdrawal Bag #1");
+        assertEq(IBag(request.bag).symbol(), "ynBAG-1");
         assertEq(request.amountLocked, 10 ether);
     }
 
@@ -165,8 +166,8 @@ contract WithdrawalRequestManagerTest is Test {
         assertTrue(firstRequest.bag != address(0));
         assertTrue(secondRequest.bag != address(0));
         assertTrue(firstRequest.bag != secondRequest.bag);
-        assertEq(Bag(firstRequest.bag).ownerOf(Bag(firstRequest.bag).TOKEN_ID()), user);
-        assertEq(Bag(secondRequest.bag).ownerOf(Bag(secondRequest.bag).TOKEN_ID()), user);
+        assertEq(IBag(firstRequest.bag).ownerOf(IBag(firstRequest.bag).TOKEN_ID()), user);
+        assertEq(IBag(secondRequest.bag).ownerOf(IBag(secondRequest.bag).TOKEN_ID()), user);
     }
 
     function testBeaconMakerRequiresCreatorRole() public {
@@ -175,7 +176,7 @@ contract WithdrawalRequestManagerTest is Test {
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, creatorRole)
         );
         vm.prank(user);
-        beaconMaker.create(abi.encodeCall(Bag.initialize, (user, 1)));
+        beaconMaker.create(abi.encodeCall(IBag.initialize, (user, 1)));
     }
 
     function testBeaconMakerUpgradesImplementation() public {
@@ -194,15 +195,35 @@ contract WithdrawalRequestManagerTest is Test {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         asset.mint(request.bag, 4 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(Bag.NotBagOwner.selector, address(this)));
-        Bag(request.bag).claimERC20(address(asset), user);
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, address(this)));
+        IBag(request.bag).claimERC20(address(asset), user);
 
         vm.prank(user);
-        uint256 amountClaimed = Bag(request.bag).claimERC20(address(asset), user);
+        uint256 amountClaimed = IBag(request.bag).claimERC20(address(asset), user);
 
         assertEq(amountClaimed, 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
+    }
+
+    function testBagClaimNativeRequiresBagOwner() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        vm.deal(request.bag, 4 ether);
+
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, address(this)));
+        IBag(request.bag).claimNative(payable(user));
+
+        uint256 userBalanceBefore = user.balance;
+
+        vm.prank(user);
+        uint256 amountClaimed = IBag(request.bag).claimNative(payable(user));
+
+        assertEq(amountClaimed, 4 ether);
+        assertEq(user.balance - userBalanceBefore, 4 ether);
+        assertEq(request.bag.balance, 0);
     }
 
     function testRequestWithdrawalRevertsBelowMinimumAmount() public {
@@ -282,7 +303,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.amountLocked, 6 ether);
 
         vm.prank(user);
-        assertEq(Bag(request.bag).claimERC20(address(asset), user), 4 ether);
+        assertEq(IBag(request.bag).claimERC20(address(asset), user), 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
     }
@@ -308,7 +329,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.amountLocked, 0);
 
         vm.prank(user);
-        assertEq(Bag(request.bag).claimERC20(address(asset), user), 10 ether);
+        assertEq(IBag(request.bag).claimERC20(address(asset), user), 10 ether);
         assertEq(asset.balanceOf(user), 10 ether);
     }
 

@@ -11,11 +11,8 @@ import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contra
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
-import {Bag} from "src/withdrawal/Bag.sol";
-
-interface IBeaconMaker {
-    function create(bytes calldata initData) external returns (address proxy);
-}
+import {IBag} from "src/interface/IBag.sol";
+import {IBeaconMaker} from "src/interface/IBeaconMaker.sol";
 
 interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -145,7 +142,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
         id = $.nextRequestId++;
-        address bag = $.beaconMaker.create(abi.encodeCall(Bag.initialize, (msg.sender, id)));
+        address bag = $.beaconMaker.create(abi.encodeCall(IBag.initialize, (msg.sender, id)));
         $.requests[id] = WithdrawalRequest({owner: msg.sender, bag: bag, amountLocked: amount});
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);

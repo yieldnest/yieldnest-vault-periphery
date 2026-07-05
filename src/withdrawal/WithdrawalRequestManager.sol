@@ -134,20 +134,22 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
     /// @notice Locks yn-tokens in this contract and creates a withdrawal request.
     /// @param amount Amount of configured yn-token shares to lock.
+    /// @param receiver Receiver of the Bag NFT that controls claims.
     /// @return id Generated request id.
-    function requestWithdrawal(uint256 amount) external whenNotPaused returns (uint256 id) {
+    function requestWithdrawal(uint256 amount, address receiver) external whenNotPaused returns (uint256 id) {
         if (amount == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
         id = $.nextRequestId++;
-        address bag = $.beaconMaker.create(abi.encodeCall(IBag.initialize, (msg.sender, id)));
-        $.requests[id] = WithdrawalRequest({owner: msg.sender, bag: bag, amountLocked: amount});
+        address bag = $.beaconMaker.create(abi.encodeCall(IBag.initialize, (receiver, id)));
+        $.requests[id] = WithdrawalRequest({owner: bag, bag: bag, amountLocked: amount});
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
 
-        emit WithdrawalRequested(id, msg.sender, address($.token), bag, amount);
+        emit WithdrawalRequested(id, bag, address($.token), bag, amount);
     }
 
     // --- Fulfillment ---

@@ -178,7 +178,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(asset).balanceOf(request.bag), withdrawAmount);
         assertEq(IERC20(asset).balanceOf(requester), 0);
         assertEq(IERC20(asset).balanceOf(address(manager)), managerAssetBalanceBefore);
-        assertEq(request.owner, requester);
+        assertEq(request.owner, request.bag);
         assertEq(request.amountLocked, depositedShares - burnedShares);
         assertGt(burnedShares, 0);
 
@@ -242,7 +242,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         vm.startPrank(requester);
         IERC20(address(vault)).approve(address(manager), depositedShares);
         vm.expectRevert(abi.encodeWithSelector(WithdrawalRequestManager.AmountBelowMinimum.selector, 1 ether, 2 ether));
-        manager.requestWithdrawal(1 ether);
+        manager.requestWithdrawal(1 ether, requester);
         vm.stopPrank();
 
         vm.prank(pauser);
@@ -250,7 +250,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
 
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         vm.prank(requester);
-        manager.requestWithdrawal(depositedShares);
+        manager.requestWithdrawal(depositedShares, requester);
     }
 
     function test_withdrawalManager_revertsForInvalidRequestAndZeroAmounts() public {
@@ -284,15 +284,15 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
     function _requestWithdrawal(address owner, uint256 amount) internal returns (uint256 requestId) {
         vm.startPrank(owner);
         IERC20(address(vault)).approve(address(manager), amount);
-        requestId = manager.requestWithdrawal(amount);
+        requestId = manager.requestWithdrawal(amount, owner);
         vm.stopPrank();
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
         assertTrue(manager.requestExists(requestId));
         assertFalse(manager.requestExists(requestId + 1));
         assertEq(address(manager.beaconMaker()), address(beaconMaker));
-        assertEq(request.owner, owner);
         assertTrue(request.bag != address(0));
+        assertEq(request.owner, request.bag);
         assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), owner);
         assertEq(request.amountLocked, amount);
         assertEq(IERC20(address(vault)).balanceOf(address(manager)), amount);

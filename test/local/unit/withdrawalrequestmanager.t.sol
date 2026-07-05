@@ -148,6 +148,8 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.owner, user);
         assertTrue(request.bag != address(0));
         assertEq(Bag(request.bag).ownerOf(Bag(request.bag).TOKEN_ID()), user);
+        assertEq(Bag(request.bag).name(), "YieldNest Withdrawal Bag #1");
+        assertEq(Bag(request.bag).symbol(), "ynBAG-1");
         assertEq(request.amountLocked, 10 ether);
     }
 
@@ -173,7 +175,7 @@ contract WithdrawalRequestManagerTest is Test {
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, creatorRole)
         );
         vm.prank(user);
-        beaconMaker.create(abi.encodeCall(Bag.initialize, (user)));
+        beaconMaker.create(abi.encodeCall(Bag.initialize, (user, 1)));
     }
 
     function testBeaconMakerUpgradesImplementation() public {
@@ -193,10 +195,10 @@ contract WithdrawalRequestManagerTest is Test {
         asset.mint(request.bag, 4 ether);
 
         vm.expectRevert(abi.encodeWithSelector(Bag.NotBagOwner.selector, address(this)));
-        Bag(request.bag).claim(address(asset), user);
+        Bag(request.bag).claimERC20(address(asset), user);
 
         vm.prank(user);
-        uint256 amountClaimed = Bag(request.bag).claim(address(asset), user);
+        uint256 amountClaimed = Bag(request.bag).claimERC20(address(asset), user);
 
         assertEq(amountClaimed, 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
@@ -280,7 +282,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.amountLocked, 6 ether);
 
         vm.prank(user);
-        assertEq(Bag(request.bag).claim(address(asset), user), 4 ether);
+        assertEq(Bag(request.bag).claimERC20(address(asset), user), 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
     }
@@ -306,7 +308,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.amountLocked, 0);
 
         vm.prank(user);
-        assertEq(Bag(request.bag).claim(address(asset), user), 10 ether);
+        assertEq(Bag(request.bag).claimERC20(address(asset), user), 10 ether);
         assertEq(asset.balanceOf(user), 10 ether);
     }
 

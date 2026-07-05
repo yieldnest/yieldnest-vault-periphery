@@ -145,7 +145,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
         id = $.nextRequestId++;
-        address bag = $.beaconMaker.create(abi.encodeCall(Bag.initialize, (msg.sender)));
+        address bag = $.beaconMaker.create(abi.encodeCall(Bag.initialize, (msg.sender, id)));
         $.requests[id] = WithdrawalRequest({owner: msg.sender, bag: bag, amountLocked: amount});
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);

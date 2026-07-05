@@ -2,7 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 
@@ -16,7 +18,8 @@ contract Bag is Initializable, ERC721Upgradeable {
     error ZeroAddress();
     error NotBagOwner(address caller);
 
-    event Claimed(address indexed owner, address indexed recipient, address indexed asset, uint256 amount);
+    event ERC20Claimed(address indexed owner, address indexed recipient, address indexed asset, uint256 amount);
+    event ERC721Claimed(address indexed owner, address indexed recipient, address indexed asset, uint256 tokenId);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -25,24 +28,41 @@ contract Bag is Initializable, ERC721Upgradeable {
 
     /// @notice Initializes the bag NFT and mints it to the owner.
     /// @param owner_ Initial owner of the bag NFT.
-    function initialize(address owner_) external initializer {
+    /// @param requestId Withdrawal request id represented by this bag.
+    function initialize(address owner_, uint256 requestId) external initializer {
         if (owner_ == address(0)) revert ZeroAddress();
 
-        __ERC721_init("YieldNest Withdrawal Bag", "ynBAG");
+        string memory requestIdString = Strings.toString(requestId);
+        __ERC721_init(
+            string.concat("YieldNest Withdrawal Bag #", requestIdString), string.concat("ynBAG-", requestIdString)
+        );
         _mint(owner_, TOKEN_ID);
     }
 
-    /// @notice Claims this bag's full balance of an asset.
+    /// @notice Claims this bag's full balance of an ERC20 asset.
     /// @param asset Asset to claim.
     /// @param recipient Receiver of the claimed asset.
     /// @return amount Amount claimed.
-    function claim(address asset, address recipient) external returns (uint256 amount) {
+    function claimERC20(address asset, address recipient) external returns (uint256 amount) {
         if (msg.sender != ownerOf(TOKEN_ID)) revert NotBagOwner(msg.sender);
         if (asset == address(0) || recipient == address(0)) revert ZeroAddress();
 
         amount = IERC20(asset).balanceOf(address(this));
         IERC20(asset).safeTransfer(recipient, amount);
 
-        emit Claimed(msg.sender, recipient, asset, amount);
+        emit ERC20Claimed(msg.sender, recipient, asset, amount);
+    }
+
+    /// @notice Claims an ERC721 token held by this bag.
+    /// @param asset ERC721 asset to claim.
+    /// @param recipient Receiver of the claimed token.
+    /// @param tokenId Token id to claim.
+    function claimERC721(address asset, address recipient, uint256 tokenId) external {
+        if (msg.sender != ownerOf(TOKEN_ID)) revert NotBagOwner(msg.sender);
+        if (asset == address(0) || recipient == address(0)) revert ZeroAddress();
+
+        IERC721(asset).safeTransferFrom(address(this), recipient, tokenId);
+
+        emit ERC721Claimed(msg.sender, recipient, asset, tokenId);
     }
 }

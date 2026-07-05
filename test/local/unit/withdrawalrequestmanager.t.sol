@@ -151,6 +151,22 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.amountLocked, 10 ether);
     }
 
+    function testRequestWithdrawalCreatesBagForEachRequest() public {
+        vm.startPrank(user);
+        uint256 firstId = manager.requestWithdrawal(10 ether);
+        uint256 secondId = manager.requestWithdrawal(11 ether);
+        vm.stopPrank();
+
+        WithdrawalRequestManager.WithdrawalRequest memory firstRequest = manager.requests(firstId);
+        WithdrawalRequestManager.WithdrawalRequest memory secondRequest = manager.requests(secondId);
+
+        assertTrue(firstRequest.bag != address(0));
+        assertTrue(secondRequest.bag != address(0));
+        assertTrue(firstRequest.bag != secondRequest.bag);
+        assertEq(Bag(firstRequest.bag).ownerOf(Bag(firstRequest.bag).TOKEN_ID()), user);
+        assertEq(Bag(secondRequest.bag).ownerOf(Bag(secondRequest.bag).TOKEN_ID()), user);
+    }
+
     function testBeaconMakerRequiresCreatorRole() public {
         bytes32 creatorRole = beaconMaker.CREATOR_ROLE();
         vm.expectRevert(

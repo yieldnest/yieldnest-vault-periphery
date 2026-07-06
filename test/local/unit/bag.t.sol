@@ -45,13 +45,18 @@ contract BagTest is Test {
 
     function setUp() public {
         implementation = new Bag();
-        bag = Bag(
-            payable(address(
-                    new ERC1967Proxy(address(implementation), abi.encodeCall(Bag.initialize, (owner, requestId)))
-                ))
-        );
+        bag = _deployBag(owner, requestId);
         token = new BagERC20Mock();
         nft = new BagERC721Mock();
+    }
+
+    function _deployBag(address owner_, uint256 id_) internal returns (Bag) {
+        return
+            Bag(
+                payable(address(
+                        new ERC1967Proxy(address(implementation), abi.encodeCall(Bag.initialize, (owner_, id_)))
+                    ))
+            );
     }
 
     function testInitializeMintsExpectedNFTMetadataAndConstants() public {
@@ -65,14 +70,25 @@ contract BagTest is Test {
     }
 
     function testInitializeSupportsZeroRequestIdMetadata() public {
-        Bag zeroIdBag = Bag(
-            payable(address(new ERC1967Proxy(address(implementation), abi.encodeCall(Bag.initialize, (owner, 0)))))
-        );
+        Bag zeroIdBag = _deployBag(owner, 0);
 
         assertEq(zeroIdBag.name(), "YieldNest Withdrawal Bag #0");
         assertEq(zeroIdBag.symbol(), "ynBAG-0");
         assertEq(zeroIdBag.id(), 0);
         assertEq(zeroIdBag.ownerOf(zeroIdBag.TOKEN_ID()), owner);
+    }
+
+    function testFuzzInitializeMintsExpectedNFTMetadataAndId(address owner_, uint256 id_) public {
+        vm.assume(owner_ != address(0));
+
+        Bag fuzzBag = _deployBag(owner_, id_);
+        string memory idString = vm.toString(id_);
+
+        assertEq(fuzzBag.id(), id_);
+        assertEq(fuzzBag.name(), string.concat("YieldNest Withdrawal Bag #", idString));
+        assertEq(fuzzBag.symbol(), string.concat("ynBAG-", idString));
+        assertEq(fuzzBag.ownerOf(fuzzBag.TOKEN_ID()), owner_);
+        assertEq(fuzzBag.balanceOf(owner_), 1);
     }
 
     function testInitializeRevertsForZeroOwner() public {
@@ -104,6 +120,20 @@ contract BagTest is Test {
         assertEq(token.balanceOf(address(bag)), 7 ether);
     }
 
+    function testFuzzClaimERC20TransfersSpecifiedAmount(address recipient_, uint128 balance, uint128 amount) public {
+        vm.assume(recipient_ != address(0));
+        vm.assume(recipient_ != address(bag));
+        amount = uint128(bound(amount, 0, balance));
+        token.mint(address(bag), balance);
+
+        vm.prank(owner);
+        uint256 amountClaimed = bag.claimERC20(address(token), recipient_, amount);
+
+        assertEq(amountClaimed, amount);
+        assertEq(token.balanceOf(recipient_), amount);
+        assertEq(token.balanceOf(address(bag)), uint256(balance) - amount);
+    }
+
     function testClaimERC20AllowsZeroAmountClaim() public {
         token.mint(address(bag), 12 ether);
 
@@ -124,6 +154,15 @@ contract BagTest is Test {
         vm.expectRevert();
         vm.prank(owner);
         bag.claimERC20(address(token), recipient, 12 ether + 1);
+    }
+
+    function testFuzzClaimERC20RevertsWhenAmountExceedsBalance(uint128 balance, uint128 excess) public {
+        excess = uint128(bound(excess, 1, type(uint128).max));
+        token.mint(address(bag), balance);
+
+        vm.expectRevert();
+        vm.prank(owner);
+        bag.claimERC20(address(token), recipient, uint256(balance) + excess);
     }
 
     function testClaimERC20RevertsWhenCallerIsNotNFTOwner() public {
@@ -164,6 +203,26 @@ contract BagTest is Test {
         assertEq(token.balanceOf(recipient), 12 ether);
     }
 
+    function testFuzzClaimERC20FollowsCurrentNFTOwnerAfterTransfer(uint128 balance, uint128 amount) public {
+        amount = uint128(bound(amount, 0, balance));
+        token.mint(address(bag), balance);
+        uint256 tokenId = bag.TOKEN_ID();
+
+        vm.prank(owner);
+        bag.transferFrom(owner, other, tokenId);
+
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, owner));
+        vm.prank(owner);
+        bag.claimERC20(address(token), recipient, amount);
+
+        vm.prank(other);
+        uint256 amountClaimed = bag.claimERC20(address(token), recipient, amount);
+
+        assertEq(amountClaimed, amount);
+        assertEq(token.balanceOf(recipient), amount);
+        assertEq(token.balanceOf(address(bag)), uint256(balance) - amount);
+    }
+
     function testClaimERC721TransfersTokenAndEmits() public {
         nft.mint(address(bag), 7);
 
@@ -174,6 +233,17 @@ contract BagTest is Test {
         bag.claimERC721(address(nft), recipient, 7);
 
         assertEq(nft.ownerOf(7), recipient);
+    }
+
+    function testFuzzClaimERC721TransfersToken(address recipient_, uint256 tokenId) public {
+        vm.assume(recipient_ != address(0));
+        vm.assume(recipient_.code.length == 0);
+        nft.mint(address(bag), tokenId);
+
+        vm.prank(owner);
+        bag.claimERC721(address(nft), recipient_, tokenId);
+
+        assertEq(nft.ownerOf(tokenId), recipient_);
     }
 
     function testClaimERC721RevertsWhenCallerIsNotNFTOwner() public {
@@ -211,6 +281,24 @@ contract BagTest is Test {
         assertEq(address(bag).balance, 2 ether);
     }
 
+    function testFuzzClaimNativeTransfersSpecifiedAmount(address payable recipient_, uint128 balance, uint128 amount)
+        public
+    {
+        vm.assume(recipient_ != address(0));
+        vm.assume(recipient_ != payable(address(bag)));
+        vm.assume(recipient_.code.length == 0);
+        amount = uint128(bound(amount, 0, balance));
+        vm.deal(address(bag), balance);
+        uint256 recipientBalanceBefore = recipient_.balance;
+
+        vm.prank(owner);
+        uint256 amountClaimed = bag.claimNative(recipient_, amount);
+
+        assertEq(amountClaimed, amount);
+        assertEq(recipient_.balance - recipientBalanceBefore, amount);
+        assertEq(address(bag).balance, uint256(balance) - amount);
+    }
+
     function testClaimNativeAllowsZeroAmountClaim() public {
         vm.deal(address(bag), 3 ether);
 
@@ -230,6 +318,15 @@ contract BagTest is Test {
         vm.expectRevert();
         vm.prank(owner);
         bag.claimNative(payable(recipient), 3 ether + 1);
+    }
+
+    function testFuzzClaimNativeRevertsWhenAmountExceedsBalance(uint128 balance, uint128 excess) public {
+        excess = uint128(bound(excess, 1, type(uint128).max));
+        vm.deal(address(bag), balance);
+
+        vm.expectRevert();
+        vm.prank(owner);
+        bag.claimNative(payable(recipient), uint256(balance) + excess);
     }
 
     function testClaimNativeRevertsWhenCallerIsNotNFTOwner() public {

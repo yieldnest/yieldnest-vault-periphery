@@ -185,6 +185,29 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(IBag(request.bag).id(), id);
     }
 
+    function testFuzzRequestWithdrawalTransfersTokenAndMintsBagToReceiver(uint96 amount, address receiver_) public {
+        amount = uint96(bound(amount, minimumAmountToLock, ynToken.balanceOf(user)));
+        vm.assume(receiver_ != address(0));
+
+        uint256 userBalanceBefore = ynToken.balanceOf(user);
+        uint256 managerBalanceBefore = ynToken.balanceOf(address(manager));
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(amount, receiver_);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+
+        assertEq(id, 1);
+        assertTrue(manager.requestExists(id));
+        assertFalse(manager.requestExists(id + 1));
+        assertEq(ynToken.balanceOf(user), userBalanceBefore - amount);
+        assertEq(ynToken.balanceOf(address(manager)), managerBalanceBefore + amount);
+        assertEq(request.owner, request.bag);
+        assertEq(request.amountLocked, amount);
+        assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), receiver_);
+        assertEq(IBag(request.bag).id(), id);
+    }
+
     function testBeaconMakerRequiresCreatorRole() public {
         bytes32 creatorRole = beaconMaker.CREATOR_ROLE();
         vm.expectRevert(
@@ -251,6 +274,16 @@ contract WithdrawalRequestManagerTest is Test {
         manager.requestWithdrawal(minimumAmountToLock - 1, user);
     }
 
+    function testFuzzRequestWithdrawalRevertsBelowMinimumAmount(uint96 amount) public {
+        amount = uint96(bound(amount, 1, minimumAmountToLock - 1));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(WithdrawalRequestManager.AmountBelowMinimum.selector, amount, minimumAmountToLock)
+        );
+        vm.prank(user);
+        manager.requestWithdrawal(amount, user);
+    }
+
     function testRequestWithdrawalRevertsForZeroReceiver() public {
         vm.expectRevert(WithdrawalRequestManager.ZeroAddress.selector);
         vm.prank(user);
@@ -277,9 +310,20 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(manager.minimumAmountToLock(), 2 ether);
     }
 
+    function testFuzzSetMinimumAmountToLockUpdatesMinimum(uint128 newMinimumAmountToLock) public {
+        vm.prank(configurationManager);
+        manager.setMinimumAmountToLock(newMinimumAmountToLock);
+
+        assertEq(manager.minimumAmountToLock(), newMinimumAmountToLock);
+    }
+
     function testConvertToAssets() public view {
         assertEq(manager.convertToAssets(address(asset), 0), 0);
         assertEq(manager.convertToAssets(address(asset), 10 ether), 10 ether);
+    }
+
+    function testFuzzConvertToAssetsReturnsAssetsForShares(uint128 shares) public view {
+        assertEq(manager.convertToAssets(address(asset), shares), shares);
     }
 
     function testPausePreventsRequestWithdrawal() public {
@@ -331,6 +375,30 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
+    function testFuzzFulfillWithdrawalRequestBurnsLockedTokenAndSubtractsBurnedAmount(
+        uint96 lockedAmount,
+        uint96 assets
+    ) public {
+        lockedAmount = uint96(bound(lockedAmount, minimumAmountToLock, ynToken.balanceOf(user)));
+        assets = uint96(bound(assets, 1, lockedAmount));
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(lockedAmount, user);
+
+        vm.prank(fulfiller);
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), assets);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+
+        assertEq(amountBurned, assets);
+        assertEq(request.amountLocked, lockedAmount - assets);
+        assertEq(ynToken.balanceOf(address(manager)), lockedAmount - assets);
+        assertEq(asset.balanceOf(request.bag), assets);
+        assertEq(asset.balanceOf(address(manager)), 0);
+        assertEq(asset.balanceOf(user), 0);
+        assertEq(ynToken.processAccountingCalls(), 1);
+    }
+
     function testFulfillWithdrawalRequestMaxWithdrawsMaxAssetsForLockedShares() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
@@ -356,6 +424,25 @@ contract WithdrawalRequestManagerTest is Test {
         vm.prank(user);
         assertEq(IBag(request.bag).claimERC20(address(asset), user, 10 ether), 10 ether);
         assertEq(asset.balanceOf(user), 10 ether);
+    }
+
+    function testFuzzFulfillWithdrawalRequestMaxWithdrawsMaxAssetsForLockedShares(uint96 lockedAmount) public {
+        lockedAmount = uint96(bound(lockedAmount, minimumAmountToLock, ynToken.balanceOf(user)));
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(lockedAmount, user);
+
+        vm.prank(fulfiller);
+        (uint256 amountBurned, uint256 assetsWithdrawn) = manager.fulfillWithdrawalRequestMax(id, address(asset));
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+
+        assertEq(amountBurned, lockedAmount);
+        assertEq(assetsWithdrawn, lockedAmount);
+        assertEq(request.amountLocked, 0);
+        assertEq(ynToken.balanceOf(address(manager)), 0);
+        assertEq(asset.balanceOf(request.bag), lockedAmount);
+        assertEq(ynToken.processAccountingCalls(), 1);
     }
 
     function testFulfillWithdrawalRequestUsesActualBalanceDeltaInsteadOfReturnValue() public {

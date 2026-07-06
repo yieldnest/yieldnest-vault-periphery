@@ -21,7 +21,7 @@ contract BagV2 is Bag {
 
 contract BeaconProxyFactoryTest is Test {
     BeaconProxyFactory implementation;
-    BeaconProxyFactory maker;
+    BeaconProxyFactory factory;
     Bag bagImplementation;
 
     address admin = address(0xA11CE);
@@ -33,7 +33,7 @@ contract BeaconProxyFactoryTest is Test {
     function setUp() public {
         implementation = new BeaconProxyFactory();
         bagImplementation = new Bag();
-        maker = BeaconProxyFactory(
+        factory = BeaconProxyFactory(
             address(
                 new ERC1967Proxy(
                     address(implementation),
@@ -47,14 +47,14 @@ contract BeaconProxyFactoryTest is Test {
     }
 
     function testInitializeSetsRolesBeaconAndImplementation() public {
-        assertTrue(maker.hasRole(maker.DEFAULT_ADMIN_ROLE(), admin));
-        assertTrue(maker.hasRole(maker.CREATOR_ROLE(), creator));
-        assertTrue(maker.hasRole(maker.IMPLEMENTATION_MANAGER_ROLE(), implementationManager));
-        assertFalse(maker.hasRole(maker.DEFAULT_ADMIN_ROLE(), creator));
-        assertFalse(maker.hasRole(maker.CREATOR_ROLE(), admin));
-        assertFalse(maker.hasRole(maker.IMPLEMENTATION_MANAGER_ROLE(), admin));
-        assertTrue(maker.beacon() != address(0));
-        assertEq(maker.implementation(), address(bagImplementation));
+        assertTrue(factory.hasRole(factory.DEFAULT_ADMIN_ROLE(), admin));
+        assertTrue(factory.hasRole(factory.CREATOR_ROLE(), creator));
+        assertTrue(factory.hasRole(factory.IMPLEMENTATION_MANAGER_ROLE(), implementationManager));
+        assertFalse(factory.hasRole(factory.DEFAULT_ADMIN_ROLE(), creator));
+        assertFalse(factory.hasRole(factory.CREATOR_ROLE(), admin));
+        assertFalse(factory.hasRole(factory.IMPLEMENTATION_MANAGER_ROLE(), admin));
+        assertTrue(factory.beacon() != address(0));
+        assertEq(factory.implementation(), address(bagImplementation));
     }
 
     function testInitializeRevertsForZeroImplementation() public {
@@ -100,15 +100,15 @@ contract BeaconProxyFactoryTest is Test {
 
     function testProxyCannotBeInitializedTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        maker.initialize(address(bagImplementation), admin, creator, implementationManager);
+        factory.initialize(address(bagImplementation), admin, creator, implementationManager);
     }
 
     function testCreateDeploysBeaconProxyAndInitializesIt() public {
-        vm.expectEmit(false, false, false, false, address(maker));
+        vm.expectEmit(false, false, false, false, address(factory));
         emit BeaconProxyFactory.ProxyCreated(address(0));
 
         vm.prank(creator);
-        address proxy = maker.create(abi.encodeCall(IBag.initialize, (owner, 9)));
+        address proxy = factory.create(abi.encodeCall(IBag.initialize, (owner, 9)));
 
         assertTrue(proxy != address(0));
         assertEq(IBag(proxy).ownerOf(IBag(proxy).TOKEN_ID()), owner);
@@ -120,7 +120,7 @@ contract BeaconProxyFactoryTest is Test {
 
     function testCreateCanDeployUninitializedProxyWithEmptyData() public {
         vm.prank(creator);
-        address proxy = maker.create("");
+        address proxy = factory.create("");
 
         vm.expectRevert();
         IBag(proxy).ownerOf(1);
@@ -135,45 +135,45 @@ contract BeaconProxyFactoryTest is Test {
     function testCreateRevertsForUnauthorizedCreator() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, other, maker.CREATOR_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, other, factory.CREATOR_ROLE()
             )
         );
         vm.prank(other);
-        maker.create(abi.encodeCall(IBag.initialize, (owner, 9)));
+        factory.create(abi.encodeCall(IBag.initialize, (owner, 9)));
     }
 
     function testCreateBubblesInitializationRevert() public {
         vm.expectRevert(IBag.ZeroAddress.selector);
         vm.prank(creator);
-        maker.create(abi.encodeCall(IBag.initialize, (address(0), 9)));
+        factory.create(abi.encodeCall(IBag.initialize, (address(0), 9)));
     }
 
     function testUpgradeImplementationUpdatesBeaconAndEmitsPreviousImplementation() public {
         BagV2 newImplementation = new BagV2();
 
-        vm.expectEmit(true, true, true, true, address(maker));
+        vm.expectEmit(true, true, true, true, address(factory));
         emit BeaconProxyFactory.ImplementationUpgraded(address(bagImplementation), address(newImplementation));
 
         vm.prank(implementationManager);
-        maker.upgradeImplementation(address(newImplementation));
+        factory.upgradeImplementation(address(newImplementation));
 
-        assertEq(maker.implementation(), address(newImplementation));
+        assertEq(factory.implementation(), address(newImplementation));
     }
 
     function testUpgradeImplementationAffectsExistingAndNewProxies() public {
         vm.prank(creator);
-        address existingProxy = maker.create(abi.encodeCall(IBag.initialize, (owner, 9)));
+        address existingProxy = factory.create(abi.encodeCall(IBag.initialize, (owner, 9)));
 
         BagV2 newImplementation = new BagV2();
 
         vm.prank(implementationManager);
-        maker.upgradeImplementation(address(newImplementation));
+        factory.upgradeImplementation(address(newImplementation));
 
         assertEq(IBagV2(existingProxy).version2(), "v2");
         assertEq(IBag(existingProxy).ownerOf(IBag(existingProxy).TOKEN_ID()), owner);
 
         vm.prank(creator);
-        address newProxy = maker.create(abi.encodeCall(IBag.initialize, (other, 10)));
+        address newProxy = factory.create(abi.encodeCall(IBag.initialize, (other, 10)));
 
         assertEq(IBagV2(newProxy).version2(), "v2");
         assertEq(IBag(newProxy).ownerOf(IBag(newProxy).TOKEN_ID()), other);
@@ -184,41 +184,41 @@ contract BeaconProxyFactoryTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, other, maker.IMPLEMENTATION_MANAGER_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, other, factory.IMPLEMENTATION_MANAGER_ROLE()
             )
         );
         vm.prank(other);
-        maker.upgradeImplementation(address(newImplementation));
+        factory.upgradeImplementation(address(newImplementation));
     }
 
     function testUpgradeImplementationRevertsForZeroImplementation() public {
         vm.expectRevert(BeaconProxyFactory.ZeroAddress.selector);
         vm.prank(implementationManager);
-        maker.upgradeImplementation(address(0));
+        factory.upgradeImplementation(address(0));
     }
 
     function testAdminCanGrantCreatorRole() public {
         address newCreator = address(0xD00D);
-        bytes32 creatorRole = maker.CREATOR_ROLE();
+        bytes32 creatorRole = factory.CREATOR_ROLE();
 
         vm.prank(admin);
-        maker.grantRole(creatorRole, newCreator);
+        factory.grantRole(creatorRole, newCreator);
 
         vm.prank(newCreator);
-        address proxy = maker.create(abi.encodeCall(IBag.initialize, (owner, 11)));
+        address proxy = factory.create(abi.encodeCall(IBag.initialize, (owner, 11)));
 
         assertEq(IBag(proxy).ownerOf(IBag(proxy).TOKEN_ID()), owner);
     }
 
     function testNonAdminCannotGrantRoles() public {
         address newCreator = address(0xD00D);
-        bytes32 creatorRole = maker.CREATOR_ROLE();
-        bytes32 defaultAdminRole = maker.DEFAULT_ADMIN_ROLE();
+        bytes32 creatorRole = factory.CREATOR_ROLE();
+        bytes32 defaultAdminRole = factory.DEFAULT_ADMIN_ROLE();
 
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, other, defaultAdminRole)
         );
         vm.prank(other);
-        maker.grantRole(creatorRole, newCreator);
+        factory.grantRole(creatorRole, newCreator);
     }
 }

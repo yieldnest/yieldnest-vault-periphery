@@ -15,11 +15,11 @@ contract DeployWithdrawalRequestManager is Script {
 
     MainnetActors public actors;
     Bag public bagImplementation;
-    BeaconProxyFactory public beaconMakerImplementation;
-    BeaconProxyFactory public beaconMaker;
+    BeaconProxyFactory public beaconFactoryImplementation;
+    BeaconProxyFactory public beaconFactory;
     WithdrawalRequestManager public implementation;
     WithdrawalRequestManager public withdrawalRequestManager;
-    ERC1967Proxy public beaconMakerProxy;
+    ERC1967Proxy public beaconFactoryProxy;
     ERC1967Proxy public proxy;
 
     address public deployer;
@@ -46,14 +46,14 @@ contract DeployWithdrawalRequestManager is Script {
         predictedProxy = vm.computeCreateAddress(deployer, nonce + 4);
 
         bagImplementation = new Bag();
-        beaconMakerImplementation = new BeaconProxyFactory();
-        beaconMakerProxy = new ERC1967Proxy(
-            address(beaconMakerImplementation),
+        beaconFactoryImplementation = new BeaconProxyFactory();
+        beaconFactoryProxy = new ERC1967Proxy(
+            address(beaconFactoryImplementation),
             abi.encodeCall(
                 BeaconProxyFactory.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
             )
         );
-        beaconMaker = BeaconProxyFactory(address(beaconMakerProxy));
+        beaconFactory = BeaconProxyFactory(address(beaconFactoryProxy));
         implementation = new WithdrawalRequestManager();
         proxy = new ERC1967Proxy(
             address(implementation),
@@ -65,7 +65,7 @@ contract DeployWithdrawalRequestManager is Script {
                     fulfiller,
                     configurationManager,
                     pauser,
-                    address(beaconMaker),
+                    address(beaconFactory),
                     MINIMUM_AMOUNT_TO_LOCK
                 )
             )
@@ -89,10 +89,10 @@ contract DeployWithdrawalRequestManager is Script {
     function saveDeployment() internal {
         vm.serializeAddress(label(), "implementation", address(implementation));
         vm.serializeAddress(label(), "bagImplementation", address(bagImplementation));
-        vm.serializeAddress(label(), "beaconMakerImplementation", address(beaconMakerImplementation));
-        vm.serializeAddress(label(), "beaconMaker", address(beaconMaker));
-        vm.serializeAddress(label(), "beaconMakerProxy", address(beaconMakerProxy));
-        vm.serializeAddress(label(), "beacon", beaconMaker.beacon());
+        vm.serializeAddress(label(), "beaconFactoryImplementation", address(beaconFactoryImplementation));
+        vm.serializeAddress(label(), "beaconFactory", address(beaconFactory));
+        vm.serializeAddress(label(), "beaconFactoryProxy", address(beaconFactoryProxy));
+        vm.serializeAddress(label(), "beacon", beaconFactory.beacon());
         vm.serializeAddress(label(), "proxy", address(proxy));
         vm.serializeAddress(label(), "predictedProxy", predictedProxy);
         vm.serializeAddress(label(), "withdrawalRequestManager", address(withdrawalRequestManager));

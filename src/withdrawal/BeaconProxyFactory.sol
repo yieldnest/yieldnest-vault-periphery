@@ -14,7 +14,7 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
     bytes32 public constant IMPLEMENTATION_MANAGER_ROLE = keccak256("IMPLEMENTATION_MANAGER_ROLE");
 
-    /// @custom:storage-location erc7201:yieldnest.storage.base_beacon_maker
+    /// @custom:storage-location erc7201:yieldnest.storage.beacon_proxy_factory
     struct BeaconProxyFactoryStorage {
         UpgradeableBeacon beacon;
     }
@@ -24,9 +24,9 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
     event ProxyCreated(address indexed proxy);
     event ImplementationUpgraded(address indexed previousImplementation, address indexed newImplementation);
 
-    // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.base_beacon_maker")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.beacon_proxy_factory")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BeaconProxyFactoryStorageLocation =
-        0xe4e9b5977ec8c1e8a7f1ef970796fa212a6082e4e0e770d85816b6d74cca3a00;
+        0xac884db614a3a993e363c1354daa3ef0ad7667a4ab0ad3edaf953385bea78300;
 
     function _getBeaconProxyFactoryStorage() private pure returns (BeaconProxyFactoryStorage storage $) {
         assembly {
@@ -68,7 +68,7 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
         emit ProxyCreated(proxy);
     }
 
-    /// @notice Upgrades the implementation used by all proxies created by this maker.
+    /// @notice Upgrades the implementation used by all proxies created by this factory.
     /// @param newImplementation New implementation address.
     function upgradeImplementation(address newImplementation) external onlyRole(IMPLEMENTATION_MANAGER_ROLE) {
         if (newImplementation == address(0)) revert ZeroAddress();

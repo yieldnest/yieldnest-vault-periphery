@@ -81,8 +81,8 @@ contract WithdrawalRequestManagerTest is Test {
     MockWithdrawAssetVault ynToken;
     WithdrawalAssetMock asset;
     Bag bagImplementation;
-    BeaconProxyFactory beaconMakerImplementation;
-    BeaconProxyFactory beaconMaker;
+    BeaconProxyFactory beaconFactoryImplementation;
+    BeaconProxyFactory beaconFactory;
 
     address admin = address(0xA11CE);
     address fulfiller = address(0xF0111);
@@ -96,12 +96,12 @@ contract WithdrawalRequestManagerTest is Test {
         ynToken = new MockWithdrawAssetVault();
         asset = new WithdrawalAssetMock();
         bagImplementation = new Bag();
-        beaconMakerImplementation = new BeaconProxyFactory();
-        ERC1967Proxy beaconMakerProxy = new ERC1967Proxy(
-            address(beaconMakerImplementation),
+        beaconFactoryImplementation = new BeaconProxyFactory();
+        ERC1967Proxy beaconFactoryProxy = new ERC1967Proxy(
+            address(beaconFactoryImplementation),
             abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), admin, admin, admin))
         );
-        beaconMaker = BeaconProxyFactory(address(beaconMakerProxy));
+        beaconFactory = BeaconProxyFactory(address(beaconFactoryProxy));
 
         WithdrawalRequestManager implementation = new WithdrawalRequestManager();
         ERC1967Proxy proxy = new ERC1967Proxy(
@@ -114,15 +114,15 @@ contract WithdrawalRequestManagerTest is Test {
                     fulfiller,
                     configurationManager,
                     pauser,
-                    address(beaconMaker),
+                    address(beaconFactory),
                     minimumAmountToLock
                 )
             )
         );
         manager = WithdrawalRequestManager(address(proxy));
-        bytes32 creatorRole = beaconMaker.CREATOR_ROLE();
+        bytes32 creatorRole = beaconFactory.CREATOR_ROLE();
         vm.prank(admin);
-        beaconMaker.grantRole(creatorRole, address(manager));
+        beaconFactory.grantRole(creatorRole, address(manager));
 
         ynToken.mint(user, 100 ether);
         asset.mint(address(ynToken), 100 ether);
@@ -140,7 +140,7 @@ contract WithdrawalRequestManagerTest is Test {
 
         assertEq(id, 1);
         assertEq(manager.nextRequestId(), 2);
-        assertEq(address(manager.beaconMaker()), address(beaconMaker));
+        assertEq(address(manager.beaconFactory()), address(beaconFactory));
         assertTrue(manager.requestExists(id));
         assertFalse(manager.requestExists(id + 1));
         assertEq(ynToken.balanceOf(user), 90 ether);
@@ -208,22 +208,22 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(IBag(request.bag).id(), id);
     }
 
-    function testBeaconMakerRequiresCreatorRole() public {
-        bytes32 creatorRole = beaconMaker.CREATOR_ROLE();
+    function testBeaconFactoryRequiresCreatorRole() public {
+        bytes32 creatorRole = beaconFactory.CREATOR_ROLE();
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, creatorRole)
         );
         vm.prank(user);
-        beaconMaker.create(abi.encodeCall(IBag.initialize, (user, 1)));
+        beaconFactory.create(abi.encodeCall(IBag.initialize, (user, 1)));
     }
 
-    function testBeaconMakerUpgradesImplementation() public {
+    function testBeaconFactoryUpgradesImplementation() public {
         Bag newImplementation = new Bag();
 
         vm.prank(admin);
-        beaconMaker.upgradeImplementation(address(newImplementation));
+        beaconFactory.upgradeImplementation(address(newImplementation));
 
-        assertEq(beaconMaker.implementation(), address(newImplementation));
+        assertEq(beaconFactory.implementation(), address(newImplementation));
     }
 
     function testBagClaimRequiresBagOwner() public {
@@ -288,6 +288,11 @@ contract WithdrawalRequestManagerTest is Test {
         vm.expectRevert(WithdrawalRequestManager.ZeroAddress.selector);
         vm.prank(user);
         manager.requestWithdrawal(10 ether, address(0));
+    }
+
+    function testRequestsRevertsWhenRequestDoesNotExist() public {
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequestManager.RequestNotFound.selector, 123));
+        manager.requests(123);
     }
 
     function testSetMinimumAmountToLockRequiresConfigurationManagerRole() public {

@@ -12,7 +12,7 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {IBeaconMaker} from "src/interface/IBeaconMaker.sol";
+import {IBeaconProxyFactory} from "src/interface/IBeaconProxyFactory.sol";
 
 interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -41,7 +41,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
     struct WithdrawalRequestManagerStorage {
         IWithdrawAssetVault token;
-        IBeaconMaker beaconMaker;
+        IBeaconProxyFactory beaconFactory;
         uint256 minimumAmountToLock;
         uint256 nextRequestId;
         mapping(uint256 id => WithdrawalRequest request) requests;
@@ -95,12 +95,12 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         address fulfiller,
         address configurationManager,
         address pauser,
-        address beaconMaker_,
+        address beaconFactory_,
         uint256 minimumAmountToLock_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || fulfiller == address(0)
-                || configurationManager == address(0) || pauser == address(0) || beaconMaker_ == address(0)
+                || configurationManager == address(0) || pauser == address(0) || beaconFactory_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -110,7 +110,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
         $.token = IWithdrawAssetVault(token_);
-        $.beaconMaker = IBeaconMaker(beaconMaker_);
+        $.beaconFactory = IBeaconProxyFactory(beaconFactory_);
         $.minimumAmountToLock = minimumAmountToLock_;
         $.nextRequestId = 1;
 
@@ -144,7 +144,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
         id = $.nextRequestId++;
-        address bag = $.beaconMaker.create(abi.encodeCall(IBag.initialize, (receiver, id)));
+        address bag = $.beaconFactory.create(abi.encodeCall(IBag.initialize, (receiver, id)));
         $.requests[id] = WithdrawalRequest({owner: bag, bag: bag, amountLocked: amount});
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
@@ -180,9 +180,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     {
         if (asset == address(0)) revert ZeroAddress();
 
-        WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
-        WithdrawalRequest storage request = $.requests[id];
-        if (!requestExists(id)) revert RequestNotFound(id);
+        WithdrawalRequest memory request = requests(id);
 
         // Asset pricing depends on provider/oracle rates, which may be stale or incorrect. If an asset is
         // underpriced, requesters can receive more real value than the burned shares represent, diluting
@@ -200,8 +198,8 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (asset == address(0)) revert ZeroAddress();
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
+        requests(id);
         WithdrawalRequest storage request = $.requests[id];
-        if (!requestExists(id)) revert RequestNotFound(id);
 
         if (assets == 0) revert ZeroAmount();
 
@@ -246,10 +244,10 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         return _getWithdrawalRequestManagerStorage().token;
     }
 
-    /// @notice Returns the beacon maker used to create request bags.
-    /// @return The beacon maker contract.
-    function beaconMaker() public view returns (IBeaconMaker) {
-        return _getWithdrawalRequestManagerStorage().beaconMaker;
+    /// @notice Returns the beacon factory used to create request bags.
+    /// @return The beacon factory contract.
+    function beaconFactory() public view returns (IBeaconProxyFactory) {
+        return _getWithdrawalRequestManagerStorage().beaconFactory;
     }
 
     /// @notice Returns the minimum yn-token share amount required to open a request.
@@ -268,7 +266,10 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     /// @param id Request id to query.
     /// @return The stored withdrawal request.
     function requests(uint256 id) public view returns (WithdrawalRequest memory) {
-        return _getWithdrawalRequestManagerStorage().requests[id];
+        WithdrawalRequest memory request = _getWithdrawalRequestManagerStorage().requests[id];
+        if (request.owner == address(0)) revert RequestNotFound(id);
+
+        return request;
     }
 
     /// @notice Returns whether a withdrawal request exists.

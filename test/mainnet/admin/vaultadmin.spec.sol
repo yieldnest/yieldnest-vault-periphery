@@ -11,8 +11,9 @@ import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
 import {Provider} from "lib/yieldnest-vault/src/module/Provider.sol";
 import {MockERC4626, ERC20} from "lib/yieldnest-vault/test/mainnet/mocks/MockERC4626.sol";
-import {TransparentUpgradeableProxy} from
-    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract VaultManagerIntegrationTest is Test, Actors {
     VaultManager public vaultManager;
@@ -21,8 +22,7 @@ contract VaultManagerIntegrationTest is Test, Actors {
     function _deployVaultManager() internal returns (VaultManager) {
         VaultManager implementation = new VaultManager();
         bytes memory initData = abi.encodeCall(
-            VaultManager.initialize,
-            (MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN)
+            VaultManager.initialize, (MC.YNETHX, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN, ADMIN)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), ADMIN, initData);
         return VaultManager(address(proxy));
@@ -34,15 +34,12 @@ contract VaultManagerIntegrationTest is Test, Actors {
 
         // Grant VaultManager the necessary roles on the vault
         vm.startPrank(ADMIN);
-        BaseVault(payable(address(vault))).grantRole(
-            BaseVault(payable(address(vault))).ASSET_MANAGER_ROLE(), address(vaultManager)
-        );
-        BaseVault(payable(address(vault))).grantRole(
-            BaseVault(payable(address(vault))).BUFFER_MANAGER_ROLE(), address(vaultManager)
-        );
-        BaseVault(payable(address(vault))).grantRole(
-            BaseVault(payable(address(vault))).PROVIDER_MANAGER_ROLE(), address(vaultManager)
-        );
+        BaseVault(payable(address(vault)))
+            .grantRole(BaseVault(payable(address(vault))).ASSET_MANAGER_ROLE(), address(vaultManager));
+        BaseVault(payable(address(vault)))
+            .grantRole(BaseVault(payable(address(vault))).BUFFER_MANAGER_ROLE(), address(vaultManager));
+        BaseVault(payable(address(vault)))
+            .grantRole(BaseVault(payable(address(vault))).PROVIDER_MANAGER_ROLE(), address(vaultManager));
         vm.stopPrank();
     }
 

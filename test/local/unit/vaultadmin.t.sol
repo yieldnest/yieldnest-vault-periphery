@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
+import {ProcessorManager} from "src/admin/ProcessorManager.sol";
 import {VaultManager} from "src/admin/VaultManager.sol";
 import {Vault} from "lib/yieldnest-vault/src/Vault.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
@@ -13,8 +14,9 @@ import {IERC20} from "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {ERC4626} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
 import {MockStrategy} from "lib/yieldnest-vault/test/unit/mocks/MockStrategy.sol";
-import {TransparentUpgradeableProxy} from
-    "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract LocalWETH9 {
     string public constant name = "Wrapped Ether";
@@ -245,6 +247,7 @@ contract LocalAfterAccountingMintHook is LocalHooksBase {
 
 contract VaultManagerUnitTest is Test {
     VaultManager internal vaultManager;
+    ProcessorManager internal processorManager;
     Vault internal vault;
     LocalWETH9 internal weth;
     LocalProvider internal provider;
@@ -280,6 +283,7 @@ contract VaultManagerUnitTest is Test {
 
         vault = _deployVault(0);
         vaultManager = _deployVaultManager(address(vault));
+        processorManager = _deployProcessorManager(address(vault));
 
         vm.startPrank(admin);
         vault.grantRole(vault.PROVIDER_MANAGER_ROLE(), admin);
@@ -291,7 +295,7 @@ contract VaultManagerUnitTest is Test {
         vault.grantRole(vault.PROVIDER_MANAGER_ROLE(), address(vaultManager));
         vault.grantRole(vault.BUFFER_MANAGER_ROLE(), address(vaultManager));
         vault.grantRole(vault.ASSET_MANAGER_ROLE(), address(vaultManager));
-        vault.grantRole(vault.PROCESSOR_ROLE(), address(vaultManager));
+        vault.grantRole(vault.PROCESSOR_ROLE(), address(processorManager));
         vault.grantRole(vault.ASSET_WITHDRAWER_ROLE(), address(vaultManager));
         vault.grantRole(vault.HOOKS_MANAGER_ROLE(), address(vaultManager));
 
@@ -385,7 +389,7 @@ contract VaultManagerUnitTest is Test {
         data[0] = abi.encodeWithSignature("ping(uint256)", 41);
 
         vm.prank(processorRole);
-        bytes[] memory results = vaultManager.processor(targets, values, data);
+        bytes[] memory results = processorManager.processor(targets, values, data);
         assertEq(results.length, 1);
         assertEq(abi.decode(results[0], (uint256)), 42);
 
@@ -403,7 +407,7 @@ contract VaultManagerUnitTest is Test {
 
         vm.prank(assetDeleterRole);
         vm.expectRevert();
-        vaultManager.processor(targets, values, data);
+        processorManager.processor(targets, values, data);
 
         vm.prank(processorRole);
         vm.expectRevert();
@@ -427,9 +431,7 @@ contract VaultManagerUnitTest is Test {
         newProvider.setRate(address(weth), 2e18);
 
         vm.prank(providerManagerRole);
-        vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(weth), 1e18, 2e18)
-        );
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(weth), 1e18, 2e18));
         vaultManager.setProvider(address(newProvider));
     }
 
@@ -459,9 +461,7 @@ contract VaultManagerUnitTest is Test {
         vm.stopPrank();
 
         vm.prank(providerManagerRole);
-        vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(altWeth), 1e18, 2e18)
-        );
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.AssetRateChanged.selector, address(altWeth), 1e18, 2e18));
         altManager.setProvider(address(altNewProvider));
     }
 
@@ -470,9 +470,7 @@ contract VaultManagerUnitTest is Test {
         vaultManager.setCurrentBuffer(address(bufferAsset));
 
         vm.prank(assetDeleterRole);
-        vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.CannotDeleteBufferAsset.selector, address(bufferAsset))
-        );
+        vm.expectRevert(abi.encodeWithSelector(VaultManager.CannotDeleteBufferAsset.selector, address(bufferAsset)));
         vaultManager.deleteAsset(address(bufferAsset));
     }
 
@@ -504,37 +502,37 @@ contract VaultManagerUnitTest is Test {
         data[0] = abi.encodeWithSignature("ping(uint256)", 1);
 
         vm.prank(processorRole);
-        vm.expectRevert(VaultManager.LengthMismatch.selector);
-        vaultManager.processor(targets, values, data);
+        vm.expectRevert(ProcessorManager.LengthMismatch.selector);
+        processorManager.processor(targets, values, data);
     }
 
     function testSetMaxProcessorDeltaRatios() public {
         vm.prank(admin);
-        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
+        processorManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
         vm.prank(admin);
-        vaultManager.setMaxProcessorSupplyDeltaRatio(0.06e18);
+        processorManager.setMaxProcessorSupplyDeltaRatio(0.06e18);
 
-        assertEq(vaultManager.maxProcessorBaseAssetsDeltaRatio(), 0.05e18);
-        assertEq(vaultManager.maxProcessorSupplyDeltaRatio(), 0.06e18);
+        assertEq(processorManager.maxProcessorBaseAssetsDeltaRatio(), 0.05e18);
+        assertEq(processorManager.maxProcessorSupplyDeltaRatio(), 0.06e18);
     }
 
     function testSetMaxProcessorBaseAssetsDeltaRatioRevertsAboveDenominator() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.RatioTooHigh.selector, 1e18 + 1));
-        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(1e18 + 1);
+        vm.expectRevert(abi.encodeWithSelector(ProcessorManager.RatioTooHigh.selector, 1e18 + 1));
+        processorManager.setMaxProcessorBaseAssetsDeltaRatio(1e18 + 1);
     }
 
     function testSetMaxProcessorSupplyDeltaRatioRevertsAboveDenominator() public {
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.RatioTooHigh.selector, 1e18 + 1));
-        vaultManager.setMaxProcessorSupplyDeltaRatio(1e18 + 1);
+        vm.expectRevert(abi.encodeWithSelector(ProcessorManager.RatioTooHigh.selector, 1e18 + 1));
+        processorManager.setMaxProcessorSupplyDeltaRatio(1e18 + 1);
     }
 
     function testProcessorRevertsWhenTotalAssetsDeltaExceeded() public {
         _depositWethIntoVault(alice, 100 ether);
 
         vm.prank(admin);
-        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
+        processorManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
@@ -544,9 +542,9 @@ contract VaultManagerUnitTest is Test {
 
         vm.prank(processorRole);
         vm.expectRevert(
-            abi.encodeWithSelector(VaultManager.TotalBaseAssetsDeltaExceeded.selector, 100 ether, 93 ether)
+            abi.encodeWithSelector(ProcessorManager.TotalBaseAssetsDeltaExceeded.selector, 100 ether, 93 ether)
         );
-        vaultManager.processor(targets, values, data);
+        processorManager.processor(targets, values, data);
     }
 
     function testProcessorRevertsWhenTotalSupplyDeltaExceeded() public {
@@ -557,7 +555,7 @@ contract VaultManagerUnitTest is Test {
         vault.setHooks(address(mintHook));
 
         vm.prank(admin);
-        vaultManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
+        processorManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
@@ -566,17 +564,19 @@ contract VaultManagerUnitTest is Test {
         data[0] = abi.encodeWithSignature("ping(uint256)", 1);
 
         vm.prank(processorRole);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.TotalSupplyDeltaExceeded.selector, 100 ether, 107 ether));
-        vaultManager.processor(targets, values, data);
+        vm.expectRevert(
+            abi.encodeWithSelector(ProcessorManager.TotalSupplyDeltaExceeded.selector, 100 ether, 107 ether)
+        );
+        processorManager.processor(targets, values, data);
     }
 
     function testProcessorAllowsConfiguredDeltaForAssetsAndSupply() public {
         _depositWethIntoVault(alice, 100 ether);
 
         vm.prank(admin);
-        vaultManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
+        processorManager.setMaxProcessorBaseAssetsDeltaRatio(0.05e18);
         vm.prank(admin);
-        vaultManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
+        processorManager.setMaxProcessorSupplyDeltaRatio(0.05e18);
 
         address[] memory targets = new address[](1);
         uint256[] memory values = new uint256[](1);
@@ -585,7 +585,7 @@ contract VaultManagerUnitTest is Test {
         data[0] = abi.encodeWithSignature("transfer(address,uint256)", sink, 5 ether);
 
         vm.prank(processorRole);
-        bytes[] memory results = vaultManager.processor(targets, values, data);
+        bytes[] memory results = processorManager.processor(targets, values, data);
 
         assertEq(vault.totalBaseAssets(), 95 ether);
         assertEq(vault.totalAssets(), 95 ether);
@@ -738,12 +738,18 @@ contract VaultManagerUnitTest is Test {
                 assetDeleterRole,
                 assetWithdrawerRole,
                 totalAssetsModeManagerRole,
-                hooksManagerRole,
-                processorRole
+                hooksManagerRole
             )
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), admin, initData);
         manager = VaultManager(address(proxy));
+    }
+
+    function _deployProcessorManager(address vault_) internal returns (ProcessorManager manager) {
+        ProcessorManager implementation = new ProcessorManager();
+        bytes memory initData = abi.encodeCall(ProcessorManager.initialize, (vault_, admin, processorRole));
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), admin, initData);
+        manager = ProcessorManager(address(proxy));
     }
 
     function _setProviderRates(LocalProvider provider_) internal {
@@ -844,18 +850,7 @@ contract VaultManagerStrategyUnitTest is Test {
         VaultManager managerImplementation = new VaultManager();
         bytes memory initData = abi.encodeCall(
             VaultManager.initialize,
-            (
-                address(strategy),
-                admin,
-                admin,
-                admin,
-                assetAdderRole,
-                admin,
-                admin,
-                admin,
-                admin,
-                admin
-            )
+            (address(strategy), admin, admin, admin, assetAdderRole, admin, admin, admin, admin)
         );
         TransparentUpgradeableProxy proxy =
             new TransparentUpgradeableProxy(address(managerImplementation), admin, initData);

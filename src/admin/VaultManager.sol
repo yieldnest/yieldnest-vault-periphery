@@ -6,8 +6,9 @@ import {IERC4626} from "lib/openzeppelin-contracts/contracts/interfaces/IERC4626
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IStrategy} from "lib/yieldnest-vault/src/interface/IStrategy.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import {AccessControlUpgradeable} from
-    "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import {
+    AccessControlUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 
 interface IAlwaysComputeTotalAssetsVault {
     function setAlwaysComputeTotalAssets(bool alwaysComputeTotalAssets_) external;
@@ -31,14 +32,10 @@ interface IStrategyVersioned {
 contract VaultManager is Initializable, AccessControlUpgradeable {
     //// CONSTANTS ////
 
-    uint256 public constant RATIO_DENOMINATOR = 1e18;
-
     /// @custom:storage-location erc7201:yieldnest.storage.VaultManager
     struct VaultManagerStorage {
         IVault vault;
         bool isStrategyManaged;
-        uint256 maxProcessorBaseAssetsDeltaRatio;
-        uint256 maxProcessorSupplyDeltaRatio;
     }
 
     //// ERRORS ////
@@ -63,14 +60,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     error LengthMismatch();
     /// @notice Thrown when an asset appears more than once in a batch.
     error DuplicateAsset(address asset);
-    /// @notice Thrown when the processor changes total assets by more than the configured ratio.
-    error TotalAssetsDeltaExceeded(uint256 beforeTotalAssets, uint256 afterTotalAssets);
-    /// @notice Thrown when the processor changes total base assets by more than the configured ratio.
-    error TotalBaseAssetsDeltaExceeded(uint256 beforeTotalBaseAssets, uint256 afterTotalBaseAssets);
-    /// @notice Thrown when the processor changes total supply by more than the configured ratio.
-    error TotalSupplyDeltaExceeded(uint256 beforeTotalSupply, uint256 afterTotalSupply);
-    /// @notice Thrown when a configured ratio exceeds the allowed denominator.
-    error RatioTooHigh(uint256 ratio);
     /// @notice Thrown when hooks must be disabled for the requested operation.
     error HooksMustBeDisabled();
     /// @notice Thrown when alwaysComputeTotalAssets must be disabled for the requested operation.
@@ -79,11 +68,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     error NoOp();
     /// @notice Thrown when a strategy-only operation is attempted on a non-strategy managed contract.
     error ManagedContractNotStrategy(address managedContract);
-
-    //// EVENTS ////
-
-    event ProcessorMaxBaseAssetsDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
-    event ProcessorMaxSupplyDeltaRatioSet(uint256 oldRatio, uint256 newRatio);
 
     //// ROLES ////
 
@@ -101,12 +85,12 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
     bytes32 public constant TOTAL_ASSETS_MODE_MANAGER_ROLE = keccak256("TOTAL_ASSETS_MODE_MANAGER_ROLE");
     /// @notice Role identifier for hooks managers.
     bytes32 public constant HOOKS_MANAGER_ROLE = keccak256("HOOKS_MANAGER_ROLE");
-    /// @notice Role identifier for processor executors.
-    bytes32 public constant PROCESSOR_ROLE = keccak256("PROCESSOR_ROLE");
 
     //// INITIALIZER ////
 
-    /** @custom:oz-upgrades-unsafe-allow constructor */
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
@@ -126,14 +110,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         return _getVaultManagerStorage().isStrategyManaged;
     }
 
-    function maxProcessorBaseAssetsDeltaRatio() public view returns (uint256) {
-        return _getVaultManagerStorage().maxProcessorBaseAssetsDeltaRatio;
-    }
-
-    function maxProcessorSupplyDeltaRatio() public view returns (uint256) {
-        return _getVaultManagerStorage().maxProcessorSupplyDeltaRatio;
-    }
-
     /**
      * @notice Initializes the VaultManager contract.
      * @param _vault The address of the vault contract.
@@ -145,7 +121,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
      * @param assetWithdrawer The address to be granted ASSET_WITHDRAWER_ROLE.
      * @param totalAssetsModeManager The address to be granted TOTAL_ASSETS_MODE_MANAGER_ROLE.
      * @param hooksManager The address to be granted HOOKS_MANAGER_ROLE.
-     * @param processorManager The address to be granted PROCESSOR_ROLE.
      */
     function initialize(
         address _vault,
@@ -156,8 +131,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         address assetDeleter,
         address assetWithdrawer,
         address totalAssetsModeManager,
-        address hooksManager,
-        address processorManager
+        address hooksManager
     ) external initializer {
         __AccessControl_init();
 
@@ -170,10 +144,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
             assetDeleter,
             assetWithdrawer,
             totalAssetsModeManager,
-            hooksManager,
-            processorManager
+            hooksManager
         );
-        _setDefaultProcessorRatios();
     }
 
     //// BUFFER ////
@@ -197,8 +169,7 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         address assetDeleter,
         address assetWithdrawer,
         address totalAssetsModeManager,
-        address hooksManager,
-        address processorManager
+        address hooksManager
     ) internal {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(BUFFER_MANAGER_ROLE, bufferManager);
@@ -208,13 +179,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         _grantRole(ASSET_WITHDRAWER_ROLE, assetWithdrawer);
         _grantRole(TOTAL_ASSETS_MODE_MANAGER_ROLE, totalAssetsModeManager);
         _grantRole(HOOKS_MANAGER_ROLE, hooksManager);
-        _grantRole(PROCESSOR_ROLE, processorManager);
-    }
-
-    function _setDefaultProcessorRatios() internal {
-        VaultManagerStorage storage $ = _getVaultManagerStorage();
-        $.maxProcessorBaseAssetsDeltaRatio = RATIO_DENOMINATOR;
-        $.maxProcessorSupplyDeltaRatio = RATIO_DENOMINATOR;
     }
 
     /**
@@ -239,7 +203,8 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         // Check that _buffer is a valid ERC4626 asset for the vault
         if (!_erc4626AssetMatchesVaultAsset(_buffer)) revert ERC4626AssetMismatch(_buffer);
 
-        try IStrategy(_buffer).maxWithdraw(address(vault())) returns (uint256) {} catch {
+        try IStrategy(_buffer).maxWithdraw(address(vault())) returns (uint256) {}
+        catch {
             revert BufferMaxWithdrawCheckFailed(_buffer);
         }
 
@@ -396,7 +361,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         uint256[] memory indexes = new uint256[](_assets.length);
         address currentBuffer = vault().buffer();
 
-
         for (uint256 i = 0; i < _assets.length; ++i) {
             address asset = _assets[i];
 
@@ -432,67 +396,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
 
         // No need to call processAccounting again since storage value doesn't actually change,
         // assuming there was no revert condition.
-    }
-
-    //// PROCESSOR ////
-
-    /**
-     * @notice Execute a batch of processor calls on the vault.
-     * @dev In cached-accounting mode, syncs accounting before and after execution.
-     * @param _targets The target addresses for each call.
-     * @param _values The ETH values to send with each call.
-     * @param _data The calldata payload for each call.
-     * @return results The return data for each processor call.
-     */
-    function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
-        public
-        onlyRole(PROCESSOR_ROLE)
-        returns (bytes[] memory results)
-    {
-        if (_targets.length != _values.length || _targets.length != _data.length) revert LengthMismatch();
-
-        if (!vault().alwaysComputeTotalAssets()) {
-            vault().processAccounting();
-        }
-
-        uint256 beforeTotalBaseAssets = vault().totalBaseAssets();
-        uint256 beforeTotalSupply = vault().totalSupply();
-
-        results = vault().processor(_targets, _values, _data);
-
-        // trigger recomputation since deltas are very likely
-        if (!vault().alwaysComputeTotalAssets()) {
-            vault().processAccounting();
-        }
-
-        uint256 afterTotalBaseAssets = vault().totalBaseAssets();
-        uint256 afterTotalSupply = vault().totalSupply();
-
-        if (_ratioDelta(beforeTotalBaseAssets, afterTotalBaseAssets) > maxProcessorBaseAssetsDeltaRatio()) {
-            revert TotalBaseAssetsDeltaExceeded(beforeTotalBaseAssets, afterTotalBaseAssets);
-        }
-
-        if (_ratioDelta(beforeTotalSupply, afterTotalSupply) > maxProcessorSupplyDeltaRatio()) {
-            revert TotalSupplyDeltaExceeded(beforeTotalSupply, afterTotalSupply);
-        }
-
-        // No need to call processAccounting again since storage value doesn't actually change,
-        // assuming there was no revert condition.
-    }
-
-    /**
-     * @notice Compute the absolute percentage delta between two values.
-     * @param beforeValue The baseline value before a change.
-     * @param afterValue The value after a change.
-     * @return The absolute delta scaled by `RATIO_DENOMINATOR`.
-     */
-    function _ratioDelta(uint256 beforeValue, uint256 afterValue) internal pure returns (uint256) {
-        if (beforeValue == afterValue) return 0;
-
-        uint256 delta = beforeValue > afterValue ? beforeValue - afterValue : afterValue - beforeValue;
-        uint256 baseline = beforeValue == 0 ? 1 : beforeValue;
-
-        return (delta * RATIO_DENOMINATOR) / baseline;
     }
 
     //// ALWAYS COMPUTE TOTAL ASSETS ////
@@ -557,40 +460,6 @@ contract VaultManager is Initializable, AccessControlUpgradeable {
         if (beforeTotalSupply != afterTotalSupply) {
             revert TotalSupplyMismatch(beforeTotalSupply, afterTotalSupply);
         }
-    }
-
-    //// CONFIGURATION ////
-
-    /**
-     * @notice Set the maximum allowed processor base-assets delta ratio.
-     * @param _maxProcessorBaseAssetsDeltaRatio The new base-assets delta ratio scaled by `RATIO_DENOMINATOR`.
-     */
-    function setMaxProcessorBaseAssetsDeltaRatio(uint256 _maxProcessorBaseAssetsDeltaRatio)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (_maxProcessorBaseAssetsDeltaRatio > RATIO_DENOMINATOR) {
-            revert RatioTooHigh(_maxProcessorBaseAssetsDeltaRatio);
-        }
-
-        emit ProcessorMaxBaseAssetsDeltaRatioSet(
-            maxProcessorBaseAssetsDeltaRatio(), _maxProcessorBaseAssetsDeltaRatio
-        );
-        _getVaultManagerStorage().maxProcessorBaseAssetsDeltaRatio = _maxProcessorBaseAssetsDeltaRatio;
-    }
-
-    /**
-     * @notice Set the maximum allowed processor supply delta ratio.
-     * @param _maxProcessorSupplyDeltaRatio The new supply delta ratio scaled by `RATIO_DENOMINATOR`.
-     */
-    function setMaxProcessorSupplyDeltaRatio(uint256 _maxProcessorSupplyDeltaRatio)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (_maxProcessorSupplyDeltaRatio > RATIO_DENOMINATOR) revert RatioTooHigh(_maxProcessorSupplyDeltaRatio);
-
-        emit ProcessorMaxSupplyDeltaRatioSet(maxProcessorSupplyDeltaRatio(), _maxProcessorSupplyDeltaRatio);
-        _getVaultManagerStorage().maxProcessorSupplyDeltaRatio = _maxProcessorSupplyDeltaRatio;
     }
 
     /**

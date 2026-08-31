@@ -96,17 +96,23 @@ contract PauserHookTest is Test {
         hook.beforeDeposit(_depositParams());
     }
 
-    function testNoOpPauseAndUnpauseRevert() public {
+    function testPauseAndUnpauseAreIdempotent() public {
         vm.startPrank(pauser);
         hook.pause(PauserHook.HookCall.Deposit);
-        vm.expectRevert(PauserHook.NoOp.selector);
+
+        vm.expectEmit(true, false, false, true, address(hook));
+        emit PauserHook.AlreadyPaused(PauserHook.HookCall.Deposit);
         hook.pause(PauserHook.HookCall.Deposit);
+        assertTrue(hook.paused(PauserHook.HookCall.Deposit));
         vm.stopPrank();
 
         vm.startPrank(unpauser);
         hook.unpause(PauserHook.HookCall.Deposit);
-        vm.expectRevert(PauserHook.NoOp.selector);
+
+        vm.expectEmit(true, false, false, true, address(hook));
+        emit PauserHook.AlreadyUnpaused(PauserHook.HookCall.Deposit);
         hook.unpause(PauserHook.HookCall.Deposit);
+        assertFalse(hook.paused(PauserHook.HookCall.Deposit));
         vm.stopPrank();
     }
 

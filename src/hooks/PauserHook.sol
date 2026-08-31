@@ -20,11 +20,12 @@ contract PauserHook is IHooks, AccessControl {
 
     error OnlyVault();
     error Paused(HookCall hookCall);
-    error NoOp();
     error NotSupported();
 
     event HookCallPaused(HookCall indexed hookCall);
     event HookCallUnpaused(HookCall indexed hookCall);
+    event AlreadyPaused(HookCall indexed hookCall);
+    event AlreadyUnpaused(HookCall indexed hookCall);
 
     IVault public immutable override VAULT;
 
@@ -52,13 +53,21 @@ contract PauserHook is IHooks, AccessControl {
     }
 
     function pause(HookCall hookCall) external onlyRole(PAUSER_ROLE) {
-        if (paused[hookCall]) revert NoOp();
+        if (paused[hookCall]) {
+            emit AlreadyPaused(hookCall);
+            return;
+        }
+
         paused[hookCall] = true;
         emit HookCallPaused(hookCall);
     }
 
     function unpause(HookCall hookCall) external onlyRole(UNPAUSER_ROLE) {
-        if (!paused[hookCall]) revert NoOp();
+        if (!paused[hookCall]) {
+            emit AlreadyUnpaused(hookCall);
+            return;
+        }
+
         paused[hookCall] = false;
         emit HookCallUnpaused(hookCall);
     }

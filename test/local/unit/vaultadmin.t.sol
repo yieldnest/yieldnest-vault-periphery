@@ -45,63 +45,63 @@ contract VaultMock is IVaultMock {
     }
 }
 
-contract ERC4626Mock {
-    address public asset_;
+    contract ERC4626Mock {
+        address public asset_;
 
-    constructor(address _asset) {
-        asset_ = _asset;
+        constructor(address _asset) {
+            asset_ = _asset;
+        }
+
+        function asset() external view returns (address) {
+            return asset_;
+        }
     }
 
-    function asset() external view returns (address) {
-        return asset_;
+    contract VaultManagerUnitTest is Test {
+        VaultManager vaultManager;
+        VaultMock vault;
+        address admin = address(0xA1);
+        address bufferAdminRole = address(0xB1);
+
+        address asset1 = address(0x1001);
+        address asset2 = address(0x1002);
+
+        ERC4626Mock erc4626_1;
+        ERC4626Mock erc4626_2;
+
+        function setUp() public {
+            vault = new VaultMock();
+            vault.setAssetAddress(asset1);
+
+            // Set up ERC4626 mocks with correct asset
+            erc4626_1 = new ERC4626Mock(asset1);
+            erc4626_2 = new ERC4626Mock(asset1);
+
+            // Set up vault assets
+            vault.setAsset(address(erc4626_1), 18);
+            vault.setAsset(address(erc4626_2), 18);
+
+            vaultManager = new VaultManager(address(vault), admin, bufferAdminRole, admin);
+        }
+
+        function testSetCurrentBuffer() public {
+            vm.startPrank(bufferAdminRole);
+
+            // Valid buffer
+            vaultManager.setCurrentBuffer(address(erc4626_1));
+            assertEq(vault.currentBuffer(), address(erc4626_1), "currentBuffer should be set to erc4626_1");
+
+            // Revert if not vault asset
+            address nonAsset = address(0xbeef331);
+            vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, nonAsset));
+            vaultManager.setCurrentBuffer(nonAsset);
+
+            // Revert if ERC4626 asset mismatch
+            ERC4626Mock wrongERC4626 = new ERC4626Mock(asset2);
+            vault.setAsset(address(wrongERC4626), 18);
+            vm.expectRevert(abi.encodeWithSelector(VaultManager.ERC4626AssetMismatch.selector, address(wrongERC4626)));
+            vaultManager.setCurrentBuffer(address(wrongERC4626));
+
+            vm.stopPrank();
+        }
     }
-}
-
-contract VaultManagerUnitTest is Test {
-    VaultManager vaultManager;
-    VaultMock vault;
-    address admin = address(0xA1);
-    address bufferAdminRole = address(0xB1);
-
-    address asset1 = address(0x1001);
-    address asset2 = address(0x1002);
-
-    ERC4626Mock erc4626_1;
-    ERC4626Mock erc4626_2;
-
-    function setUp() public {
-        vault = new VaultMock();
-        vault.setAssetAddress(asset1);
-
-        // Set up ERC4626 mocks with correct asset
-        erc4626_1 = new ERC4626Mock(asset1);
-        erc4626_2 = new ERC4626Mock(asset1);
-
-        // Set up vault assets
-        vault.setAsset(address(erc4626_1), 18);
-        vault.setAsset(address(erc4626_2), 18);
-
-        vaultManager = new VaultManager(address(vault), admin, bufferAdminRole, admin);
-    }
-
-    function testSetCurrentBuffer() public {
-        vm.startPrank(bufferAdminRole);
-
-        // Valid buffer
-        vaultManager.setCurrentBuffer(address(erc4626_1));
-        assertEq(vault.currentBuffer(), address(erc4626_1), "currentBuffer should be set to erc4626_1");
-
-        // Revert if not vault asset
-        address nonAsset = address(0xbeef331);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.NotVaultAsset.selector, nonAsset));
-        vaultManager.setCurrentBuffer(nonAsset);
-
-        // Revert if ERC4626 asset mismatch
-        ERC4626Mock wrongERC4626 = new ERC4626Mock(asset2);
-        vault.setAsset(address(wrongERC4626), 18);
-        vm.expectRevert(abi.encodeWithSelector(VaultManager.ERC4626AssetMismatch.selector, address(wrongERC4626)));
-        vaultManager.setCurrentBuffer(address(wrongERC4626));
-
-        vm.stopPrank();
-    }
-}

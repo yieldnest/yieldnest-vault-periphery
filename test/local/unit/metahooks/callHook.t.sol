@@ -44,12 +44,7 @@ contract MetaHooksTest is Test {
 
         // Test beforeDeposit
         IHooks.DepositParams memory depositParams = IHooks.DepositParams({
-            asset: address(0xDEAD),
-            assets: 1,
-            caller: address(this),
-            receiver: address(this),
-            shares: 1,
-            baseAssets: 1
+            asset: address(0xDEAD), assets: 1, caller: address(this), receiver: address(this), shares: 1, baseAssets: 1
         });
         vm.expectRevert(IHooks.CallerNotVault.selector);
         metaHooks.beforeDeposit(depositParams);
@@ -70,12 +65,7 @@ contract MetaHooksTest is Test {
 
         // Test beforeMint
         IHooks.MintParams memory mintParams = IHooks.MintParams({
-            asset: address(0xDEAD),
-            shares: 1,
-            caller: address(this),
-            receiver: address(this),
-            assets: 1,
-            baseAssets: 1
+            asset: address(0xDEAD), shares: 1, caller: address(this), receiver: address(this), assets: 1, baseAssets: 1
         });
         vm.expectRevert(IHooks.CallerNotVault.selector);
         metaHooks.beforeMint(mintParams);
@@ -148,9 +138,7 @@ contract MetaHooksTest is Test {
 
         // Test beforeProcessAccounting
         IHooks.BeforeProcessAccountingParams memory beforeAccountingParams = IHooks.BeforeProcessAccountingParams({
-            totalAssetsBeforeAccounting: 1,
-            totalSupplyBeforeAccounting: 1,
-            totalBaseAssetsBeforeAccounting: 1
+            totalAssetsBeforeAccounting: 1, totalSupplyBeforeAccounting: 1, totalBaseAssetsBeforeAccounting: 1
         });
         vm.expectRevert(IHooks.CallerNotVault.selector);
         metaHooks.beforeProcessAccounting(beforeAccountingParams);

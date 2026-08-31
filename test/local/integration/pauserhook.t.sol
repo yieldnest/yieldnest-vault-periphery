@@ -82,6 +82,36 @@ contract PauserHookIntegrationTest is BaseIntegrationTest {
         vault.processAccounting();
     }
 
+    function test_vault_works_with_pauserHook_as_only_hook() public {
+        assertEq(address(vault.hooks()), address(metaHooks));
+        assertEq(metaHooks.hooksLength(), 1);
+        assertEq(address(metaHooks.hooks(0)), address(pauserHook));
+
+        uint256 depositShares = _deposit(depositor, 4 ether);
+        uint256 mintShares = _mint(depositor, 1 ether);
+        ProcessorUtils.allocateToBuffer(vault, 3 ether, PROCESSOR);
+
+        vault.processAccounting();
+
+        _pause(PauserHook.HookCall.Withdraw);
+
+        vm.startPrank(depositor);
+        _expectPaused(PauserHook.HookCall.Withdraw);
+        vault.withdraw(1 ether, depositor, depositor);
+        vm.stopPrank();
+
+        vm.prank(UNPAUSER);
+        pauserHook.unpause(PauserHook.HookCall.Withdraw);
+
+        vm.startPrank(depositor);
+        uint256 withdrawnShares = vault.withdraw(1 ether, depositor, depositor);
+        uint256 redeemedAssets = vault.redeem(1 ether, depositor, depositor);
+        vm.stopPrank();
+
+        assertEq(vault.balanceOf(depositor), depositShares + mintShares - withdrawnShares - 1 ether);
+        assertEq(IERC20(vault.asset()).balanceOf(depositor), 1 ether + redeemedAssets);
+    }
+
     function test_deposit_succeeds_after_unpause() public {
         _pause(PauserHook.HookCall.Deposit);
 
@@ -117,6 +147,15 @@ contract PauserHookIntegrationTest is BaseIntegrationTest {
         vm.startPrank(user);
         IERC20(vault.asset()).approve(address(vault), amount);
         shares = vault.deposit(amount, user);
+        vm.stopPrank();
+    }
+
+    function _mint(address user, uint256 shares) internal returns (uint256 assets) {
+        deal(vault.asset(), user, shares);
+
+        vm.startPrank(user);
+        IERC20(vault.asset()).approve(address(vault), shares);
+        assets = vault.mint(shares, user);
         vm.stopPrank();
     }
 }

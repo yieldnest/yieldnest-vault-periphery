@@ -10,8 +10,9 @@ contract DeployPauserHook is Script {
     MainnetActors public actors;
     PauserHook public pauserHook;
 
-    function run(address vault_) public virtual {
+    function run() public virtual {
         actors = new MainnetActors();
+        address vault_ = vm.promptAddress("Vault");
 
         vm.startBroadcast();
 

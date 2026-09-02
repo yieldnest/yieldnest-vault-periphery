@@ -150,7 +150,6 @@ contract VaultManager is AccessControl {
      * @param _index The index of the asset to delete.
      */
     function deleteAsset(uint256 _index) public onlyRole(MODULE_MANAGER_ROLE) {
-
         /*
           Improvements:
           Check asset is not the buffer.
@@ -160,7 +159,7 @@ contract VaultManager is AccessControl {
           Make it handle addresses and not indexes.
 
           Check for duplicates.
-          
+
           it then sorts them so that it
           deletes starting with the last and finishes with the first to account for changing indexes.
 
@@ -183,7 +182,10 @@ contract VaultManager is AccessControl {
         }
     }
 
-    function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data) public onlyRole(PROCESSOR_ROLE) {
+    function processor(address[] memory _targets, uint256[] memory _values, bytes[] memory _data)
+        public
+        onlyRole(PROCESSOR_ROLE)
+    {
         /*
         Improvements:
         ALWAYS execute processAccounting after.
@@ -192,7 +194,7 @@ contract VaultManager is AccessControl {
         each transaction can only alter the balances of a defined set of assets and not others.
         if anything other than the define side effects happens, revert.
 
-        
+
         */
         vault.processor(_targets, _values, _data);
     }
